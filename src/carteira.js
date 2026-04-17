@@ -7,7 +7,7 @@ import {
   signInWithRedirect
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { Wallet } from 'ethers'
+import { JsonRpcProvider, Wallet, formatEther } from 'ethers'
 
 const app = document.querySelector('#app')
 
@@ -24,6 +24,8 @@ const walletState = {
 let currentGoogleUser = null
 let currentWalletAddress = ''
 
+const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || 'https://polygon.drpc.org'
+
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
 
@@ -35,6 +37,44 @@ function formatAmount(value = '0', symbol = '') {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6
   })} ${symbol}`.trim()
+}
+
+function updatePolygonBalanceUI(value = '0') {
+  walletState.polBalance = value
+
+  const mainBalanceValue = document.querySelector('.wallet-balance-value')
+  if (mainBalanceValue) {
+    mainBalanceValue.innerHTML = `
+      ${Number(value || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6
+      })}
+      <span class="wallet-balance-symbol">POL</span>
+    `
+  }
+
+  const polBalanceStrong = document.querySelector(
+    '.wallet-token-list .wallet-token-card:first-child .wallet-token-balance strong'
+  )
+
+  if (polBalanceStrong) {
+    polBalanceStrong.textContent = formatAmount(value, 'POL')
+  }
+}
+
+async function loadPolygonBalance(walletAddress) {
+  try {
+    if (!walletAddress) return
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const balanceWei = await provider.getBalance(walletAddress)
+    const balanceFormatted = formatEther(balanceWei)
+
+    updatePolygonBalanceUI(balanceFormatted)
+  } catch (error) {
+    console.error('Erro ao carregar saldo POL:', error)
+    updatePolygonBalanceUI('0')
+  }
 }
 
 function handleWalletAction(action) {
@@ -335,6 +375,7 @@ async function initFirebaseAuthGate() {
 
         try {
           await ensureUserWalletProfile(user)
+          await loadPolygonBalance(currentWalletAddress)
         } catch (error) {
           console.error('Erro ao preparar carteira do usuário:', error)
           alert(error?.message || 'Não foi possível preparar sua carteira.')
