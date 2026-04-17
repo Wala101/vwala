@@ -103,10 +103,9 @@ app.innerHTML = `
       </div>
 
       <aside id="sidebar" class="side-menu">
-        <a href="https://walat.netlify.app">Wala-token</a>
+       <a href="/carteira">Carteira</a>
         <a href="/futebol">Futebol</a>
 <a href="/futuros">Futures</a>
-<a href="/claim">Claim vWALA</a>
 <a href="/posicoes">H/Futebol</a>
 <a href="/historico">H/Futures</a>
       </aside>
