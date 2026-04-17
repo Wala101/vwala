@@ -103,7 +103,7 @@ app.innerHTML = `
       </div>
 
       <aside id="sidebar" class="side-menu">
-       <a href="/carteira">Carteira</a>
+       <a href="/carteira.html">Carteira</a>
         <a href="/futebol">Futebol</a>
 <a href="/futuros">Futures</a>
 <a href="/posicoes">H/Futebol</a>
@@ -213,7 +213,7 @@ app.innerHTML = `
             <small>Previsões futuras</small>
           </a>
 
-          <a class="shortcut-card" href="/carteira">
+          <a class="shortcut-card" href="/carteira.html">
   <span class="shortcut-icon">👛</span>
   <strong>Carteira</strong>
   <small>Saldo e ações internas</small>
