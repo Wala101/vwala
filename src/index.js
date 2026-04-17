@@ -1,5 +1,14 @@
 
 
+import { auth, googleProvider } from './firebase'
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithPopup,
+  signOut
+} from 'firebase/auth'
+
 const app = document.querySelector('#app')
 
 if (!app) {
