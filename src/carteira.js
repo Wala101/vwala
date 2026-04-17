@@ -100,61 +100,63 @@ app.innerHTML = `
       </section>
 
       <section class="wallet-actions">
-        <button class="wallet-action" data-action="enviar" type="button">
-          <span class="wallet-action-icon">📤</span>
-          <span class="wallet-action-label">Enviar</span>
-        </button>
+  <button class="wallet-action" data-action="enviar" type="button">
+    <span class="wallet-action-icon">↗</span>
+    <span class="wallet-action-label">Enviar</span>
+  </button>
 
-        <button class="wallet-action" data-action="receber" type="button">
-          <span class="wallet-action-icon">📥</span>
-          <span class="wallet-action-label">Receber</span>
-        </button>
+  <button class="wallet-action" data-action="receber" type="button">
+    <span class="wallet-action-icon">↙</span>
+    <span class="wallet-action-label">Receber</span>
+  </button>
 
-        <button class="wallet-action" data-action="swap" type="button">
-          <span class="wallet-action-icon">🔁</span>
-          <span class="wallet-action-label">Swap</span>
-        </button>
-      </section>
+  <button class="wallet-action" data-action="swap" type="button">
+    <span class="wallet-action-icon">⇄</span>
+    <span class="wallet-action-label">Swap</span>
+  </button>
+</section>
 
       <section class="wallet-tabs">
-        <button class="wallet-tab active" type="button">Tokens</button>
-        <button class="wallet-tab" type="button">Autores</button>
-        <button class="wallet-tab" type="button">Colecionáveis</button>
-      </section>
+  <button class="wallet-tab active" type="button">Tokens</button>
+</section>
 
       <section class="wallet-token-list">
-        <div class="wallet-token-card">
-          <div class="wallet-token-left">
-            <div class="wallet-token-icon pol">P</div>
-            <div class="wallet-token-info">
-              <div class="wallet-token-name">Polygon</div>
-              <div class="wallet-token-symbol">POL</div>
-            </div>
-          </div>
+  <div class="wallet-token-card">
+    <div class="wallet-token-left">
+      <div class="wallet-token-icon pol">
+        <img src="/public/polygon-MATIC.webp" alt="Polygon" />
+      </div>
+      <div class="wallet-token-info">
+        <div class="wallet-token-name">Polygon</div>
+        <div class="wallet-token-symbol">POL</div>
+      </div>
+    </div>
 
-          <div class="wallet-token-balance">
-            <strong>${formatAmount(walletState.polBalance, 'POL')}</strong>
-            <small>Saldo principal</small>
-          </div>
-        </div>
+    <div class="wallet-token-balance">
+      <strong>${formatAmount(walletState.polBalance, 'POL')}</strong>
+      <small>Saldo principal</small>
+    </div>
+  </div>
 
-        <div class="wallet-token-card">
-          <div class="wallet-token-left">
-            <div class="wallet-token-icon vwala">V</div>
-            <div class="wallet-token-info">
-              <div class="wallet-token-name">vWALA</div>
-              <div class="wallet-token-symbol">vWALA</div>
-            </div>
-          </div>
+  <div class="wallet-token-card">
+    <div class="wallet-token-left">
+      <div class="wallet-token-icon vwala">
+        <img src="/public/logo.png" alt="vWALA" />
+      </div>
+      <div class="wallet-token-info">
+        <div class="wallet-token-name">vWALA</div>
+        <div class="wallet-token-symbol">vWALA</div>
+      </div>
+    </div>
 
-          <div class="wallet-token-balance">
-            <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
-            <small>Token da plataforma</small>
-          </div>
-        </div>
+    <div class="wallet-token-balance">
+      <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
+      <small>Token da plataforma</small>
+    </div>
+  </div>
 
-        ${renderUserTokens()}
-      </section>
+  ${renderUserTokens()}
+</section>
     </div>
   </div>
 `
