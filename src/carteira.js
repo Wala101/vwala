@@ -5,12 +5,12 @@ if (!app) {
 }
 
 const walletState = {
-  polBalance: '0.000000',
-  vwalaBalance: '0.000000',
-  userTokens: [],
+  polBalance: '12.85',
+  vwalaBalance: '0.00',
+  userTokens: []
 }
 
-function formatAmount(value = '0.000000', symbol = '') {
+function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
 
   if (!Number.isFinite(num)) {
@@ -18,271 +18,151 @@ function formatAmount(value = '0.000000', symbol = '') {
   }
 
   return `${num.toLocaleString('pt-BR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6
   })} ${symbol}`.trim()
 }
 
-function goTo(path) {
-  if (!path) return
-  window.location.href = path
-}
-
-function openSidebar() {
-  const sidebar = document.getElementById('sidebar')
-  const sidebarOverlay = document.getElementById('sidebarOverlay')
-  if (sidebar) sidebar.style.right = '0'
-  if (sidebarOverlay) sidebarOverlay.classList.add('active')
-}
-
-function closeSidebar() {
-  const sidebar = document.getElementById('sidebar')
-  const sidebarOverlay = document.getElementById('sidebarOverlay')
-  if (sidebar) sidebar.style.right = '-280px'
-  if (sidebarOverlay) sidebarOverlay.classList.remove('active')
-}
-
-function openWalletMenu() {
-  const walletMenu = document.getElementById('walletMenu')
-  const walletOverlay = document.getElementById('walletOverlay')
-  if (walletMenu) walletMenu.style.right = '0'
-  if (walletOverlay) walletOverlay.classList.add('active')
-}
-
-function closeWalletMenu() {
-  const walletMenu = document.getElementById('walletMenu')
-  const walletOverlay = document.getElementById('walletOverlay')
-  if (walletMenu) walletMenu.style.right = '-280px'
-  if (walletOverlay) walletOverlay.classList.remove('active')
-}
-
-function renderUserTokens() {
-  const container = document.getElementById('userTokensList')
-  if (!container) return
-
-  if (!walletState.userTokens.length) {
-    container.innerHTML = `
-      <article class="feature-card">
-        <div class="feature-card-top">
-          <span class="feature-badge">🧾</span>
-          <span class="feature-chip">Vazio</span>
-        </div>
-
-        <h3>Nenhum token criado ainda</h3>
-        <p>
-          Quando o usuário criar tokens dentro da plataforma, eles aparecerão aqui
-          abaixo do POL e do vWALA.
-        </p>
-
-        <div class="feature-card-footer">
-          <span>Status</span>
-          <strong>Aguardando criação</strong>
-        </div>
-      </article>
-    `
+function handleWalletAction(action) {
+  if (action === 'enviar') {
+    alert('A função Enviar será ligada à carteira interna.')
     return
   }
 
-  container.innerHTML = walletState.userTokens
+  if (action === 'receber') {
+    alert('A função Receber mostrará o endereço interno da carteira.')
+    return
+  }
+
+  if (action === 'swap') {
+    alert('O swap interno 1 POL = 1 vWALA será ligado ao sistema.')
+  }
+}
+
+function renderUserTokens() {
+  if (!walletState.userTokens.length) {
+    return `
+      <div class="wallet-empty">
+        Nenhum token criado pelo usuário ainda.
+      </div>
+    `
+  }
+
+  return walletState.userTokens
     .map((token) => {
       return `
-        <article class="feature-card">
-          <div class="feature-card-top">
-            <span class="feature-badge">🪙</span>
-            <span class="feature-chip">Token do usuário</span>
+        <div class="wallet-token-card">
+          <div class="wallet-token-left">
+            <div class="wallet-token-icon user">T</div>
+            <div class="wallet-token-info">
+              <div class="wallet-token-name">${token.name}</div>
+              <div class="wallet-token-symbol">${token.symbol}</div>
+            </div>
           </div>
 
-          <h3>${token.name}</h3>
-          <p>${formatAmount(token.balance, token.symbol)}</p>
-
-          <div class="feature-card-footer">
-            <span>Símbolo</span>
-            <strong>${token.symbol}</strong>
+          <div class="wallet-token-balance">
+            <strong>${formatAmount(token.balance, token.symbol)}</strong>
+            <small>Token do usuário</small>
           </div>
-        </article>
+        </div>
       `
     })
     .join('')
 }
 
 app.innerHTML = `
-  <div id="sidebarOverlay" class="overlay"></div>
-  <div id="walletOverlay" class="overlay"></div>
-
-  <div class="page-shell">
-    <div class="app-frame">
-      <header class="topbar">
-        <button class="menu-btn" id="menuBtn" type="button" aria-label="Abrir menu">
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
-
-        <div class="brand-wrap">
-          <div class="brand-badge">W</div>
-          <div class="brand-text">
+  <div class="wallet-page">
+    <div class="wallet-shell">
+      <header class="wallet-topbar">
+        <div class="wallet-brand">
+          <div class="wallet-brand-badge">W</div>
+          <div class="wallet-brand-text">
             <strong>vWALA</strong>
-            <span>Carteira interna</span>
+            <span>Carteira</span>
           </div>
         </div>
 
-        <button id="connectBtn" class="connect" type="button">
-          Carteira do app
-        </button>
+        <div class="wallet-vwala-chip">
+          ${formatAmount(walletState.vwalaBalance, 'vWALA')}
+        </div>
       </header>
 
-      <div id="walletMenu" class="wallet-menu">
-        <a href="./carteira.html">Minha Carteira</a>
-        <a href="javascript:void(0)">Comprar vWALA</a>
-        <a href="javascript:void(0)">Swap interno</a>
-      </div>
+      <section class="wallet-main-card">
+        <div class="wallet-balance-label">Saldo em Polygon</div>
+        <div class="wallet-balance-value">
+          ${Number(walletState.polBalance).toLocaleString('pt-BR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 6
+          })}
+          <span class="wallet-balance-symbol">POL</span>
+        </div>
+        <div class="wallet-network">Polygon Mainnet</div>
+      </section>
 
-      <aside id="sidebar" class="side-menu">
-        <a href="./index.html">Início</a>
-        <a href="./carteira.html">Carteira</a>
-        <a href="javascript:void(0)">Futebol</a>
-        <a href="javascript:void(0)">Futures</a>
-        <a href="javascript:void(0)">Posições</a>
-      </aside>
+      <section class="wallet-actions">
+        <button class="wallet-action" data-action="enviar" type="button">
+          <span class="wallet-action-icon">📤</span>
+          <span class="wallet-action-label">Enviar</span>
+        </button>
 
-      <main class="app-content">
-        <section class="hero-card">
-          <div class="hero-copy">
-            <p class="eyebrow">VWALA · WALLET INTERNA</p>
-            <h1>Carteira própria do ecossistema</h1>
-            <p class="hero-text">
-              Estrutura interna da plataforma, com POL no topo, vWALA abaixo e,
-              depois, os tokens criados pelo usuário dentro do app.
-            </p>
+        <button class="wallet-action" data-action="receber" type="button">
+          <span class="wallet-action-icon">📥</span>
+          <span class="wallet-action-label">Receber</span>
+        </button>
+
+        <button class="wallet-action" data-action="swap" type="button">
+          <span class="wallet-action-icon">🔁</span>
+          <span class="wallet-action-label">Swap</span>
+        </button>
+      </section>
+
+      <section class="wallet-tabs">
+        <button class="wallet-tab active" type="button">Tokens</button>
+        <button class="wallet-tab" type="button">Autores</button>
+        <button class="wallet-tab" type="button">Colecionáveis</button>
+      </section>
+
+      <section class="wallet-token-list">
+        <div class="wallet-token-card">
+          <div class="wallet-token-left">
+            <div class="wallet-token-icon pol">P</div>
+            <div class="wallet-token-info">
+              <div class="wallet-token-name">Polygon</div>
+              <div class="wallet-token-symbol">POL</div>
+            </div>
           </div>
 
-          <div class="hero-stats">
-            <div class="stat-box">
-              <span>Modelo</span>
-              <strong>Interno</strong>
-            </div>
+          <div class="wallet-token-balance">
+            <strong>${formatAmount(walletState.polBalance, 'POL')}</strong>
+            <small>Saldo principal</small>
+          </div>
+        </div>
 
-            <div class="stat-box">
-              <span>Preço base</span>
-              <strong>1 POL = 1 vWALA</strong>
-            </div>
-
-            <div class="stat-box">
-              <span>Rede</span>
-              <strong>Polygon</strong>
+        <div class="wallet-token-card">
+          <div class="wallet-token-left">
+            <div class="wallet-token-icon vwala">V</div>
+            <div class="wallet-token-info">
+              <div class="wallet-token-name">vWALA</div>
+              <div class="wallet-token-symbol">vWALA</div>
             </div>
           </div>
-        </section>
 
-        <section class="section-head">
-          <div>
-            <p class="section-kicker">SALDOS PRINCIPAIS</p>
-            <h2>Ordem da carteira</h2>
+          <div class="wallet-token-balance">
+            <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
+            <small>Token da plataforma</small>
           </div>
-        </section>
+        </div>
 
-        <section class="cards-list">
-          <article class="feature-card">
-            <div class="feature-card-top">
-              <span class="feature-badge">⛽</span>
-              <span class="feature-chip">Topo</span>
-            </div>
-
-            <h3>POL</h3>
-            <p>${formatAmount(walletState.polBalance, 'POL')}</p>
-
-            <div class="feature-card-footer">
-              <span>Função</span>
-              <strong>Saldo base</strong>
-            </div>
-          </article>
-
-          <article class="feature-card">
-            <div class="feature-card-top">
-              <span class="feature-badge">🟢</span>
-              <span class="feature-chip">Token do app</span>
-            </div>
-
-            <h3>vWALA</h3>
-            <p>${formatAmount(walletState.vwalaBalance, 'vWALA')}</p>
-
-            <div class="feature-card-footer">
-              <span>Status</span>
-              <strong>Em criação</strong>
-            </div>
-          </article>
-        </section>
-
-        <section class="section-head">
-          <div>
-            <p class="section-kicker">TOKENS DO USUÁRIO</p>
-            <h2>Criados dentro da plataforma</h2>
-          </div>
-        </section>
-
-        <section id="userTokensList" class="cards-list"></section>
-
-        <section class="section-head">
-          <div>
-            <p class="section-kicker">AÇÕES</p>
-            <h2>Módulos internos</h2>
-          </div>
-        </section>
-
-        <section class="shortcut-grid">
-          <a class="shortcut-card shortcut-card-disabled" href="javascript:void(0)">
-            <span class="shortcut-icon">💱</span>
-            <strong>Comprar vWALA</strong>
-            <small>Fluxo interno do sistema</small>
-          </a>
-
-          <a class="shortcut-card shortcut-card-disabled" href="javascript:void(0)">
-            <span class="shortcut-icon">🔁</span>
-            <strong>Swap interno</strong>
-            <small>Sem pool pública no início</small>
-          </a>
-
-          <a class="shortcut-card shortcut-card-disabled" href="javascript:void(0)">
-            <span class="shortcut-icon">🪙</span>
-            <strong>Criar token</strong>
-            <small>Token próprio do usuário</small>
-          </a>
-
-          <a class="shortcut-card" href="./index.html">
-            <span class="shortcut-icon">🏠</span>
-            <strong>Voltar</strong>
-            <small>Página inicial</small>
-          </a>
-        </section>
-      </main>
+        ${renderUserTokens()}
+      </section>
     </div>
   </div>
 `
 
-renderUserTokens()
+document.querySelectorAll('.wallet-action').forEach((button) => {
+  const action = button.getAttribute('data-action')
 
-const menuBtn = document.getElementById('menuBtn')
-const connectBtn = document.getElementById('connectBtn')
-const sidebarOverlay = document.getElementById('sidebarOverlay')
-const walletOverlay = document.getElementById('walletOverlay')
-
-menuBtn?.addEventListener('click', openSidebar)
-sidebarOverlay?.addEventListener('click', closeSidebar)
-walletOverlay?.addEventListener('click', closeWalletMenu)
-
-connectBtn?.addEventListener('click', () => {
-  openWalletMenu()
-})
-
-document.querySelectorAll('#sidebar a').forEach((link) => {
-  link.addEventListener('click', () => closeSidebar())
-})
-
-document.querySelectorAll('#walletMenu a').forEach((link) => {
-  link.addEventListener('click', () => {
-    const href = link.getAttribute('href') || ''
-    if (href && href !== 'javascript:void(0)') {
-      closeWalletMenu()
-    }
+  button.addEventListener('click', () => {
+    handleWalletAction(action)
   })
 })
