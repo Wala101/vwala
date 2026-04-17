@@ -1,4 +1,4 @@
-import { auth, googleProvider } from './firebase'
+import { auth, db, googleProvider } from './firebase'
 import {
   browserLocalPersistence,
   onAuthStateChanged,
@@ -6,6 +6,8 @@ import {
   signInWithPopup,
   signInWithRedirect
 } from 'firebase/auth'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { Wallet } from 'ethers'
 
 const app = document.querySelector('#app')
 
@@ -135,7 +137,7 @@ app.innerHTML = `
   <div class="wallet-token-card">
     <div class="wallet-token-left">
       <div class="wallet-token-icon pol">
-        <img src="/public/polygon-MATIC.webp" alt="Polygon" />
+        <img src="/polygon-MATIC.webp" alt="Polygon" />
       </div>
       <div class="wallet-token-info">
         <div class="wallet-token-name">Polygon</div>
@@ -152,7 +154,7 @@ app.innerHTML = `
   <div class="wallet-token-card">
     <div class="wallet-token-left">
       <div class="wallet-token-icon vwala">
-        <img src="/public/logo.png" alt="vWALA" />
+        <img src="/logo.png" alt="vWALA" />
       </div>
       <div class="wallet-token-info">
         <div class="wallet-token-name">vWALA</div>
