@@ -39,6 +39,18 @@ function formatAmount(value = '0', symbol = '') {
   })} ${symbol}`.trim()
 }
 
+function formatWalletAddress(address = '') {
+  if (!address) return 'Carteira ainda não criada'
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+function updateWalletAddressUI(address = '') {
+  const walletAddressText = document.getElementById('walletAddressText')
+  if (walletAddressText) {
+    walletAddressText.textContent = formatWalletAddress(address)
+  }
+}
+
 function updatePolygonBalanceUI(value = '0') {
   walletState.polBalance = value
 
@@ -77,14 +89,26 @@ async function loadPolygonBalance(walletAddress) {
   }
 }
 
-function handleWalletAction(action) {
+async function handleWalletAction(action) {
   if (action === 'enviar') {
     alert('A função Enviar será ligada à carteira interna.')
     return
   }
 
   if (action === 'receber') {
-    alert('A função Receber mostrará o endereço interno da carteira.')
+    if (!currentWalletAddress) {
+      alert('Carteira ainda não carregada.')
+      return
+    }
+
+    try {
+      await navigator.clipboard.writeText(currentWalletAddress)
+      alert(`Endereço copiado:\n${currentWalletAddress}`)
+    } catch (error) {
+      console.error('Erro ao copiar endereço:', error)
+      alert(`Seu endereço é:\n${currentWalletAddress}`)
+    }
+
     return
   }
 
@@ -151,6 +175,9 @@ app.innerHTML = `
           <span class="wallet-balance-symbol">POL</span>
         </div>
         <div class="wallet-network">Polygon Mainnet</div>
+        <div class="wallet-network" id="walletAddressText">
+          ${formatWalletAddress(currentWalletAddress)}
+        </div>
       </section>
 
       <section class="wallet-actions">
@@ -269,6 +296,7 @@ async function ensureUserWalletProfile(user) {
     const userData = userSnap.data()
 
     currentWalletAddress = userData.walletAddress || ''
+    updateWalletAddressUI(currentWalletAddress)
 
     localStorage.setItem(
       'vwala_wallet_profile',
@@ -314,6 +342,7 @@ async function ensureUserWalletProfile(user) {
   await setDoc(userRef, payload)
 
   currentWalletAddress = wallet.address
+  updateWalletAddressUI(currentWalletAddress)
 
   localStorage.setItem(
     'vwala_wallet_profile',
@@ -399,13 +428,13 @@ googleLoginBtn?.addEventListener('click', loginWithGoogle)
 document.querySelectorAll('.wallet-action').forEach((button) => {
   const action = button.getAttribute('data-action')
 
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
     if (!currentGoogleUser) {
       openAuthGate()
       return
     }
 
-    handleWalletAction(action)
+    await handleWalletAction(action)
   })
 })
 
