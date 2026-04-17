@@ -1,3 +1,12 @@
+import { auth, googleProvider } from './firebase'
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithPopup,
+  signInWithRedirect
+} from 'firebase/auth'
+
 const app = document.querySelector('#app')
 
 if (!app) {
@@ -9,6 +18,8 @@ const walletState = {
   vwalaBalance: '0.00',
   userTokens: []
 }
+
+let currentGoogleUser = null
 
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
@@ -159,12 +170,117 @@ app.innerHTML = `
 </section>
     </div>
   </div>
+
+  <div id="authGate" class="wallet-auth-gate hidden">
+    <div class="wallet-auth-modal">
+      <div class="wallet-auth-badge">W</div>
+      <h2>Crie sua carteira com Google</h2>
+      <p>
+        Entre com sua conta Google para ativar sua carteira interna e manter seu acesso em todas as páginas.
+      </p>
+
+      <button id="googleLoginBtn" class="wallet-auth-google-btn" type="button">
+        Continuar com Google
+      </button>
+    </div>
+  </div>
 `
+
+const authGate = document.getElementById('authGate')
+const googleLoginBtn = document.getElementById('googleLoginBtn')
+
+function openAuthGate() {
+  authGate?.classList.remove('hidden')
+}
+
+function closeAuthGate() {
+  authGate?.classList.add('hidden')
+}
+
+function saveFirebaseUser(user) {
+  if (!user) {
+    localStorage.removeItem('vwala_user')
+    return
+  }
+
+  localStorage.setItem(
+    'vwala_user',
+    JSON.stringify({
+      uid: user.uid,
+      name: user.displayName || '',
+      email: user.email || '',
+      photo: user.photoURL || ''
+    })
+  )
+}
+
+async function loginWithGoogle() {
+  if (!googleLoginBtn) return
+
+  const originalText = googleLoginBtn.textContent
+
+  try {
+    googleLoginBtn.disabled = true
+    googleLoginBtn.textContent = 'Entrando...'
+
+    await setPersistence(auth, browserLocalPersistence)
+
+    try {
+      await signInWithPopup(auth, googleProvider)
+    } catch (error) {
+      if (
+        error?.code === 'auth/popup-blocked' ||
+        error?.code === 'auth/operation-not-supported-in-this-environment'
+      ) {
+        await signInWithRedirect(auth, googleProvider)
+        return
+      }
+
+      throw error
+    }
+  } catch (error) {
+    console.error('Erro ao entrar com Google:', error)
+    alert('Não foi possível entrar com Google.')
+  } finally {
+    googleLoginBtn.disabled = false
+    googleLoginBtn.textContent = originalText
+  }
+}
+
+async function initFirebaseAuthGate() {
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+
+    onAuthStateChanged(auth, (user) => {
+      currentGoogleUser = user || null
+      saveFirebaseUser(user)
+
+      if (user) {
+        closeAuthGate()
+        return
+      }
+
+      openAuthGate()
+    })
+  } catch (error) {
+    console.error('Erro ao iniciar autenticação Firebase:', error)
+    openAuthGate()
+  }
+}
+
+googleLoginBtn?.addEventListener('click', loginWithGoogle)
 
 document.querySelectorAll('.wallet-action').forEach((button) => {
   const action = button.getAttribute('data-action')
 
   button.addEventListener('click', () => {
+    if (!currentGoogleUser) {
+      openAuthGate()
+      return
+    }
+
     handleWalletAction(action)
   })
 })
+
+initFirebaseAuthGate()
