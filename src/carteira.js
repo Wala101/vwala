@@ -22,6 +22,7 @@ const walletState = {
 }
 
 let currentGoogleUser = null
+let currentWalletAddress = ''
 
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
@@ -216,6 +217,78 @@ function saveFirebaseUser(user) {
   )
 }
 
+async function ensureUserWalletProfile(user) {
+  if (!user?.uid) {
+    throw new Error('Usuário inválido para criar carteira.')
+  }
+
+  const userRef = doc(db, 'users', user.uid)
+  const userSnap = await getDoc(userRef)
+
+  if (userSnap.exists()) {
+    const userData = userSnap.data()
+
+    currentWalletAddress = userData.walletAddress || ''
+
+    localStorage.setItem(
+      'vwala_wallet_profile',
+      JSON.stringify({
+        uid: user.uid,
+        walletAddress: currentWalletAddress,
+        chainId: userData.chainId || 137,
+        network: userData.network || 'polygon'
+      })
+    )
+
+    return userData
+  }
+
+  const pin = window.prompt('Crie um PIN da carteira com pelo menos 6 caracteres.')
+
+  if (!pin || pin.trim().length < 6) {
+    throw new Error('PIN inválido. Use pelo menos 6 caracteres.')
+  }
+
+  const confirmPin = window.prompt('Confirme o PIN da carteira.')
+
+  if (pin !== confirmPin) {
+    throw new Error('Os PINs não coincidem.')
+  }
+
+  const wallet = Wallet.createRandom()
+  const walletKeystore = await wallet.encrypt(pin.trim())
+
+  const payload = {
+    uid: user.uid,
+    email: user.email || '',
+    name: user.displayName || '',
+    photo: user.photoURL || '',
+    walletAddress: wallet.address,
+    walletKeystore,
+    chainId: 137,
+    network: 'polygon',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }
+
+  await setDoc(userRef, payload)
+
+  currentWalletAddress = wallet.address
+
+  localStorage.setItem(
+    'vwala_wallet_profile',
+    JSON.stringify({
+      uid: user.uid,
+      walletAddress: wallet.address,
+      chainId: 137,
+      network: 'polygon'
+    })
+  )
+
+  alert('Carteira criada com sucesso.')
+  return payload
+}
+
 async function loginWithGoogle() {
   if (!googleLoginBtn) return
 
@@ -253,15 +326,25 @@ async function initFirebaseAuthGate() {
   try {
     await setPersistence(auth, browserLocalPersistence)
 
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       currentGoogleUser = user || null
       saveFirebaseUser(user)
 
       if (user) {
         closeAuthGate()
+
+        try {
+          await ensureUserWalletProfile(user)
+        } catch (error) {
+          console.error('Erro ao preparar carteira do usuário:', error)
+          alert(error?.message || 'Não foi possível preparar sua carteira.')
+        }
+
         return
       }
 
+      currentWalletAddress = ''
+      localStorage.removeItem('vwala_wallet_profile')
       openAuthGate()
     })
   } catch (error) {
