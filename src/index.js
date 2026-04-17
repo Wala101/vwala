@@ -1,5 +1,4 @@
 
-import './index.css'
 
 const app = document.querySelector('#app')
 
@@ -215,11 +214,11 @@ app.innerHTML = `
             <small>Previsões futuras</small>
           </a>
 
-          <a class="shortcut-card" href="/claim">
-            <span class="shortcut-icon">🎁</span>
-            <strong>Claim</strong>
-            <small>Resgatar vWALA</small>
-          </a>
+          <a class="shortcut-card" href="/carteira">
+  <span class="shortcut-icon">👛</span>
+  <strong>Carteira</strong>
+  <small>Saldo e ações internas</small>
+</a>
 
           <a class="shortcut-card shortcut-card-disabled" href="javascript:void(0)" aria-disabled="true" tabindex="-1">
   <span class="shortcut-icon">🧾</span>
