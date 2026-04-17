@@ -1,12 +1,10 @@
 
 
-import { auth, googleProvider } from './firebase'
+import { auth } from './firebase'
 import {
   browserLocalPersistence,
   onAuthStateChanged,
-  setPersistence,
-  signInWithPopup,
-  signOut
+  setPersistence
 } from 'firebase/auth'
 
 const app = document.querySelector('#app')
@@ -282,6 +280,30 @@ function setDisconnectedUI() {
   setConnectButtonText('Conectar Wallet')
 }
 
+async function initFirebaseSession() {
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        localStorage.setItem(
+          'vwala_user',
+          JSON.stringify({
+            uid: user.uid,
+            name: user.displayName || '',
+            email: user.email || '',
+            photo: user.photoURL || ''
+          })
+        )
+      } else {
+        localStorage.removeItem('vwala_user')
+      }
+    })
+  } catch (error) {
+    console.error('Erro ao iniciar sessão Firebase:', error)
+  }
+}
+
 async function connectWallet() {
   try {
     const provider = getPhantomProvider()
@@ -391,6 +413,7 @@ document.querySelectorAll('#walletMenu a').forEach((link) => {
 
 async function initApp() {
   setDisconnectedUI()
+  await initFirebaseSession()
   await restoreWalletSession()
 }
 
