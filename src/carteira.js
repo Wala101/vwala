@@ -24,7 +24,12 @@ const walletState = {
 let currentGoogleUser = null
 let currentWalletAddress = ''
 
-const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || 'https://polygon.drpc.org'
+const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL
+const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
+
+if (!POLYGON_RPC_URL) {
+  throw new Error('VITE_POLYGON_RPC_URL não configurada.')
+}
 
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
@@ -303,7 +308,7 @@ async function ensureUserWalletProfile(user) {
       JSON.stringify({
         uid: user.uid,
         walletAddress: currentWalletAddress,
-        chainId: userData.chainId || 137,
+        chainId: userData.chainId || POLYGON_CHAIN_ID,
         network: userData.network || 'polygon'
       })
     )
@@ -333,7 +338,7 @@ async function ensureUserWalletProfile(user) {
     photo: user.photoURL || '',
     walletAddress: wallet.address,
     walletKeystore,
-    chainId: 137,
+        chainId: POLYGON_CHAIN_ID,
     network: 'polygon',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
@@ -349,7 +354,7 @@ async function ensureUserWalletProfile(user) {
     JSON.stringify({
       uid: user.uid,
       walletAddress: wallet.address,
-      chainId: 137,
+      chainId: POLYGON_CHAIN_ID,
       network: 'polygon'
     })
   )
