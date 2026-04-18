@@ -6,6 +6,7 @@ export default defineConfig({
       input: {
         main: 'index.html',
         carteira: 'carteira.html',
+        swap: 'swap.html',
         token: 'token.html',
       },
     },
