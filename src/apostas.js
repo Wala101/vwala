@@ -53,7 +53,6 @@ const state = {
 
 document.querySelector('#app').innerHTML = `
   <div id="sidebarOverlay" class="overlay"></div>
-  <div id="walletOverlay" class="overlay"></div>
 
   <div class="page-shell">
     <div class="app-frame">
@@ -76,12 +75,6 @@ document.querySelector('#app').innerHTML = `
           Carregando saldo...
         </button>
       </header>
-
-      <div id="walletMenu" class="wallet-menu">
-        <a href="/claim.html">Claim vWALA</a>
-        <a href="/posicoes.html">Minhas Posições</a>
-        <a href="javascript:void(0)" id="disconnectAction" style="display:none;">Desconectar Wallet</a>
-      </div>
 
       <aside id="sidebar" class="side-menu">
         <a href="/carteira">Carteira</a>
@@ -171,11 +164,8 @@ const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
 const searchInput = document.getElementById('searchInput')
 const connectBtn = document.getElementById('connectBtn')
-const disconnectAction = document.getElementById('disconnectAction')
 const sidebar = document.getElementById('sidebar')
-const walletMenu = document.getElementById('walletMenu')
 const sidebarOverlay = document.getElementById('sidebarOverlay')
-const walletOverlay = document.getElementById('walletOverlay')
 const menuBtn = document.getElementById('menuBtn')
 const appNoticeOverlay = document.getElementById('appNoticeOverlay')
 const appNoticeModal = document.getElementById('appNoticeModal')
@@ -206,15 +196,7 @@ function closeSidebar() {
   sidebarOverlay.classList.remove('active')
 }
 
-function openWalletMenu() {
-  walletMenu.style.right = '0'
-  walletOverlay.classList.add('active')
-}
 
-function closeWalletMenu() {
-  walletMenu.style.right = '-280px'
-  walletOverlay.classList.remove('active')
-}
 
 function compactAddress(address) {
   if (!address) return 'Não conectada'
@@ -365,39 +347,35 @@ function getInternalWalletSigner() {
 
 
 
-async function connectWallet() {
+async function initWalletSession() {
   try {
-    const { provider, signer } = getInternalWalletSigner()
-    const userAddress = await signer.getAddress()
+    const walletAddress = getCurrentWalletAddress()
 
-    state.provider = provider
-    state.signer = signer
-    state.userAddress = userAddress
-    state.token = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, signer)
+    state.provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
+    state.userAddress = walletAddress
+    state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
+    state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider)
     state.decimals = Number(await state.token.decimals())
 
-    disconnectAction.style.display = 'block'
+    try {
+      const { signer } = getInternalWalletSigner()
+
+      state.signer = signer
+      state.token = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
+      state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, signer)
+    } catch (error) {
+      state.signer = null
+      console.warn('Carteira interna sem chave local para assinatura nesta página.')
+    }
 
     await loadUserTokenBalance()
     state.matches = loadCouponsForMatches(state.matches)
     await refreshAllPositions()
     renderMatches()
   } catch (error) {
-    showAlert('Erro', getFriendlyError(error))
+    console.error('Erro ao iniciar carteira da página de apostas:', error)
+    setConnectButtonText('Sem carteira')
   }
-}
-
-async function disconnectWallet() {
-  state.provider = null
-  state.signer = null
-  state.userAddress = ''
-  state.token = null
-  state.betting = null
-  state.positions = {}
-  disconnectAction.style.display = 'none'
-  setConnectButtonText('Sem carteira')
-  renderMatches()
 }
 
 async function refreshWalletBalance() {
@@ -765,6 +743,12 @@ function createCard(match) {
       return
     }
 
+    if (!state.signer) {
+      hintEl.textContent = 'Esta carteira está só em leitura neste aparelho.'
+      confirmBtn.disabled = true
+      return
+    }
+
     const amountUi = Number(String(amountInputEl.value || '').replace(',', '.'))
 
     if (!Number.isFinite(amountUi) || amountUi <= 0) {
@@ -809,6 +793,11 @@ function createCard(match) {
         return
       }
 
+      if (!state.signer) {
+        showAlert('Assinatura indisponível', 'Esta carteira está apenas em leitura neste aparelho.')
+        return
+      }
+
       const amountUi = Number(String(amountInputEl.value || '').replace(',', '.'))
 
       if (!Number.isFinite(amountUi) || amountUi <= 0) {
@@ -841,6 +830,11 @@ function createCard(match) {
   claimButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
       try {
+        if (!state.signer) {
+          showAlert('Assinatura indisponível', 'Esta carteira está apenas em leitura neste aparelho.')
+          return
+        }
+
         btn.disabled = true
         btn.textContent = 'Resgatando...'
 
@@ -879,40 +873,19 @@ function renderMatches() {
 }
 
 async function boot() {
-  menuBtn.addEventListener('click', () => {
-    if (state.userAddress) {
-      openWalletMenu()
-      return
-    }
-    openSidebar()
-  })
-
+  menuBtn.addEventListener('click', openSidebar)
   sidebarOverlay.addEventListener('click', closeSidebar)
-  walletOverlay.addEventListener('click', closeWalletMenu)
-  connectBtn.addEventListener('click', async () => {
-    if (state.userAddress) {
-      await loadUserTokenBalance()
-      openWalletMenu()
-      return
-    }
 
-    await connectWallet()
+  connectBtn.addEventListener('click', async () => {
+    await loadUserTokenBalance()
   })
-  disconnectAction.addEventListener('click', disconnectWallet)
+
   searchInput.addEventListener('input', renderMatches)
   closeAppNoticeBtn.addEventListener('click', closeAlert)
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
-  try {
-    const walletData = getStoredDeviceWallet()
-
-    if (walletData) {
-      await connectWallet()
-    }
-  } catch (error) {
-    console.warn(error)
-  }
+  await initWalletSession()
 
   const initialMatches = await fetchMatches()
   state.matches = loadCouponsForMatches(initialMatches)
@@ -922,7 +895,11 @@ async function boot() {
     for (const match of state.matches) {
       hydrated.push(await hydrateMatch(match))
     }
-    state.matches = loadCouponsForMatches(hydrated.filter((item) => item.exists))
+
+    state.matches = loadCouponsForMatches(
+      hydrated.filter((item) => item.exists)
+    )
+
     await refreshAllPositions()
   }
 
