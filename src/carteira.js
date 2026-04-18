@@ -286,6 +286,11 @@ async function handleSendPolygon() {
   }
 
   try {
+    showLoadingModal(
+      'Enviando Polygon',
+      'Aguarde enquanto sua transação é assinada e enviada.'
+    )
+
     const walletProfile = await getCurrentUserWalletProfile()
 
     if (!walletProfile?.walletKeystore) {
@@ -310,6 +315,8 @@ async function handleSendPolygon() {
     const estimatedFeeWei = gasEstimate * gasPrice
 
     if (liveBalanceWei < amountWei + estimatedFeeWei) {
+      hideLoadingModal()
+
       await showMessageModal(
         'Saldo insuficiente',
         'Seu saldo não cobre o valor e a taxa de rede.'
@@ -322,7 +329,14 @@ async function handleSendPolygon() {
       value: amountWei
     })
 
+    showLoadingModal(
+      'Confirmando na rede',
+      'Aguarde a confirmação da transação na Polygon.'
+    )
+
     await tx.wait()
+
+    hideLoadingModal()
 
     await showMessageModal(
       'Enviado com sucesso',
@@ -331,6 +345,7 @@ async function handleSendPolygon() {
 
     await loadPolygonBalance(currentWalletAddress)
   } catch (error) {
+    hideLoadingModal()
     console.error('Erro ao enviar Polygon:', error)
 
     await showMessageModal(
@@ -522,10 +537,10 @@ app.innerHTML = `
       </button>
 
       <div class="wallet-auth-badge wallet-modal-token-badge">
-  <img src="/Polygon-MATIC.webp" alt="Polygon" />
-</div>
-<h2 id="uiModalTitle">Aviso</h2>
-<p id="uiModalText"></p>
+        <img src="/Polygon-MATIC.webp" alt="Polygon" />
+      </div>
+      <h2 id="uiModalTitle">Aviso</h2>
+      <p id="uiModalText"></p>
 
       <div id="uiModalAddressBox" class="wallet-modal-address-box hidden"></div>
 
@@ -554,6 +569,14 @@ app.innerHTML = `
       </div>
     </div>
   </div>
+
+  <div id="loadingGate" class="wallet-auth-gate hidden">
+    <div class="wallet-auth-modal wallet-loading-modal">
+      <div class="wallet-loading-spinner" aria-hidden="true"></div>
+      <h2 id="loadingModalTitle">Processando</h2>
+      <p id="loadingModalText">Aguarde enquanto concluímos sua solicitação.</p>
+    </div>
+  </div>
 `
 
 const authGate = document.getElementById('authGate')
@@ -568,6 +591,10 @@ const uiModalInput = document.getElementById('uiModalInput')
 const uiModalCancelBtn = document.getElementById('uiModalCancelBtn')
 const uiModalConfirmBtn = document.getElementById('uiModalConfirmBtn')
 const uiModalCloseBtn = document.getElementById('uiModalCloseBtn')
+
+const loadingGate = document.getElementById('loadingGate')
+const loadingModalTitle = document.getElementById('loadingModalTitle')
+const loadingModalText = document.getElementById('loadingModalText')
 
 function openUiModal({
   title = 'Aviso',
@@ -636,6 +663,27 @@ function closeUiModal(result = null) {
   if (resolve) {
     resolve(result)
   }
+}
+
+function showLoadingModal(
+  title = 'Processando',
+  text = 'Aguarde enquanto concluímos sua solicitação.'
+) {
+  if (loadingModalTitle) {
+    loadingModalTitle.textContent = title
+  }
+
+  if (loadingModalText) {
+    loadingModalText.textContent = text
+  }
+
+  loadingGate?.classList.remove('hidden')
+  document.body.style.overflow = 'hidden'
+}
+
+function hideLoadingModal() {
+  loadingGate?.classList.add('hidden')
+  document.body.style.overflow = ''
 }
 
 async function showMessageModal(title, text, confirmText = 'OK') {
