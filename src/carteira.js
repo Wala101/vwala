@@ -284,9 +284,11 @@ app.innerHTML = `
         ×
       </button>
 
-      <div class="wallet-auth-badge">W</div>
-      <h2 id="uiModalTitle">Aviso</h2>
-      <p id="uiModalText"></p>
+      <div class="wallet-auth-badge wallet-modal-token-badge">
+  <img src="/Polygon-MATIC.webp" alt="Polygon" />
+</div>
+<h2 id="uiModalTitle">Aviso</h2>
+<p id="uiModalText"></p>
 
       <div id="uiModalAddressBox" class="wallet-modal-address-box hidden"></div>
 
@@ -348,9 +350,9 @@ function openUiModal({
     modalState.mode = mode
     modalState.addressText = addressText || ''
 
-    uiModalTitle.textContent = title
-    uiModalText.textContent = text
-    uiModalConfirmBtn.textContent = confirmText
+uiModalTitle.textContent = title
+uiModalText.innerHTML = text
+uiModalConfirmBtn.textContent = confirmText
     uiModalCancelBtn.textContent = cancelText
     uiModalCancelBtn.style.display = showCancel ? 'flex' : 'none'
     uiModalCloseBtn.classList.toggle('hidden', mode !== 'address')
@@ -435,7 +437,7 @@ async function showAddressModal(title, address, confirmText = 'Copiar') {
 
   await openUiModal({
   title,
-  text: 'Envie apenas Polygon para este endereço.',
+  text: '<strong>Envie apenas Polygon para este endereço.</strong>',
   mode: 'address',
   confirmText,
   showCancel: false,
