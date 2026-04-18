@@ -6,14 +6,14 @@ import {
   setPersistence
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
-import { JsonRpcProvider, Wallet, Contract, formatUnits, parseUnits } from 'ethers'
+import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
-const BETTING_ADDRESS = import.meta.env.VITE_WALA_BETTING_ADDRESS || '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
+const BETTING_ADDRESS = '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
 const API_BASE = '/.netlify/functions'
 
 const ERC20_ABI = [
@@ -53,6 +53,8 @@ const BETTING_ABI = [
   'error TreasuryInactive()',
   'error TreasuryInsufficient()'
 ]
+
+const BETTING_ERROR_INTERFACE = new Interface(BETTING_ABI)
 
 const Outcome = {
   HOME: 0,
@@ -207,9 +209,9 @@ document.querySelector('#app').innerHTML = `
       </div>
 
       <div class="notice-modal-footer">
-        <button id="appPinCancelBtn" class="trade" type="button">Cancelar</button>
-        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
-      </div>
+  <button id="appPinCancelBtn" class="notice-confirm-btn" type="button">Cancelar</button>
+  <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+</div>
     </div>
   </div>
 `
@@ -329,22 +331,61 @@ function getOutcomeLabel(match, outcome) {
   return 'Selecione um lado'
 }
 
+function getBettingErrorName(error) {
+  const candidates = [
+    error?.data,
+    error?.error?.data,
+    error?.info?.error?.data,
+    error?.info?.data
+  ]
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' || !candidate.startsWith('0x')) {
+      continue
+    }
+
+    try {
+      const parsed = BETTING_ERROR_INTERFACE.parseError(candidate)
+      if (parsed?.name) {
+        return parsed.name
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return ''
+}
+
 function getFriendlyError(error) {
   const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
+  const errorName = getBettingErrorName(error)
 
   if (text.includes('user rejected')) return 'Transação cancelada na wallet.'
   if (text.includes('insufficient funds')) return 'Saldo insuficiente para a transação.'
   if (text.includes('invalid password') || text.includes('wrong password') || text.includes('incorrect password')) {
     return 'PIN incorreto.'
   }
+
+  if (errorName === 'Unauthorized') return 'Esse contrato ainda está bloqueando criação pública de mercado.'
+  if (errorName === 'MarketAlreadyExists') return 'Esse mercado já foi criado.'
+  if (errorName === 'MarketNotFound') return 'Esse mercado ainda não foi criado no contrato.'
+  if (errorName === 'MarketClosed') return 'Esse mercado já está fechado.'
+  if (errorName === 'InvalidAmount') return 'Valor inválido.'
+  if (errorName === 'InvalidProbabilityConfig') return 'As probabilidades do mercado estão inválidas.'
+  if (errorName === 'PositionAlreadyExists') return 'Essa posição já existe para esse cupom.'
+  if (errorName === 'PositionNotFound') return 'Posição não encontrada.'
+  if (errorName === 'PositionAlreadyClaimed') return 'Essa posição já foi resgatada.'
+  if (errorName === 'NotWinner') return 'Essa posição não venceu.'
+  if (errorName === 'MarketNotResolved') return 'Esse mercado ainda não foi resolvido.'
+  if (errorName === 'TreasuryInactive') return 'A tesouraria ainda não foi iniciada.'
+  if (errorName === 'TreasuryInsufficient') return 'A tesouraria está sem liquidez suficiente.'
+
+  if (text.includes('marketalreadyexists')) return 'Esse mercado já foi criado.'
   if (text.includes('marketnotfound')) return 'Esse mercado ainda não foi criado no contrato.'
-  if (text.includes('notwinner')) return 'Essa posição não venceu.'
-  if (text.includes('positionnotfound')) return 'Posição não encontrada.'
-  if (text.includes('positionalreadyclaimed')) return 'Essa posição já foi resgatada.'
-  if (text.includes('marketalreadyexists')) return 'Esse mercado acabou de ser iniciado por outro usuário.'
-  if (text.includes('marketnotfound')) return 'Esse mercado ainda não foi criado no contrato.'
-  if (text.includes('marketnotresolved')) return 'Esse mercado ainda não foi resolvido.'
   if (text.includes('marketclosed')) return 'Esse mercado já está fechado.'
+  if (text.includes('marketnotresolved')) return 'Esse mercado ainda não foi resolvido.'
+
   return error?.shortMessage || error?.message || 'Erro ao processar transação.'
 }
 
@@ -1007,15 +1048,23 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
 
       confirmBtn.disabled = true
 
+      let createdNow = false
+
       if (!match.exists) {
         confirmBtn.textContent = 'Criando mercado...'
         await ensureMarketExists(match, signer)
+        createdNow = true
       }
 
       confirmBtn.textContent = 'Abrindo posição...'
 
       await buyPosition(match, selectedOutcome, amountUi, signer)
-      showAlert('Sucesso', 'Mercado criado e posição aberta com sucesso.')
+      showAlert(
+        'Sucesso',
+        createdNow
+          ? 'Mercado criado e posição aberta com sucesso.'
+          : 'Posição aberta com sucesso.'
+      )
 
       await refreshWalletBalance()
       state.matches = loadCouponsForMatches(state.matches)
@@ -1024,7 +1073,7 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
     } catch (error) {
       showAlert('Erro', getFriendlyError(error))
     } finally {
-      confirmBtn.textContent = 'Abrir posição'
+      confirmBtn.textContent = match.exists ? 'Abrir posição' : 'Criar mercado e apostar'
     }
   })
 
