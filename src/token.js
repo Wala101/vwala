@@ -1,3 +1,5 @@
+import { db } from './firebase'
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, Wallet } from 'ethers'
 
 const app = document.querySelector('#app')
@@ -51,6 +53,57 @@ function readUserProfile() {
     console.error('Erro ao ler usuário local:', error)
     return null
   }
+}
+
+function getCurrentUserUid() {
+  return String(tokenState.currentUser?.uid || '').trim()
+}
+
+async function saveCreatedTokenInFirestore(payload) {
+  const uid = getCurrentUserUid()
+  const tokenAddress = String(payload?.tokenAddress || '').trim()
+
+  if (!uid || !tokenAddress) {
+    return false
+  }
+
+  const tokenId = tokenAddress.toLowerCase()
+  const tokenRef = doc(db, 'users', uid, 'createdTokens', tokenId)
+
+  await setDoc(
+    tokenRef,
+    {
+      uid,
+      tokenId,
+      tokenAddress,
+      tokenAddressLower: tokenId,
+      ownerAddress: payload.ownerAddress || '',
+      name: payload.name || '',
+      symbol: payload.symbol || '',
+      supply: payload.supply || '',
+      website: payload.website || '',
+      x: payload.x || '',
+      telegram: payload.telegram || '',
+      description: payload.description || '',
+      imageName: payload.imageName || '',
+      metadataURI: payload.metadataURI || '',
+      txHash: payload.txHash || '',
+      chainId: payload.chainId || 137,
+      status: payload.status || 'active',
+      factoryAddress: payload.factoryAddress || TOKEN_FACTORY_ADDRESS,
+      createdOn: payload.createdOn || CREATED_ON_LABEL,
+      createdOnUrl: payload.createdOnUrl || window.location.origin,
+      metadataStorage: payload.metadataStorage || METADATA_STORAGE_PROVIDER,
+      isFromWala: true,
+      source: 'wala_token_factory',
+      createdAtClient: payload.createdAt || new Date().toISOString(),
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+
+  return true
 }
 
 
@@ -737,7 +790,7 @@ async function handleCreateToken() {
 
     const draft = buildMetadataDraft(values)
 
-    saveCreatedTokenLocally({
+    const createdTokenPayload = {
       tokenAddress: createdTokenAddress,
       ownerAddress: values.owner,
       name: values.name,
@@ -752,8 +805,23 @@ async function handleCreateToken() {
       txHash: tx.hash,
       chainId: 137,
       createdAt: new Date().toISOString(),
-      draft
-    })
+      draft,
+      status: 'active',
+      factoryAddress: TOKEN_FACTORY_ADDRESS,
+      createdOn: values.createdOn,
+      createdOnUrl: values.createdOnUrl,
+      metadataStorage: values.metadataStorage
+    }
+
+    let savedInCloud = false
+
+    try {
+      savedInCloud = await saveCreatedTokenInFirestore(createdTokenPayload)
+    } catch (saveError) {
+      console.error('Erro ao salvar token no Firestore:', saveError)
+    }
+
+    saveCreatedTokenLocally(createdTokenPayload)
 
     localStorage.setItem(TOKEN_DRAFT_STORAGE_KEY, JSON.stringify(draft))
 
@@ -767,6 +835,7 @@ async function handleCreateToken() {
         <br><br><strong>Hash:</strong><br>${escapeHtml(tx.hash)}
         <br><br><strong>Supply:</strong><br>${escapeHtml(formatWholeNumber(values.supply))}
         <br><br><strong>Dono inicial:</strong><br>${escapeHtml(values.owner)}
+        <br><br><strong>Registro na conta:</strong><br>${savedInCloud ? 'Salvo no Firestore com sucesso.' : 'Token criado, mas o registro em nuvem falhou.'}
       `
     )
   } catch (error) {
