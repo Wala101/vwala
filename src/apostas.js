@@ -1,4 +1,4 @@
-import './style/index.css'
+import './style/style.css'
 import { BrowserProvider, Contract, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
