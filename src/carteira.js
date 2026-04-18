@@ -31,14 +31,10 @@ const modalState = {
   addressText: ''
 }
 
-const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL
+const POLYGON_RPC_URL = '/api/rpc'
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
-
-if (!POLYGON_RPC_URL) {
-  throw new Error('VITE_POLYGON_RPC_URL não configurada.')
-}
 
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)

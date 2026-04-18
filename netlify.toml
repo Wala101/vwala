@@ -1,3 +1,12 @@
 [build]
-  command = "npm run build"
-  publish = "dist"
+command = "npm run build"
+publish = "dist"
+
+[functions]
+directory = "netlify/functions"
+
+[[redirects]]
+from = "/api/rpc"
+to = "/.netlify/functions/rpc"
+status = 200
+force = true
