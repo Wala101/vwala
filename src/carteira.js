@@ -7,7 +7,7 @@ import {
   signInWithRedirect
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { JsonRpcProvider, Wallet, formatEther } from 'ethers'
+import { JsonRpcProvider, Wallet, formatEther, isAddress, parseEther } from 'ethers'
 import QRCode from 'qrcode'
 
 const app = document.querySelector('#app')
@@ -101,12 +101,248 @@ async function loadPolygonBalance(walletAddress) {
   }
 }
 
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function formatTxHash(hash = '') {
+  if (!hash) return ''
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`
+}
+
+function normalizeAmountInput(value = '') {
+  return String(value || '').replace(',', '.').trim()
+}
+
+function getSendErrorMessage(error) {
+  const rawMessage = String(error?.shortMessage || error?.message || '').toLowerCase()
+
+  if (
+    rawMessage.includes('invalid password') ||
+    rawMessage.includes('wrong password') ||
+    rawMessage.includes('incorrect password')
+  ) {
+    return 'PIN incorreto. Tente novamente.'
+  }
+
+  if (rawMessage.includes('insufficient funds')) {
+    return 'Saldo insuficiente para cobrir o valor e a taxa de rede.'
+  }
+
+  if (
+    rawMessage.includes('network error') ||
+    rawMessage.includes('failed to fetch') ||
+    rawMessage.includes('timeout')
+  ) {
+    return 'Falha de rede ao enviar. Tente novamente.'
+  }
+
+  return 'Não foi possível concluir o envio agora.'
+}
+
+async function getCurrentUserWalletProfile() {
+  if (!currentGoogleUser?.uid) {
+    throw new Error('Usuário não autenticado.')
+  }
+
+  const userRef = doc(db, 'users', currentGoogleUser.uid)
+  const userSnap = await getDoc(userRef)
+
+  if (!userSnap.exists()) {
+    throw new Error('Carteira do usuário não encontrada.')
+  }
+
+  return userSnap.data()
+}
+
+async function handleSendPolygon() {
+  if (!currentGoogleUser) {
+    openAuthGate()
+    return
+  }
+
+  if (!currentWalletAddress) {
+    await showMessageModal(
+      'Carteira',
+      'Carteira ainda não carregada.'
+    )
+    return
+  }
+
+  const destinationInput = await showPromptModal({
+    title: 'Enviar',
+    text: 'Informe o endereço que vai receber Polygon.',
+    confirmText: 'Continuar',
+    cancelText: 'Cancelar',
+    placeholder: '0x...'
+  })
+
+  if (destinationInput === null) {
+    return
+  }
+
+  const destinationAddress = destinationInput.trim()
+
+  if (!destinationAddress) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Informe o endereço de destino.'
+    )
+    return
+  }
+
+  if (!isAddress(destinationAddress)) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Digite um endereço Polygon válido.'
+    )
+    return
+  }
+
+  if (destinationAddress.toLowerCase() === currentWalletAddress.toLowerCase()) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Você não pode enviar para a sua própria carteira.'
+    )
+    return
+  }
+
+  const amountInput = await showPromptModal({
+    title: 'Valor',
+    text: 'Informe quanto Polygon deseja enviar.',
+    confirmText: 'Continuar',
+    cancelText: 'Cancelar',
+    placeholder: '0.10'
+  })
+
+  if (amountInput === null) {
+    return
+  }
+
+  const normalizedAmount = normalizeAmountInput(amountInput)
+
+  if (!normalizedAmount) {
+    await showMessageModal(
+      'Valor inválido',
+      'Informe um valor para enviar.'
+    )
+    return
+  }
+
+  let amountWei
+  let amountNumber
+
+  try {
+    amountWei = parseEther(normalizedAmount)
+    amountNumber = Number(normalizedAmount)
+  } catch (error) {
+    await showMessageModal(
+      'Valor inválido',
+      'Digite um valor válido em POL.'
+    )
+    return
+  }
+
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    await showMessageModal(
+      'Valor inválido',
+      'Digite um valor maior que zero.'
+    )
+    return
+  }
+
+  const confirmSend = await showConfirmModal(
+    'Confirmar envio',
+    `<strong>Confira os dados antes de enviar.</strong><br><br><strong>Destino:</strong><br>${escapeHtml(destinationAddress)}<br><br><strong>Valor:</strong><br>${escapeHtml(formatAmount(normalizedAmount, 'POL'))}`,
+    'Enviar',
+    'Cancelar'
+  )
+
+  if (!confirmSend) {
+    return
+  }
+
+  const pin = await showPinModal(
+    'Confirmar PIN',
+    'Digite seu PIN para autorizar o envio.',
+    'Enviar'
+  )
+
+  if (pin === null) {
+    return
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Digite seu PIN para continuar.'
+    )
+    return
+  }
+
+  try {
+    const walletProfile = await getCurrentUserWalletProfile()
+
+    if (!walletProfile?.walletKeystore) {
+      throw new Error('Keystore da carteira não encontrado.')
+    }
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      walletProfile.walletKeystore,
+      pin.trim()
+    )
+    const signer = unlockedWallet.connect(provider)
+
+    const liveBalanceWei = await provider.getBalance(signer.address)
+    const feeData = await provider.getFeeData()
+    const gasEstimate = await provider.estimateGas({
+      from: signer.address,
+      to: destinationAddress,
+      value: amountWei
+    })
+    const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
+    const estimatedFeeWei = gasEstimate * gasPrice
+
+    if (liveBalanceWei < amountWei + estimatedFeeWei) {
+      await showMessageModal(
+        'Saldo insuficiente',
+        'Seu saldo não cobre o valor e a taxa de rede.'
+      )
+      return
+    }
+
+    const tx = await signer.sendTransaction({
+      to: destinationAddress,
+      value: amountWei
+    })
+
+    await tx.wait()
+
+    await showMessageModal(
+      'Enviado com sucesso',
+      `<strong>Transferência confirmada com sucesso.</strong><br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
+    )
+
+    await loadPolygonBalance(currentWalletAddress)
+  } catch (error) {
+    console.error('Erro ao enviar Polygon:', error)
+
+    await showMessageModal(
+      'Erro ao enviar',
+      getSendErrorMessage(error)
+    )
+  }
+}
+
 async function handleWalletAction(action) {
   if (action === 'enviar') {
-    await showMessageModal(
-      'Enviar',
-      'A função Enviar será ligada à carteira interna.'
-    )
+    await handleSendPolygon()
     return
   }
 
@@ -127,6 +363,7 @@ async function handleWalletAction(action) {
 
     return
   }
+
   if (action === 'swap') {
     await showMessageModal(
       'Swap',
@@ -410,16 +647,51 @@ async function showMessageModal(title, text, confirmText = 'OK') {
   })
 }
 
-async function showPinModal(title, text, confirmText = 'Continuar') {
+async function showPromptModal({
+  title = 'Aviso',
+  text = '',
+  confirmText = 'Continuar',
+  cancelText = 'Cancelar',
+  placeholder = '',
+  password = false,
+  initialValue = ''
+} = {}) {
   return openUiModal({
     title,
     text,
     mode: 'prompt',
     confirmText,
+    cancelText,
+    placeholder,
+    password,
+    initialValue,
+    showCancel: true
+  })
+}
+
+async function showConfirmModal(
+  title,
+  text,
+  confirmText = 'Confirmar',
+  cancelText = 'Cancelar'
+) {
+  return openUiModal({
+    title,
+    text,
+    confirmText,
+    cancelText,
+    showCancel: true
+  })
+}
+
+async function showPinModal(title, text, confirmText = 'Continuar') {
+  return showPromptModal({
+    title,
+    text,
+    confirmText,
     cancelText: 'Cancelar',
     placeholder: 'Digite seu PIN',
-    password: true,
-    showCancel: true
+    password: true
   })
 }
 
@@ -436,14 +708,14 @@ async function showAddressModal(title, address, confirmText = 'Copiar') {
   }
 
   await openUiModal({
-  title,
-  text: '<strong>Envie apenas Polygon para este endereço.</strong>',
-  mode: 'address',
-  confirmText,
-  showCancel: false,
-  addressText: address,
-  qrDataUrl
-})
+    title,
+    text: '<strong>Envie apenas Polygon para este endereço.</strong>',
+    mode: 'address',
+    confirmText,
+    showCancel: false,
+    addressText: address,
+    qrDataUrl
+  })
 }
 
 uiModalConfirmBtn?.addEventListener('click', async () => {
