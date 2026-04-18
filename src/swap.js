@@ -39,6 +39,7 @@ const swapState = {
   polBalance: '0',
   vwalaBalance: '0',
   poolReserve: '0',
+  poolInventory: '0',
   redeemableNow: '0',
   tokenDecimals: 18,
   isSubmitting: false
@@ -167,12 +168,19 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
 }
 
 function getMaxBuyAmount() {
-  const available = Number(swapState.polBalance || 0) - Number(POL_GAS_RESERVE)
+  const userAvailable = Number(swapState.polBalance || 0) - Number(POL_GAS_RESERVE)
+  const poolAvailable = Number(swapState.poolInventory || 0)
+  const available = Math.min(userAvailable, poolAvailable)
+
   return available > 0 ? available.toFixed(6) : '0'
 }
 
 function getMaxSellAmount() {
-  const available = Number(swapState.vwalaBalance || 0)
+  const available = Math.min(
+    Number(swapState.vwalaBalance || 0),
+    Number(swapState.redeemableNow || 0)
+  )
+
   return available > 0 ? available.toFixed(6) : '0'
 }
 
@@ -283,13 +291,15 @@ async function loadSwapData(walletAddress = '') {
     const poolContract = getPoolContract(provider)
     const tokenContract = getTokenContract(provider)
 
-    const [decimalsRaw, reserveRaw] = await Promise.all([
-      tokenContract.decimals(),
-      poolContract.reservePOL()
-    ])
+    const [decimalsRaw, reserveRaw, inventoryRaw] = await Promise.all([
+  tokenContract.decimals(),
+  poolContract.reservePOL(),
+  poolContract.tokenInventory()
+])
 
-    swapState.tokenDecimals = Number(decimalsRaw)
-    swapState.poolReserve = formatEther(reserveRaw)
+swapState.tokenDecimals = Number(decimalsRaw)
+swapState.poolReserve = formatEther(reserveRaw)
+swapState.poolInventory = formatUnits(inventoryRaw, Number(decimalsRaw))
 
     if (walletAddress) {
       const [polBalanceRaw, vwalaBalanceRaw, redeemableRaw] = await Promise.all([
