@@ -167,6 +167,32 @@ document.querySelector('#app').innerHTML = `
       </div>
     </div>
   </div>
+
+  <div id="appPinOverlay" class="overlay"></div>
+  <div id="appPinModal" class="custom-modal">
+    <div class="card modal-card notice-modal-card">
+      <div class="modal-header">
+        <h3 id="appPinTitle">Confirmar PIN</h3>
+        <button class="modal-close" id="closeAppPinBtn" type="button">✕</button>
+      </div>
+
+      <div class="notice-modal-body">
+        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para apostar.</p>
+        <input
+          id="appPinInput"
+          class="input"
+          type="password"
+          placeholder="Digite seu PIN"
+          autocomplete="current-password"
+        />
+      </div>
+
+      <div class="notice-modal-footer">
+        <button id="appPinCancelBtn" class="trade" type="button">Cancelar</button>
+        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
 `
 
 const marketGrid = document.getElementById('marketGrid')
@@ -184,6 +210,15 @@ const appNoticeText = document.getElementById('appNoticeText')
 const closeAppNoticeBtn = document.getElementById('closeAppNoticeBtn')
 const appNoticeConfirmBtn = document.getElementById('appNoticeConfirmBtn')
 
+const appPinOverlay = document.getElementById('appPinOverlay')
+const appPinModal = document.getElementById('appPinModal')
+const appPinTitle = document.getElementById('appPinTitle')
+const appPinText = document.getElementById('appPinText')
+const appPinInput = document.getElementById('appPinInput')
+const closeAppPinBtn = document.getElementById('closeAppPinBtn')
+const appPinCancelBtn = document.getElementById('appPinCancelBtn')
+const appPinConfirmBtn = document.getElementById('appPinConfirmBtn')
+
 function showAlert(title, message) {
   appNoticeTitle.textContent = title
   appNoticeText.textContent = message
@@ -196,6 +231,41 @@ function closeAlert() {
   appNoticeOverlay.classList.remove('active')
 }
 
+const pinModalState = {
+  resolve: null
+}
+
+function openPinModal(title, text) {
+  appPinTitle.textContent = title
+  appPinText.textContent = text
+  appPinInput.value = ''
+  appPinModal.classList.add('active')
+  appPinOverlay.classList.add('active')
+
+  setTimeout(() => {
+    appPinInput.focus()
+  }, 0)
+
+  return new Promise((resolve) => {
+    pinModalState.resolve = resolve
+  })
+}
+
+function closePinModal(result = null) {
+  appPinModal.classList.remove('active')
+  appPinOverlay.classList.remove('active')
+
+  const resolve = pinModalState.resolve
+  pinModalState.resolve = null
+
+  if (resolve) {
+    resolve(result)
+  }
+}
+
+async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para apostar.') {
+  return openPinModal(title, text)
+}
 function openSidebar() {
   sidebar.style.right = '0'
   sidebarOverlay.classList.add('active')
@@ -429,7 +499,7 @@ async function getInternalWalletSigner() {
     return null
   }
 
-  const pin = window.prompt('Digite o PIN da carteira para apostar')
+  const pin = await showPinModal('Confirmar PIN', 'Digite o PIN da carteira para apostar.')
   if (pin === null) {
     return null
   }
@@ -973,6 +1043,24 @@ async function boot() {
   closeAppNoticeBtn.addEventListener('click', closeAlert)
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
+
+  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
+  appPinCancelBtn.addEventListener('click', () => closePinModal(null))
+  appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
+  appPinOverlay.addEventListener('click', () => closePinModal(null))
+
+  appPinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      closePinModal(appPinInput.value)
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closePinModal(null)
+    }
+  })
 
   await initFirebaseSession()
   await initWalletSession()
