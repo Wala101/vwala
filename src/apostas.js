@@ -32,7 +32,26 @@ const BETTING_ABI = [
   'function getMarketNames(uint64 fixtureId) external view returns (string league, string teamA, string teamB)',
   'function getMarketPools(uint64 fixtureId) external view returns (uint256 poolHome, uint256 poolDraw, uint256 poolAway, uint256 totalPool, uint256 marketDistributed)',
   'function getMarketProbabilities(uint64 fixtureId) external view returns (uint16 probHomeBps, uint16 probDrawBps, uint16 probAwayBps, uint16 feeBps, uint256 feeAmount)',
-  'function getPosition(uint64 fixtureId, address user, uint64 couponId) external view returns (bool exists, uint64 storedFixtureId, address positionUser, uint64 storedCouponId, uint8 outcome, uint256 amount, bool claimed, uint256 claimedAmount)'
+  'function getPosition(uint64 fixtureId, address user, uint64 couponId) external view returns (bool exists, uint64 storedFixtureId, address positionUser, uint64 storedCouponId, uint8 outcome, uint256 amount, bool claimed, uint256 claimedAmount)',
+  'error Unauthorized()',
+  'error InvalidAmount()',
+  'error InvalidProbabilityConfig()',
+  'error FeeTooHigh()',
+  'error MarketAlreadyExists()',
+  'error MarketNotFound()',
+  'error MarketClosed()',
+  'error MarketNotOpen()',
+  'error MarketAlreadyResolved()',
+  'error MarketNotResolved()',
+  'error NoWinningLiquidity()',
+  'error PositionAlreadyExists()',
+  'error PositionNotFound()',
+  'error InvalidPositionOwner()',
+  'error PositionAlreadyClaimed()',
+  'error NotWinner()',
+  'error InvalidPayout()',
+  'error TreasuryInactive()',
+  'error TreasuryInsufficient()'
 ]
 
 const Outcome = {
