@@ -1,4 +1,11 @@
 import './style/style.css'
+import { auth, db } from './firebase'
+import {
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence
+} from 'firebase/auth'
+import { doc, getDoc } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -50,6 +57,8 @@ const state = {
   positions: {},
   loading: false
 }
+
+let currentGoogleUser = null
 
 document.querySelector('#app').innerHTML = `
   <div id="sidebarOverlay" class="overlay"></div>
@@ -235,6 +244,10 @@ function getFriendlyError(error) {
 
   if (text.includes('user rejected')) return 'Transação cancelada na wallet.'
   if (text.includes('insufficient funds')) return 'Saldo insuficiente para a transação.'
+  if (text.includes('invalid password') || text.includes('wrong password') || text.includes('incorrect password')) {
+    return 'PIN incorreto.'
+  }
+  if (text.includes('marketnotfound')) return 'Esse mercado ainda não foi criado no contrato.'
   if (text.includes('notwinner')) return 'Essa posição não venceu.'
   if (text.includes('positionnotfound')) return 'Posição não encontrada.'
   if (text.includes('positionalreadyclaimed')) return 'Essa posição já foi resgatada.'
@@ -326,6 +339,62 @@ async function loadUserTokenBalance() {
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
+  }
+}
+
+async function syncWalletProfileFromFirebase() {
+  if (!currentGoogleUser?.uid) return
+
+  const userRef = doc(db, 'users', currentGoogleUser.uid)
+  const userSnap = await getDoc(userRef)
+
+  if (!userSnap.exists()) return
+
+  const userData = userSnap.data()
+  const walletAddress = String(userData.walletAddress || '').trim()
+
+  if (!walletAddress) return
+
+  localStorage.setItem(
+    'vwala_wallet_profile',
+    JSON.stringify({
+      uid: currentGoogleUser.uid,
+      walletAddress,
+      chainId: userData.chainId || POLYGON_CHAIN_ID,
+      network: userData.network || 'polygon'
+    })
+  )
+
+  state.userAddress = walletAddress
+}
+
+async function initFirebaseSession() {
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+
+    await new Promise((resolve) => {
+      let finished = false
+
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        currentGoogleUser = user || null
+
+        try {
+          if (user) {
+            await syncWalletProfileFromFirebase()
+          }
+        } catch (error) {
+          console.error('Erro ao sincronizar Firebase na página de apostas:', error)
+        } finally {
+          if (!finished) {
+            finished = true
+            unsubscribe()
+            resolve()
+          }
+        }
+      })
+    })
+  } catch (error) {
+    console.error('Erro ao iniciar Firebase na página de apostas:', error)
   }
 }
 
@@ -710,6 +779,12 @@ function createCard(match) {
       return
     }
 
+    if (!state.userAddress) {
+      hintEl.textContent = 'Faça login para usar a carteira interna.'
+      confirmBtn.disabled = true
+      return
+    }
+
     if (!state.betting) {
       hintEl.textContent = 'Mercado indisponível no momento.'
       confirmBtn.disabled = true
@@ -831,6 +906,7 @@ async function boot() {
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
+  await initFirebaseSession()
   await initWalletSession()
   await loadMatches()
 }
