@@ -242,6 +242,10 @@ body{
   gap:12px;
 }
 
+#walletUserTokensContainer{
+  display:contents;
+}
+
 .wallet-token-card{
   display:flex;
   align-items:center;
@@ -261,6 +265,10 @@ body{
   transform:translateY(-2px);
   border-color:rgba(37,255,138,0.18);
   box-shadow:0 12px 24px rgba(0,0,0,0.24), 0 0 24px rgba(37,255,138,0.06);
+}
+
+.wallet-token-card[data-token-address]{
+  cursor:pointer;
 }
 
 .wallet-token-left{
