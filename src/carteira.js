@@ -210,7 +210,7 @@ app.innerHTML = `
   <div class="wallet-token-card">
     <div class="wallet-token-left">
       <div class="wallet-token-icon pol">
-        <img src="/polygon-MATIC.webp" alt="Polygon" />
+        <img src="/Polygon-MATIC.webp" alt="Polygon" />
       </div>
       <div class="wallet-token-info">
         <div class="wallet-token-name">Polygon</div>
@@ -338,7 +338,7 @@ async function ensureUserWalletProfile(user) {
     photo: user.photoURL || '',
     walletAddress: wallet.address,
     walletKeystore,
-        chainId: POLYGON_CHAIN_ID,
+    chainId: POLYGON_CHAIN_ID,
     network: 'polygon',
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp()
