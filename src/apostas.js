@@ -329,8 +329,55 @@ async function loadUserTokenBalance() {
   }
 }
 
-function getInternalWalletSigner() {
-  return null
+function getLocalDeviceWalletForBetting() {
+  try {
+    const raw = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch (error) {
+    console.error('Erro ao ler carteira local da aposta:', error)
+    return null
+  }
+}
+
+async function getInternalWalletSigner() {
+  if (state.signer) {
+    return state.signer
+  }
+
+  const deviceVault = getLocalDeviceWalletForBetting()
+  if (!deviceVault?.walletKeystoreLocal) {
+    return null
+  }
+
+  const expectedAddress = getCurrentWalletAddress().trim().toLowerCase()
+  const vaultAddress = String(deviceVault.walletAddress || '').trim().toLowerCase()
+
+  if (!expectedAddress || !vaultAddress || expectedAddress !== vaultAddress) {
+    return null
+  }
+
+  const pin = window.prompt('Digite o PIN da carteira para apostar')
+  if (pin === null) {
+    return null
+  }
+
+  if (!pin.trim()) {
+    throw new Error('PIN inválido.')
+  }
+
+  const unlockedWallet = await Wallet.fromEncryptedJson(
+    deviceVault.walletKeystoreLocal,
+    pin.trim()
+  )
+
+  const signer = unlockedWallet.connect(state.provider)
+
+  state.signer = signer
+  state.token = state.token.connect(signer)
+  state.betting = state.betting.connect(signer)
+
+  return signer
 }
 
 
@@ -527,23 +574,26 @@ async function previewPayout(fixtureId, outcome, amountUi) {
   }
 }
 
-async function approveIfNeeded(amountUi) {
+async function approveIfNeeded(amountUi, signer) {
   const amount = parseUnits(String(amountUi).replace(',', '.'), state.decimals)
-  const allowance = await state.token.allowance(state.userAddress, BETTING_ADDRESS)
+  const ownerAddress = await signer.getAddress()
+  const tokenContract = state.token.connect(signer)
+  const allowance = await tokenContract.allowance(ownerAddress, BETTING_ADDRESS)
 
   if (allowance >= amount) return
 
-  const tx = await state.token.approve(BETTING_ADDRESS, amount)
+  const tx = await tokenContract.approve(BETTING_ADDRESS, amount)
   await tx.wait()
 }
 
-async function buyPosition(match, outcome, amountUi) {
+async function buyPosition(match, outcome, amountUi, signer) {
   const couponId = generateCouponId(match)
   const amount = parseUnits(String(amountUi).replace(',', '.'), state.decimals)
+  const bettingContract = state.betting.connect(signer)
 
-  await approveIfNeeded(amountUi)
+  await approveIfNeeded(amountUi, signer)
 
-  const tx = await state.betting.buyPosition(
+  const tx = await bettingContract.buyPosition(
     BigInt(match.fixtureId),
     couponId,
     Number(outcome),
@@ -660,14 +710,8 @@ function createCard(match) {
       return
     }
 
-    if (!state.userAddress || !state.betting) {
-      hintEl.textContent = 'Configure a carteira interna para apostar.'
-      confirmBtn.disabled = true
-      return
-    }
-
-    if (!state.signer) {
-      hintEl.textContent = 'Esta carteira está só em leitura neste aparelho.'
+    if (!state.betting) {
+      hintEl.textContent = 'Mercado indisponível no momento.'
       confirmBtn.disabled = true
       return
     }
@@ -716,13 +760,10 @@ function createCard(match) {
         return
       }
 
-      if (!state.signer) {
-        showAlert('PIN necessário', 'A abertura de posição com a carteira interna será ligada no próximo passo usando o PIN do aparelho.')
-        return
-      }
+      const signer = await getInternalWalletSigner()
 
-      if (!state.signer) {
-        showAlert('Assinatura indisponível', 'Esta carteira está apenas em leitura neste aparelho.')
+      if (!signer) {
+        showAlert('PIN necessário', 'Digite o PIN da carteira interna para apostar.')
         return
       }
 
@@ -741,7 +782,7 @@ function createCard(match) {
       confirmBtn.disabled = true
       confirmBtn.textContent = 'Abrindo posição...'
 
-      await buyPosition(match, selectedOutcome, amountUi)
+      await buyPosition(match, selectedOutcome, amountUi, signer)
       showAlert('Sucesso', 'Posição aberta com sucesso.')
 
       await refreshWalletBalance()
@@ -791,22 +832,7 @@ async function boot() {
   appNoticeOverlay.addEventListener('click', closeAlert)
 
   await initWalletSession()
-
-  const initialMatches = await fetchMatches()
-  state.matches = loadCouponsForMatches(initialMatches)
-
-  if (state.betting) {
-    const hydrated = []
-    for (const match of state.matches) {
-      hydrated.push(await hydrateMatch(match))
-    }
-
-    state.matches = loadCouponsForMatches(hydrated)
-
-    await refreshAllPositions()
-  }
-
-  renderMatches()
+  await loadMatches()
 }
 
 boot()
