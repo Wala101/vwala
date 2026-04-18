@@ -31,7 +31,7 @@ const modalState = {
   addressText: ''
 }
 
-const POLYGON_RPC_URL = '/api/rpc'
+const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
