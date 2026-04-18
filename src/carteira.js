@@ -702,6 +702,60 @@ async function handleWalletAction(action) {
   }
 }
 
+function buildLiquidityPageUrl(tokenAddress = '') {
+  const url = new URL('/liquidez.html', window.location.origin)
+  url.searchParams.set('token', tokenAddress)
+  return url.toString()
+}
+
+async function openCreatedTokenActions(token) {
+  if (!token?.tokenAddress) {
+    await showMessageModal(
+      'Token',
+      'Mint do token não encontrado.'
+    )
+    return
+  }
+
+  const result = await openUiModal({
+    title: token.name || 'Token criado',
+    text: `
+      <strong>Símbolo:</strong><br>${escapeHtml(token.symbol || 'TOKEN')}
+      <br><br><strong>Mint do token:</strong>
+      <br><br>Use este endereço para o contrato de swap e para a futura tela de liquidez.
+    `,
+    mode: 'token_actions',
+    confirmText: 'Copiar mint',
+    cancelText: 'Adicionar liquidez',
+    showCancel: true,
+    addressText: token.tokenAddress
+  })
+
+  if (result === 'copy') {
+    try {
+      await navigator.clipboard.writeText(token.tokenAddress)
+
+      await showMessageModal(
+        'Mint copiado',
+        'O mint do token foi copiado com sucesso.'
+      )
+    } catch (error) {
+      console.error('Erro ao copiar mint do token:', error)
+
+      await showMessageModal(
+        'Erro ao copiar',
+        'Não foi possível copiar o mint agora.'
+      )
+    }
+
+    return
+  }
+
+  if (result === 'liquidity') {
+    window.location.href = buildLiquidityPageUrl(token.tokenAddress)
+  }
+}
+
 function renderUserTokens() {
   if (!walletState.userTokens.length) {
     return `
@@ -718,21 +772,27 @@ function renderUserTokens() {
         : 'T'
 
       return `
-        <div class="wallet-token-card">
-          <div class="wallet-token-left">
-            <div class="wallet-token-icon user">${iconHtml}</div>
-            <div class="wallet-token-info">
-              <div class="wallet-token-name">${escapeHtml(token.name)}</div>
-              <div class="wallet-token-symbol">${escapeHtml(token.symbol)}</div>
-            </div>
-          </div>
+  <div
+    class="wallet-token-card"
+    data-token-address="${escapeHtml(token.tokenAddress)}"
+    role="button"
+    tabindex="0"
+    title="Abrir ações do token"
+  >
+    <div class="wallet-token-left">
+      <div class="wallet-token-icon user">${iconHtml}</div>
+      <div class="wallet-token-info">
+        <div class="wallet-token-name">${escapeHtml(token.name)}</div>
+        <div class="wallet-token-symbol">${escapeHtml(token.symbol)}</div>
+      </div>
+    </div>
 
-          <div class="wallet-token-balance">
-            <strong>${formatTokenSupply(token.balance, token.symbol)}</strong>
-            <small>${escapeHtml(token.caption || 'Token do usuário')}</small>
-          </div>
-        </div>
-      `
+    <div class="wallet-token-balance">
+      <strong>${formatTokenSupply(token.balance, token.symbol)}</strong>
+      <small>${escapeHtml(token.caption || 'Token do usuário')}</small>
+    </div>
+  </div>
+`
     })
     .join('')
 }
@@ -942,7 +1002,7 @@ uiModalText.innerHTML = text
 uiModalConfirmBtn.textContent = confirmText
     uiModalCancelBtn.textContent = cancelText
     uiModalCancelBtn.style.display = showCancel ? 'flex' : 'none'
-    uiModalCloseBtn.classList.toggle('hidden', mode !== 'address')
+uiModalCloseBtn.classList.toggle('hidden', !['address', 'token_actions'].includes(mode))
 
     uiModalAddressBox.classList.add('hidden')
     uiModalAddressBox.textContent = ''
@@ -1117,10 +1177,20 @@ uiModalConfirmBtn?.addEventListener('click', async () => {
     return
   }
 
+  if (modalState.mode === 'token_actions') {
+    closeUiModal('copy')
+    return
+  }
+
   closeUiModal(true)
 })
 
 uiModalCancelBtn?.addEventListener('click', () => {
+  if (modalState.mode === 'token_actions') {
+    closeUiModal('liquidity')
+    return
+  }
+
   closeUiModal(null)
 })
 
@@ -1348,6 +1418,52 @@ document.querySelectorAll('.wallet-action').forEach((button) => {
 
     await handleWalletAction(action)
   })
+})
+
+document.getElementById('walletUserTokensContainer')?.addEventListener('click', async (event) => {
+  const card = event.target.closest('[data-token-address]')
+
+  if (!card) {
+    return
+  }
+
+  const tokenAddress = String(card.getAttribute('data-token-address') || '').toLowerCase()
+
+  const token = walletState.userTokens.find((item) =>
+    String(item.tokenAddress || '').toLowerCase() === tokenAddress
+  )
+
+  if (!token) {
+    return
+  }
+
+  await openCreatedTokenActions(token)
+})
+
+document.getElementById('walletUserTokensContainer')?.addEventListener('keydown', async (event) => {
+  if (event.key !== 'Enter' && event.key !== ' ') {
+    return
+  }
+
+  const card = event.target.closest('[data-token-address]')
+
+  if (!card) {
+    return
+  }
+
+  event.preventDefault()
+
+  const tokenAddress = String(card.getAttribute('data-token-address') || '').toLowerCase()
+
+  const token = walletState.userTokens.find((item) =>
+    String(item.tokenAddress || '').toLowerCase() === tokenAddress
+  )
+
+  if (!token) {
+    return
+  }
+
+  await openCreatedTokenActions(token)
 })
 
 initFirebaseAuthGate()
