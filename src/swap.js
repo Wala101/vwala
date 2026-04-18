@@ -30,7 +30,8 @@ const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
-const VWALA_POOL_ADDRESS = '0xaacb8f7c85fFdE52DDbC8E17cF3A169eCf46B789'
+const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
+const VWALA_POOL_ADDRESS = '0x5c950A2FA20A48DDcb4952910e550Ac59fd21AF7'
 const POL_GAS_RESERVE = '0.05'
 
 const swapState = {
@@ -38,7 +39,6 @@ const swapState = {
   polBalance: '0',
   vwalaBalance: '0',
   poolReserve: '0',
-  totalSupply: '0',
   redeemableNow: '0',
   tokenDecimals: 18,
   isSubmitting: false
@@ -56,11 +56,15 @@ const VWALA_POOL_ABI = [
   'function buy() payable',
   'function sell(uint256 amount)',
   'function reservePOL() view returns (uint256)',
-  'function totalSupply() view returns (uint256)',
+  'function tokenInventory() view returns (uint256)',
+  'function maxRedeemable(address account) view returns (uint256)'
+]
+
+const ERC20_TOKEN_ABI = [
+  'function decimals() view returns (uint8)',
   'function balanceOf(address account) view returns (uint256)',
   'function allowance(address owner, address spender) view returns (uint256)',
-  'function approve(address spender, uint256 amount) returns (bool)',
-  'function decimals() view returns (uint8)'
+  'function approve(address spender, uint256 amount) returns (bool)'
 ]
 
 function formatAmount(value = '0', symbol = '') {
@@ -115,6 +119,14 @@ function getPoolContract(providerOrSigner) {
   return new Contract(
     VWALA_POOL_ADDRESS,
     VWALA_POOL_ABI,
+    providerOrSigner
+  )
+}
+
+function getTokenContract(providerOrSigner) {
+  return new Contract(
+    VWALA_TOKEN_ADDRESS,
+    ERC20_TOKEN_ABI,
     providerOrSigner
   )
 }
@@ -196,13 +208,8 @@ function syncSwapUI() {
   const amountHint = document.getElementById('swapAmountHint')
   if (amountHint) {
     amountHint.textContent = isBuy
-      ? `Disponível para compra agora: ${formatAmount(getMaxBuyAmount(), 'POL')} (reservando ${POL_GAS_RESERVE} POL para gás)`
-      : `Disponível para venda agora: ${formatAmount(getMaxSellAmount(), 'vWALA')}`
-  }
-
-  const receiveLabel = document.getElementById('swapReceiveLabel')
-  if (receiveLabel) {
-    receiveLabel.textContent = isBuy ? 'Você recebe' : 'Você recebe'
+      ? `Máximo disponível: ${formatAmount(getMaxBuyAmount(), 'POL')}`
+      : `Máximo disponível: ${formatAmount(getMaxSellAmount(), 'vWALA')}`
   }
 
   const payValue = document.getElementById('swapPayValue')
@@ -225,8 +232,8 @@ function syncSwapUI() {
     submitBtn.textContent = !hasWallet
       ? 'Entrar com Google'
       : isBuy
-        ? 'Comprar vWALA'
-        : 'Vender vWALA'
+        ? 'Comprar'
+        : 'Vender'
 
     submitBtn.disabled = swapState.isSubmitting
   }
@@ -234,35 +241,15 @@ function syncSwapUI() {
   const inlineMessage = document.getElementById('swapInlineMessage')
   if (inlineMessage) {
     if (!hasWallet) {
-      inlineMessage.textContent = 'Entre com Google para usar sua carteira interna.'
+      inlineMessage.textContent = 'Entre com Google para continuar.'
       inlineMessage.classList.remove('hidden')
     } else if (!isBuy && Number(swapState.polBalance || 0) < Number(POL_GAS_RESERVE)) {
-      inlineMessage.textContent = `Para vender, mantenha pelo menos ${POL_GAS_RESERVE} POL na carteira para pagar o gás.`
+      inlineMessage.textContent = `Mantenha pelo menos ${POL_GAS_RESERVE} POL para o gás da venda.`
       inlineMessage.classList.remove('hidden')
     } else {
       inlineMessage.textContent = ''
       inlineMessage.classList.add('hidden')
     }
-  }
-
-  const reserveStatus = document.getElementById('swapReserveStatus')
-  if (reserveStatus) {
-    const reserve = Number(swapState.poolReserve || 0)
-    const supply = Number(swapState.totalSupply || 0)
-    const healthy = reserve >= supply
-
-    reserveStatus.textContent = healthy
-      ? 'Lastro 1:1 íntegro'
-      : 'Reserva abaixo do supply'
-
-    reserveStatus.classList.toggle('warning', !healthy)
-  }
-
-  const liveRule = document.getElementById('swapLiveRule')
-  if (liveRule) {
-    liveRule.textContent = isBuy
-      ? `Compra 1:1 — ${formatAmount(amountNumber || 0, 'POL')} → ${formatAmount(quoteValue || 0, 'vWALA')}`
-      : `Venda 1:1 — ${formatAmount(amountNumber || 0, 'vWALA')} → ${formatAmount(quoteValue || 0, 'POL')}`
   }
 }
 
@@ -287,21 +274,6 @@ function updateDashboardUI() {
     reserveText.textContent = formatAmount(swapState.poolReserve, 'POL')
   }
 
-  const supplyText = document.getElementById('swapTotalSupply')
-  if (supplyText) {
-    supplyText.textContent = formatAmount(swapState.totalSupply, 'vWALA')
-  }
-
-  const redeemableText = document.getElementById('swapRedeemableNow')
-  if (redeemableText) {
-    redeemableText.textContent = formatAmount(swapState.redeemableNow, 'POL')
-  }
-
-  const contractAddressText = document.getElementById('swapContractAddress')
-  if (contractAddressText) {
-    contractAddressText.textContent = formatWalletAddress(VWALA_POOL_ADDRESS)
-  }
-
   syncSwapUI()
 }
 
@@ -309,29 +281,26 @@ async function loadSwapData(walletAddress = '') {
   try {
     const provider = getProvider()
     const poolContract = getPoolContract(provider)
+    const tokenContract = getTokenContract(provider)
 
-    const decimalsRaw = await poolContract.decimals()
-    const reserveRaw = await poolContract.reservePOL()
-    const supplyRaw = await poolContract.totalSupply()
+    const [decimalsRaw, reserveRaw] = await Promise.all([
+      tokenContract.decimals(),
+      poolContract.reservePOL()
+    ])
 
     swapState.tokenDecimals = Number(decimalsRaw)
     swapState.poolReserve = formatEther(reserveRaw)
-    swapState.totalSupply = formatUnits(supplyRaw, swapState.tokenDecimals)
 
     if (walletAddress) {
-      const [polBalanceRaw, vwalaBalanceRaw] = await Promise.all([
+      const [polBalanceRaw, vwalaBalanceRaw, redeemableRaw] = await Promise.all([
         provider.getBalance(walletAddress),
-        poolContract.balanceOf(walletAddress)
+        tokenContract.balanceOf(walletAddress),
+        poolContract.maxRedeemable(walletAddress)
       ])
 
       swapState.polBalance = formatEther(polBalanceRaw)
       swapState.vwalaBalance = formatUnits(vwalaBalanceRaw, swapState.tokenDecimals)
-      swapState.redeemableNow = String(
-        Math.min(
-          Number(swapState.poolReserve || 0),
-          Number(swapState.vwalaBalance || 0)
-        )
-      )
+      swapState.redeemableNow = formatUnits(redeemableRaw, swapState.tokenDecimals)
     } else {
       swapState.polBalance = '0'
       swapState.vwalaBalance = '0'
@@ -353,7 +322,7 @@ function renderPage() {
             <div class="swap-brand-badge">W</div>
             <div class="swap-brand-text">
               <strong>vWALA Swap</strong>
-              <span>Compra e venda interna</span>
+              <span>Comprar e vender</span>
             </div>
           </div>
 
@@ -362,146 +331,76 @@ function renderPage() {
           </div>
         </header>
 
-        <section class="swap-hero">
-          <div class="swap-hero-top">
-            <div class="swap-hero-copy">
-              <h1>Compre ou venda vWALA no mesmo lugar.</h1>
-              <p>
-                Fluxo 1:1 interno. O usuário compra com POL e vende de volta por POL dentro do mesmo contrato, com reserva mínima protegida para o gás.
-              </p>
-            </div>
-
-            <div class="swap-hero-pill">1 POL = 1 vWALA</div>
-          </div>
-
-          <div class="swap-hero-stats">
-            <div class="swap-stat-card">
-              <span>Carteira</span>
-              <strong id="swapWalletAddress">${formatWalletAddress(currentWalletAddress)}</strong>
-            </div>
-
-            <div class="swap-stat-card">
-              <span>Reserva no contrato</span>
-              <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
-            </div>
-
-            <div class="swap-stat-card">
-              <span>Supply circulando</span>
-              <strong id="swapTotalSupply">${formatAmount('0', 'vWALA')}</strong>
-            </div>
-
-            <div class="swap-stat-card">
-              <span>Seu saque possível agora</span>
-              <strong id="swapRedeemableNow">${formatAmount('0', 'POL')}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section class="swap-grid">
-          <div class="swap-card">
-            <div class="swap-card-header">
-              <div>
-                <h2>Executar swap</h2>
-                <p>Escolha se deseja comprar ou vender. O cálculo é simples e direto, sem modal apertado.</p>
-              </div>
-
-              <div id="swapReserveStatus" class="swap-status-pill">Lastro 1:1 íntegro</div>
-            </div>
-
-            <div class="swap-balance-row">
-              <div class="swap-balance-box">
-                <span>Seu saldo em POL</span>
-                <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
-              </div>
-
-              <div class="swap-balance-box">
-                <span>Seu saldo em vWALA</span>
-                <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
-              </div>
-            </div>
-
-            <div class="swap-tabs">
-              <button id="swapTabBuy" class="swap-tab active" type="button">Comprar</button>
-              <button id="swapTabSell" class="swap-tab" type="button">Vender</button>
-            </div>
-
-            <div class="swap-form-wrap">
-              <div class="swap-field">
-                <div class="swap-label-row">
-                  <label id="swapAmountLabel" for="swapAmountInput">Você paga em POL</label>
-                  <span class="swap-helper-inline">Regra fixa 1:1</span>
-                </div>
-
-                <div class="swap-input-row">
-                  <input
-                    id="swapAmountInput"
-                    type="text"
-                    inputmode="decimal"
-                    placeholder="0.00"
-                    autocomplete="off"
-                  />
-                  <button id="swapMaxBtn" class="swap-max-btn" type="button">MAX</button>
-                </div>
-
-                <div id="swapAmountHint" class="swap-field-hint">
-                  Disponível para compra agora: ${formatAmount('0', 'POL')}
-                </div>
-              </div>
-
-              <div class="swap-preview">
-                <div class="swap-preview-row">
-                  <span>Você paga</span>
-                  <strong id="swapPayValue">${formatAmount('0', 'POL')}</strong>
-                </div>
-
-                <div class="swap-preview-divider"></div>
-
-                <div class="swap-preview-row">
-                  <span id="swapReceiveLabel">Você recebe</span>
-                  <strong id="swapReceiveValue">${formatAmount('0', 'vWALA')}</strong>
-                </div>
-              </div>
-
-              <div id="swapInlineMessage" class="swap-warning hidden"></div>
-
-              <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
-
-              <div id="swapLiveRule" class="swap-subtext">
-                Compra 1:1 — ${formatAmount('0', 'POL')} → ${formatAmount('0', 'vWALA')}
-              </div>
-            </div>
-          </div>
-
-          <aside class="swap-side-card">
+        <section class="swap-card">
+          <div class="swap-card-header">
             <div>
-              <h3>Resumo do contrato</h3>
-              <p>Este swap usa um contrato único, com compra e venda no mesmo endereço.</p>
+              <h2>Swap</h2>
+              <p>Troque POL por vWALA ou vWALA por POL.</p>
+            </div>
+          </div>
+
+          <div class="swap-balance-row">
+            <div class="swap-balance-box">
+              <span>Seu saldo em POL</span>
+              <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
             </div>
 
-            <div class="swap-info-list">
-              <div class="swap-info-item">
-                <span>Contrato ativo</span>
-                <strong id="swapContractAddress">${formatWalletAddress(VWALA_POOL_ADDRESS)}</strong>
+            <div class="swap-balance-box">
+              <span>Seu saldo em vWALA</span>
+              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
+            </div>
+          </div>
+
+          <div class="swap-tabs">
+            <button id="swapTabBuy" class="swap-tab active" type="button">Comprar</button>
+            <button id="swapTabSell" class="swap-tab" type="button">Vender</button>
+          </div>
+
+          <div class="swap-form-wrap">
+            <div class="swap-field">
+              <div class="swap-label-row">
+                <label id="swapAmountLabel" for="swapAmountInput">Você paga em POL</label>
+                <span id="swapWalletAddress" class="swap-helper-inline">${formatWalletAddress(currentWalletAddress)}</span>
               </div>
 
-              <div class="swap-info-item">
-                <span>Reserva mínima recomendada</span>
-                <strong>${formatAmount(POL_GAS_RESERVE, 'POL')}</strong>
+              <div class="swap-input-row">
+                <input
+                  id="swapAmountInput"
+                  type="text"
+                  inputmode="decimal"
+                  placeholder="0.00"
+                  autocomplete="off"
+                />
+                <button id="swapMaxBtn" class="swap-max-btn" type="button">MAX</button>
               </div>
 
-              <div class="swap-info-item">
-                <span>Observação</span>
-                <strong>Na venda, a carteira ainda precisa ter POL para pagar o gás.</strong>
+              <div id="swapAmountHint" class="swap-field-hint">
+                Máximo disponível: ${formatAmount('0', 'POL')}
               </div>
             </div>
 
-            <ul class="swap-rules">
-              <li>Na compra, o MAX nunca usa 100% do seu POL.</li>
-              <li>Na venda, o contrato devolve POL, mas a transação ainda precisa de gás na carteira.</li>
-              <li>Quando precisar aprovar vWALA pela primeira vez, a venda pode gastar um pouco mais de gás.</li>
-              <li>O saldo exibido nesta tela é atualizado direto pela Polygon.</li>
-            </ul>
-          </aside>
+            <div class="swap-preview">
+              <div class="swap-preview-row">
+                <span>Você paga</span>
+                <strong id="swapPayValue">${formatAmount('0', 'POL')}</strong>
+              </div>
+
+              <div class="swap-preview-divider"></div>
+
+              <div class="swap-preview-row">
+                <span>Você recebe</span>
+                <strong id="swapReceiveValue">${formatAmount('0', 'vWALA')}</strong>
+              </div>
+            </div>
+
+            <div id="swapInlineMessage" class="swap-warning hidden"></div>
+
+            <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
+
+            <div class="swap-subtext">
+              Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
+            </div>
+          </div>
         </section>
       </div>
     </div>
@@ -511,7 +410,7 @@ function renderPage() {
         <div class="swap-auth-badge">W</div>
         <h2>Entre com Google</h2>
         <p>
-          Faça login para abrir sua carteira interna, consultar saldo e executar compra ou venda com PIN deste aparelho.
+          Faça login para usar o swap.
         </p>
 
         <button id="googleLoginBtn" class="swap-auth-google-btn" type="button">
@@ -1252,9 +1151,10 @@ async function handleSellVWala() {
     )
     const signer = unlockedWallet.connect(provider)
     const poolContract = getPoolContract(signer)
+    const tokenContract = getTokenContract(signer)
 
     const amountUnits = parseUnits(normalizedAmount, swapState.tokenDecimals)
-    const tokenBalance = await poolContract.balanceOf(signer.address)
+    const tokenBalance = await tokenContract.balanceOf(signer.address)
 
     if (tokenBalance < amountUnits) {
       hideLoadingModal()
@@ -1266,7 +1166,7 @@ async function handleSellVWala() {
       return
     }
 
-    const allowance = await poolContract.allowance(
+    const allowance = await tokenContract.allowance(
       signer.address,
       VWALA_POOL_ADDRESS
     )
@@ -1277,7 +1177,7 @@ async function handleSellVWala() {
     let approveGasEstimate = 0n
 
     if (allowance < amountUnits) {
-      approveGasEstimate = await poolContract.approve.estimateGas(
+      approveGasEstimate = await tokenContract.approve.estimateGas(
         VWALA_POOL_ADDRESS,
         amountUnits
       )
@@ -1301,10 +1201,10 @@ async function handleSellVWala() {
     if (allowance < amountUnits) {
       showLoadingModal(
         'Aprovando vWALA',
-        'Primeiro vamos aprovar o contrato para usar seu vWALA.'
+        'Aguarde a aprovação do token.'
       )
 
-      const approveTx = await poolContract.approve(
+      const approveTx = await tokenContract.approve(
         VWALA_POOL_ADDRESS,
         amountUnits
       )
@@ -1314,7 +1214,7 @@ async function handleSellVWala() {
 
     showLoadingModal(
       'Vendendo vWALA',
-      'Aguarde a confirmação da venda na Polygon.'
+      'Aguarde a confirmação da venda.'
     )
 
     const tx = await poolContract.sell(amountUnits)
