@@ -118,7 +118,7 @@ app.innerHTML = `
       <aside id="sidebar" class="side-menu">
        <a href="/carteira">Carteira</a>
         <a href="/token">Criar Token</a>
-        <a href="/futuros">Futures</a>
+        <a href="/apostas">Futebol</a>
         <a href="/posicoes">H/Futebol</a>
 <a href="/historico">H/Futures</a>
       </aside>
@@ -178,7 +178,7 @@ app.innerHTML = `
 
             <div class="feature-card-footer">
               <span>Abrir</span>
-              <strong style="display: none;">futebol.html</strong>
+              <strong style="display: none;">apostas.html</strong>
             </div>
           </article>
 

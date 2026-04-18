@@ -7,6 +7,7 @@ export default defineConfig({
         main: 'index.html',
         carteira: 'carteira.html',
         swap: 'swap.html',
+        apostas: 'apostas.html',
         token: 'token.html',
       },
     },
