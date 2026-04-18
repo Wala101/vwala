@@ -1,4 +1,5 @@
 {
   "VWalaReserveVaultModule#VWalaReserveVault": "0xb8ef27e1AD32335e5e442f00fd01f7f002D2bCAa",
-  "VWalaFixedSwapModule#VWalaFixedSwap": "0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35"
+  "VWalaFixedSwapModule#VWalaFixedSwap": "0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35",
+  "VWalaFixedSellModule#VWalaFixedSell": "0x7EA586C8f94F352b277A1C9006A05A5EA5600668"
 }

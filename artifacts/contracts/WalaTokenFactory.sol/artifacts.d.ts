@@ -15,7 +15,7 @@ export interface WalaTokenFactory$Type {
   readonly deployedLinkReferences: {};
   readonly immutableReferences: {};
   readonly inputSourceName: "project/contracts/WalaTokenFactory.sol";
-  readonly buildInfoId: "solc-0_8_24-9d0f8d2aeb8c43d6f0d21f09f6a8e017b037fc59";
+  readonly buildInfoId: "solc-0_8_24-61171b32ba06ea3f29b3dd9d4247de761553a661";
 };
 
 import "hardhat/types/artifacts";

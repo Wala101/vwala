@@ -410,19 +410,19 @@
   "linkReferences": {},
   "deployedLinkReferences": {},
   "immutableReferences": {
-    "1094": [
+    "793": [
       {
         "length": 32,
         "start": 212
       }
     ],
-    "1096": [
+    "795": [
       {
         "length": 32,
         "start": 381
       }
     ],
-    "1098": [
+    "797": [
       {
         "length": 32,
         "start": 435
@@ -430,5 +430,5 @@
     ]
   },
   "inputSourceName": "project/contracts/WalaFixedToken.sol",
-  "buildInfoId": "solc-0_8_24-9d0f8d2aeb8c43d6f0d21f09f6a8e017b037fc59"
+  "buildInfoId": "solc-0_8_24-3c5232fb636beef51df1e426160533aad1b6a5b8"
 }
