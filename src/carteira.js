@@ -1289,15 +1289,19 @@ async function handleWalletAction(action) {
   }
 
   if (action === 'swap') {
-    await handleBuyVWala()
-    return
-  }
+  window.location.href = buildSwapPageUrl()
+  return
+}
 }
 
 function buildLiquidityPageUrl(tokenAddress = '') {
   const url = new URL('/liquidez.html', window.location.origin)
   url.searchParams.set('token', tokenAddress)
   return url.toString()
+}
+
+function buildSwapPageUrl() {
+  return new URL('/swap.html', window.location.origin).toString()
 }
 
 function getTokenModalBadgeHtml(token = {}) {
