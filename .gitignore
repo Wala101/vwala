@@ -14,3 +14,7 @@ typechain-types
 coverage
 types/ethers-contracts
 types
+
+Hardhat
+artifacts/
+cache/
