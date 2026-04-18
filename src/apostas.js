@@ -208,10 +208,21 @@ document.querySelector('#app').innerHTML = `
         />
       </div>
 
-      <div class="notice-modal-footer">
-  <button id="appPinCancelBtn" class="notice-confirm-btn" type="button">Cancelar</button>
-  <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
-</div>
+      <div class="notice-modal-footer app-pin-actions">
+        <button id="appPinCancelBtn" class="app-secondary-btn" type="button">Cancelar</button>
+        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="appLoadingOverlay" class="overlay"></div>
+  <div id="appLoadingModal" class="custom-modal">
+    <div class="card modal-card notice-modal-card app-loading-card">
+      <div class="notice-modal-body app-loading-body">
+        <div class="app-loading-spinner"></div>
+        <h3 id="appLoadingTitle">Processando</h3>
+        <p id="appLoadingText" class="notice-modal-text">Aguarde...</p>
+      </div>
     </div>
   </div>
 `
@@ -239,6 +250,11 @@ const appPinInput = document.getElementById('appPinInput')
 const closeAppPinBtn = document.getElementById('closeAppPinBtn')
 const appPinCancelBtn = document.getElementById('appPinCancelBtn')
 const appPinConfirmBtn = document.getElementById('appPinConfirmBtn')
+
+const appLoadingOverlay = document.getElementById('appLoadingOverlay')
+const appLoadingModal = document.getElementById('appLoadingModal')
+const appLoadingTitle = document.getElementById('appLoadingTitle')
+const appLoadingText = document.getElementById('appLoadingText')
 
 function showAlert(title, message) {
   appNoticeTitle.textContent = title
@@ -287,6 +303,19 @@ function closePinModal(result = null) {
 async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para apostar.') {
   return openPinModal(title, text)
 }
+
+function showLoadingModal(title = 'Processando', text = 'Aguarde...') {
+  appLoadingTitle.textContent = title
+  appLoadingText.textContent = text
+  appLoadingModal.classList.add('active')
+  appLoadingOverlay.classList.add('active')
+}
+
+function hideLoadingModal() {
+  appLoadingModal.classList.remove('active')
+  appLoadingOverlay.classList.remove('active')
+}
+
 function openSidebar() {
   sidebar.style.right = '0'
   sidebarOverlay.classList.add('active')
@@ -324,31 +353,32 @@ function bpsToPercentText(bps) {
   return `${(Number(bps || 0) / 100).toFixed(2).replace('.', ',')}%`
 }
 
-function getOutcomeLabel(match, outcome) {
-  if (Number(outcome) === Outcome.HOME) return match.teamA
-  if (Number(outcome) === Outcome.DRAW) return 'Empate'
-  if (Number(outcome) === Outcome.AWAY) return match.teamB
-  return 'Selecione um lado'
+function cleanTeamName(name = '') {
+  return String(name || '')
+    .replace(/\b(SC|EC|FC|AC|AFC|SAF|SE|AA|CA|FBPA)\b/gi, ' ')
+    .replace(/\b(Paulista)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function normalizeMarketProbabilities(match = {}) {
-  const home = Number(match.homeProbBps || 0)
-  const draw = Number(match.drawProbBps || 0)
-  const away = Number(match.awayProbBps || 0)
+  const home = Number(match.probHomeBps || match.homeProbBps || 0)
+  const draw = Number(match.probDrawBps || match.drawProbBps || 0)
+  const away = Number(match.probAwayBps || match.awayProbBps || 0)
   const total = home + draw + away
 
   if (home > 0 && draw > 0 && away > 0 && total === 10000) {
     return {
-      homeProbBps: home,
-      drawProbBps: draw,
-      awayProbBps: away
+      probHomeBps: home,
+      probDrawBps: draw,
+      probAwayBps: away
     }
   }
 
   return {
-    homeProbBps: 4000,
-    drawProbBps: 3000,
-    awayProbBps: 3000
+    probHomeBps: 4000,
+    probDrawBps: 3000,
+    probAwayBps: 3000
   }
 }
 
@@ -647,9 +677,9 @@ async function hydrateMatch(match) {
       status: MarketStatus.OPEN,
       hasWinner: false,
       winningOutcome: null,
-      probHomeBps: match.homeProbBps || 0,
-      probDrawBps: match.drawProbBps || 0,
-      probAwayBps: match.awayProbBps || 0,
+      probHomeBps: match.probHomeBps || 0,
+      probDrawBps: match.probDrawBps || 0,
+      probAwayBps: match.probAwayBps || 0,
       poolHome: '0',
       poolDraw: '0',
       poolAway: '0',
@@ -685,9 +715,9 @@ async function hydrateMatch(match) {
       status: MarketStatus.OPEN,
       hasWinner: false,
       winningOutcome: null,
-      probHomeBps: match.homeProbBps || 0,
-      probDrawBps: match.drawProbBps || 0,
-      probAwayBps: match.awayProbBps || 0,
+      probHomeBps: match.probHomeBps || 0,
+      probDrawBps: match.probDrawBps || 0,
+      probAwayBps: match.probAwayBps || 0,
       poolHome: '0',
       poolDraw: '0',
       poolAway: '0',
@@ -701,9 +731,11 @@ async function loadMatches() {
     const fetchedMatches = await fetchMatches()
 
     const rawMatches = fetchedMatches.map((match) => ({
-      ...match,
-      ...normalizeMarketProbabilities(match)
-    }))
+  ...match,
+  teamA: cleanTeamName(match.teamA),
+  teamB: cleanTeamName(match.teamB),
+  ...normalizeMarketProbabilities(match)
+}))
 
     const baseMatches = loadCouponsForMatches(rawMatches)
 
@@ -803,9 +835,9 @@ async function previewPayout(fixtureId, outcome, amountUi, match = null) {
     const normalized = normalizeMarketProbabilities(match)
 
     const probs = {
-      [Outcome.HOME]: normalized.homeProbBps,
-      [Outcome.DRAW]: normalized.drawProbBps,
-      [Outcome.AWAY]: normalized.awayProbBps
+      [Outcome.HOME]: normalized.probHomeBps,
+      [Outcome.DRAW]: normalized.probDrawBps,
+      [Outcome.AWAY]: normalized.probAwayBps
     }
 
     const outcomeProbBps = Number(probs[Number(outcome)] || 0)
@@ -842,9 +874,9 @@ async function ensureMarketExists(match, signer) {
       match.teamA,
       match.teamB,
       0,
-      normalized.homeProbBps,
-      normalized.drawProbBps,
-      normalized.awayProbBps
+      normalized.probHomeBps,
+      normalized.probDrawBps,
+      normalized.probAwayBps
     )
 
     await tx.wait()
@@ -1081,14 +1113,17 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
       let createdNow = false
 
       if (!match.exists) {
-        confirmBtn.textContent = 'Criando mercado...'
+        showLoadingModal('Criando mercado', 'Aguarde enquanto o mercado é criado na Polygon.')
         await ensureMarketExists(match, signer)
         createdNow = true
       }
 
-      confirmBtn.textContent = 'Abrindo posição...'
+      showLoadingModal('Abrindo posição', 'Aguarde enquanto sua aposta é enviada para a Polygon.')
 
       await buyPosition(match, selectedOutcome, amountUi, signer)
+
+      hideLoadingModal()
+
       showAlert(
         'Sucesso',
         createdNow
@@ -1101,9 +1136,10 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
       await refreshAllPositions()
       renderMatches()
     } catch (error) {
+      hideLoadingModal()
       showAlert('Erro', getFriendlyError(error))
     } finally {
-      confirmBtn.textContent = match.exists ? 'Abrir posição' : 'Criar mercado e apostar'
+      confirmBtn.disabled = false
     }
   })
 
