@@ -7,7 +7,7 @@ import {
   signInWithRedirect
 } from 'firebase/auth'
 import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
-import { JsonRpcProvider, Wallet, formatEther, isAddress, parseEther } from 'ethers'
+import { Contract, JsonRpcProvider, Wallet, formatEther, isAddress, parseEther, parseUnits } from 'ethers'
 import QRCode from 'qrcode'
 
 const app = document.querySelector('#app')
@@ -36,6 +36,11 @@ const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
+
+const ERC20_TOKEN_ABI = [
+  'function decimals() view returns (uint8)',
+  'function transfer(address to, uint256 amount) returns (bool)'
+]
 
 function formatAmount(value = '0', symbol = '') {
   const num = Number(value || 0)
@@ -708,6 +713,270 @@ function buildLiquidityPageUrl(tokenAddress = '') {
   return url.toString()
 }
 
+function getTokenModalBadgeHtml(token = {}) {
+  const safeLabel = escapeHtml(token.symbol || token.name || 'TK')
+
+  if (token.imageUrl) {
+    return `<img src="${token.imageUrl}" alt="${safeLabel}" />`
+  }
+
+  return `<span class="wallet-modal-token-fallback">${safeLabel.slice(0, 2)}</span>`
+}
+
+function getTokenSendErrorMessage(error) {
+  const rawMessage = String(error?.shortMessage || error?.message || '').toLowerCase()
+
+  if (
+    rawMessage.includes('invalid password') ||
+    rawMessage.includes('wrong password') ||
+    rawMessage.includes('incorrect password')
+  ) {
+    return 'PIN incorreto. Tente novamente.'
+  }
+
+  if (
+    rawMessage.includes('insufficient funds') ||
+    rawMessage.includes('transfer amount exceeds balance') ||
+    rawMessage.includes('exceeds balance')
+  ) {
+    return 'Saldo insuficiente do token ou de POL para taxa.'
+  }
+
+  if (
+    rawMessage.includes('network error') ||
+    rawMessage.includes('failed to fetch') ||
+    rawMessage.includes('timeout')
+  ) {
+    return 'Falha de rede ao enviar o token. Tente novamente.'
+  }
+
+  return 'Não foi possível concluir o envio do token agora.'
+}
+
+async function showCreatedTokenReceiveModal(token) {
+  if (!currentWalletAddress) {
+    await showMessageModal(
+      'Carteira',
+      'Carteira ainda não carregada.'
+    )
+    return
+  }
+
+  let qrDataUrl = ''
+
+  try {
+    qrDataUrl = await QRCode.toDataURL(currentWalletAddress, {
+      width: 220,
+      margin: 1
+    })
+  } catch (error) {
+    console.error('Erro ao gerar QR Code do token:', error)
+  }
+
+  await openUiModal({
+    title: `Receber ${token.symbol || 'TOKEN'}`,
+    text: `
+      <strong>Contrato do token:</strong><br>${escapeHtml(token.tokenAddress)}
+      <br><br><strong>Envie ${escapeHtml(token.symbol || 'TOKEN')} para este endereço da sua carteira.</strong>
+    `,
+    mode: 'address',
+    confirmText: 'Copiar endereço',
+    showCancel: false,
+    addressText: currentWalletAddress,
+    qrDataUrl,
+    badgeHtml: getTokenModalBadgeHtml(token)
+  })
+}
+
+async function handleSendCreatedToken(token) {
+  if (!currentGoogleUser) {
+    openAuthGate()
+    return
+  }
+
+  if (!currentWalletAddress) {
+    await showMessageModal(
+      'Carteira',
+      'Carteira ainda não carregada.'
+    )
+    return
+  }
+
+  const destinationInput = await showPromptModal({
+    title: `Enviar ${token.symbol || 'TOKEN'}`,
+    text: 'Informe o endereço que vai receber este token.',
+    confirmText: 'Continuar',
+    cancelText: 'Cancelar',
+    placeholder: '0x...'
+  })
+
+  if (destinationInput === null) {
+    return
+  }
+
+  const destinationAddress = destinationInput.trim()
+
+  if (!destinationAddress) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Informe o endereço de destino.'
+    )
+    return
+  }
+
+  if (!isAddress(destinationAddress)) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Digite um endereço válido.'
+    )
+    return
+  }
+
+  if (destinationAddress.toLowerCase() === currentWalletAddress.toLowerCase()) {
+    await showMessageModal(
+      'Endereço inválido',
+      'Você não pode enviar para a sua própria carteira.'
+    )
+    return
+  }
+
+  const amountInput = await showPromptModal({
+    title: 'Quantidade',
+    text: `Informe quanto ${token.symbol || 'TOKEN'} deseja enviar.`,
+    confirmText: 'Continuar',
+    cancelText: 'Cancelar',
+    placeholder: '10'
+  })
+
+  if (amountInput === null) {
+    return
+  }
+
+  const normalizedAmount = normalizeAmountInput(amountInput)
+
+  if (!normalizedAmount) {
+    await showMessageModal(
+      'Quantidade inválida',
+      'Informe uma quantidade para enviar.'
+    )
+    return
+  }
+
+  let amountNumber
+
+  try {
+    amountNumber = Number(normalizedAmount)
+  } catch (error) {
+    amountNumber = NaN
+  }
+
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    await showMessageModal(
+      'Quantidade inválida',
+      'Digite um valor maior que zero.'
+    )
+    return
+  }
+
+  const confirmSend = await showConfirmModal(
+    `Confirmar envio de ${token.symbol || 'TOKEN'}`,
+    `<strong>Confira os dados antes de enviar.</strong><br><br><strong>Token:</strong><br>${escapeHtml(token.name || 'Token')} (${escapeHtml(token.symbol || 'TOKEN')})<br><br><strong>Destino:</strong><br>${escapeHtml(destinationAddress)}<br><br><strong>Quantidade:</strong><br>${escapeHtml(normalizedAmount)} ${escapeHtml(token.symbol || 'TOKEN')}`,
+    'Enviar',
+    'Cancelar'
+  )
+
+  if (!confirmSend) {
+    return
+  }
+
+  const pin = await showPinModal(
+    'Confirmar PIN',
+    'Digite seu PIN para autorizar o envio do token.',
+    'Enviar'
+  )
+
+  if (pin === null) {
+    return
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Digite seu PIN para continuar.'
+    )
+    return
+  }
+
+  try {
+    showLoadingModal(
+      `Enviando ${token.symbol || 'TOKEN'}`,
+      'Aguarde enquanto sua transação é assinada e enviada.'
+    )
+
+    const walletProfile = await getCurrentUserWalletProfile()
+    const deviceVault = await ensureDeviceWalletAccess(
+      currentGoogleUser,
+      walletProfile
+    )
+
+    if (!deviceVault?.walletKeystoreLocal) {
+      throw new Error('PIN deste aparelho ainda não configurado.')
+    }
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      deviceVault.walletKeystoreLocal,
+      pin.trim()
+    )
+    const signer = unlockedWallet.connect(provider)
+
+    const tokenContract = new Contract(
+      token.tokenAddress,
+      ERC20_TOKEN_ABI,
+      signer
+    )
+
+    let decimals = 18
+
+    try {
+      decimals = Number(await tokenContract.decimals())
+    } catch (error) {
+      decimals = 18
+    }
+
+    const amountUnits = parseUnits(normalizedAmount, decimals)
+
+    const tx = await tokenContract.transfer(
+      destinationAddress,
+      amountUnits
+    )
+
+    showLoadingModal(
+      'Confirmando na rede',
+      'Aguarde a confirmação da transação na Polygon.'
+    )
+
+    await tx.wait()
+
+    hideLoadingModal()
+
+    await showMessageModal(
+      'Enviado com sucesso',
+      `<strong>Transferência confirmada com sucesso.</strong><br><br><strong>Token:</strong><br>${escapeHtml(token.symbol || 'TOKEN')}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
+    )
+
+    await loadPolygonBalance(currentWalletAddress)
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro ao enviar token criado:', error)
+
+    await showMessageModal(
+      'Erro ao enviar token',
+      getTokenSendErrorMessage(error)
+    )
+  }
+}
+
 async function openCreatedTokenActions(token) {
   if (!token?.tokenAddress) {
     await showMessageModal(
@@ -725,10 +994,15 @@ async function openCreatedTokenActions(token) {
       <br><br>Use este endereço para o contrato de swap e para a futura tela de liquidez.
     `,
     mode: 'token_actions',
-    confirmText: 'Copiar mint',
-    cancelText: 'Adicionar liquidez',
-    showCancel: true,
-    addressText: token.tokenAddress
+    showCancel: false,
+    addressText: token.tokenAddress,
+    badgeHtml: getTokenModalBadgeHtml(token),
+    customActionsHtml: `
+      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="receive">Receber</button>
+      <button class="wallet-token-modal-action secondary" type="button" data-token-modal-action="send">Enviar</button>
+      <button class="wallet-token-modal-action secondary" type="button" data-token-modal-action="copy">Copiar mint</button>
+      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="liquidity">Liquidez</button>
+    `
   })
 
   if (result === 'copy') {
@@ -748,6 +1022,16 @@ async function openCreatedTokenActions(token) {
       )
     }
 
+    return
+  }
+
+  if (result === 'receive') {
+    await showCreatedTokenReceiveModal(token)
+    return
+  }
+
+  if (result === 'send') {
+    await handleSendCreatedToken(token)
     return
   }
 
@@ -919,7 +1203,7 @@ app.innerHTML = `
         ×
       </button>
 
-      <div class="wallet-auth-badge wallet-modal-token-badge">
+      <div id="uiModalBadge" class="wallet-auth-badge wallet-modal-token-badge">
         <img src="/Polygon-MATIC.webp" alt="Polygon" />
       </div>
       <h2 id="uiModalTitle">Aviso</h2>
@@ -941,7 +1225,9 @@ app.innerHTML = `
         autocomplete="off"
       />
 
-      <div class="wallet-modal-actions">
+      <div id="uiModalCustomActions" class="wallet-modal-custom-actions hidden"></div>
+
+      <div id="uiModalActions" class="wallet-modal-actions">
         <button id="uiModalCancelBtn" class="wallet-modal-secondary-btn" type="button">
           Cancelar
         </button>
@@ -974,6 +1260,9 @@ const uiModalInput = document.getElementById('uiModalInput')
 const uiModalCancelBtn = document.getElementById('uiModalCancelBtn')
 const uiModalConfirmBtn = document.getElementById('uiModalConfirmBtn')
 const uiModalCloseBtn = document.getElementById('uiModalCloseBtn')
+const uiModalBadge = document.getElementById('uiModalBadge')
+const uiModalCustomActions = document.getElementById('uiModalCustomActions')
+const uiModalActions = document.getElementById('uiModalActions')
 
 const loadingGate = document.getElementById('loadingGate')
 const loadingModalTitle = document.getElementById('loadingModalTitle')
@@ -990,19 +1279,34 @@ function openUiModal({
   initialValue = '',
   showCancel = false,
   addressText = '',
-  qrDataUrl = ''
+  qrDataUrl = '',
+  badgeHtml = '',
+  customActionsHtml = ''
 } = {}) {
   return new Promise((resolve) => {
     modalState.resolve = resolve
     modalState.mode = mode
     modalState.addressText = addressText || ''
 
-uiModalTitle.textContent = title
-uiModalText.innerHTML = text
-uiModalConfirmBtn.textContent = confirmText
+    uiModalTitle.textContent = title
+    uiModalText.innerHTML = text
+    uiModalConfirmBtn.textContent = confirmText
     uiModalCancelBtn.textContent = cancelText
     uiModalCancelBtn.style.display = showCancel ? 'flex' : 'none'
-uiModalCloseBtn.classList.toggle('hidden', !['address', 'token_actions'].includes(mode))
+    uiModalCloseBtn.classList.toggle('hidden', !['address', 'token_actions'].includes(mode))
+
+    if (uiModalBadge) {
+      uiModalBadge.innerHTML = badgeHtml || '<img src="/Polygon-MATIC.webp" alt="Polygon" />'
+    }
+
+    if (uiModalCustomActions) {
+      uiModalCustomActions.innerHTML = customActionsHtml
+      uiModalCustomActions.classList.toggle('hidden', !customActionsHtml)
+    }
+
+    if (uiModalActions) {
+      uiModalActions.style.display = customActionsHtml ? 'none' : 'flex'
+    }
 
     uiModalAddressBox.classList.add('hidden')
     uiModalAddressBox.textContent = ''
@@ -1196,6 +1500,22 @@ uiModalCancelBtn?.addEventListener('click', () => {
 
 uiModalCloseBtn?.addEventListener('click', () => {
   closeUiModal(null)
+})
+
+uiModalCustomActions?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-token-modal-action]')
+
+  if (!button) {
+    return
+  }
+
+  const action = button.getAttribute('data-token-modal-action')
+
+  if (!action) {
+    return
+  }
+
+  closeUiModal(action)
 })
 
 uiModal?.addEventListener('click', (event) => {
