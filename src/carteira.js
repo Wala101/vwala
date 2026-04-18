@@ -1707,7 +1707,7 @@ app.innerHTML = `
 
           <button class="wallet-action" data-action="swap" type="button">
   <span class="wallet-action-icon">⇄</span>
-  <span class="wallet-action-label">Comprar</span>
+  <span class="wallet-action-label">Swap</span>
 </button>
         </section>
 
@@ -1745,12 +1745,9 @@ app.innerHTML = `
             </div>
 
             <div class="wallet-token-balance">
-              <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
-              <small>Token da plataforma</small>
-              <button id="walletSellVWalaBtn" class="wallet-vwala-sell-btn" type="button">
-  Vender
-</button>
-            </div>
+  <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
+  <small>Token da plataforma</small>
+</div>
           </div>
 
           <div id="walletUserTokensContainer">
@@ -2314,17 +2311,7 @@ async function initFirebaseAuthGate() {
 
 googleLoginBtn?.addEventListener('click', loginWithGoogle)
 
-document.getElementById('walletSellVWalaBtn')?.addEventListener('click', async (event) => {
-  event.preventDefault()
-  event.stopPropagation()
 
-  if (!currentGoogleUser) {
-    openAuthGate()
-    return
-  }
-
-  await handleSellVWala()
-})
 
 document.querySelectorAll('.wallet-action').forEach((button) => {
   const action = button.getAttribute('data-action')
