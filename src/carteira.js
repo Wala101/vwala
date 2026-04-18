@@ -987,19 +987,15 @@ async function openCreatedTokenActions(token) {
 
   const result = await openUiModal({
     title: token.name || 'Token criado',
-    text: `
-      <strong>Símbolo:</strong><br>${escapeHtml(token.symbol || 'TOKEN')}
-      <br><br><strong>Mint do token:</strong>
-      <br><br>Use este endereço para o contrato de swap e para a futura tela de liquidez.
-    `,
+    text: '',
     mode: 'token_actions',
     showCancel: false,
     addressText: token.tokenAddress,
     badgeHtml: getTokenModalBadgeHtml(token),
     customActionsHtml: `
       <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="receive">Receber</button>
-      <button class="wallet-token-modal-action secondary" type="button" data-token-modal-action="send">Enviar</button>
-      <button class="wallet-token-modal-action secondary" type="button" data-token-modal-action="copy">Copiar mint</button>
+      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="send">Enviar</button>
+      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="copy">Copiar mint</button>
       <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="liquidity">Liquidez</button>
     `
   })
@@ -1289,6 +1285,7 @@ function openUiModal({
 
     uiModalTitle.textContent = title
     uiModalText.innerHTML = text
+    uiModalText.classList.toggle('hidden', !String(text || '').trim())
     uiModalConfirmBtn.textContent = confirmText
     uiModalCancelBtn.textContent = cancelText
     uiModalCancelBtn.style.display = showCancel ? 'flex' : 'none'
