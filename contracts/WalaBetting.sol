@@ -12,7 +12,7 @@ contract WalaBetting is ReentrancyGuard {
     uint16 public constant MAX_FEE_BPS = 0;
 
     // vWALA fixo da plataforma
-    address public constant VWALA_TOKEN_ADDRESS = 0x7bd1f6f4f5cef026b643758605737cb48b4b7d83;
+    address public constant VWALA_TOKEN_ADDRESS = 0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83;
 
     IERC20 public immutable vwala;
     address public immutable operator;
@@ -71,10 +71,16 @@ contract WalaBetting is ReentrancyGuard {
         uint256 claimedAmount;
     }
 
+    struct ClaimAmounts {
+        uint256 payout;
+        uint256 fromMarket;
+        uint256 fromTreasury;
+    }
+
     Treasury public treasury;
 
-    mapping(uint64 => Market) public markets;
-    mapping(bytes32 => Position) public positions;
+    mapping(uint64 => Market) private markets;
+    mapping(bytes32 => Position) private positions;
 
     error Unauthorized();
     error InvalidAmount();
@@ -177,40 +183,31 @@ contract WalaBetting is ReentrancyGuard {
         if (markets[fixtureId].exists) revert MarketAlreadyExists();
         if (feeBps > MAX_FEE_BPS) revert FeeTooHigh();
 
-        uint256 totalProb = uint256(homeProbBps) + uint256(drawProbBps) + uint256(awayProbBps);
+        _validateProbabilities(homeProbBps, drawProbBps, awayProbBps);
 
-        if (
-            homeProbBps == 0 ||
-            drawProbBps == 0 ||
-            awayProbBps == 0 ||
-            totalProb != BPS
-        ) {
-            revert InvalidProbabilityConfig();
-        }
+        Market storage market = markets[fixtureId];
 
-        markets[fixtureId] = Market({
-            exists: true,
-            authority: operator,
-            fixtureId: fixtureId,
-            league: league,
-            teamA: teamA,
-            teamB: teamB,
-            status: MarketStatus.Open,
-            hasWinner: false,
-            winningOutcome: Outcome.Home,
-            poolHome: 0,
-            poolDraw: 0,
-            poolAway: 0,
-            totalPool: 0,
-            marketDistributed: 0,
-            probHomeBps: homeProbBps,
-            probDrawBps: drawProbBps,
-            probAwayBps: awayProbBps,
-            feeBps: 0,
-            feeAmount: 0,
-            createdAt: block.timestamp,
-            resolvedAt: 0
-        });
+        market.exists = true;
+        market.authority = operator;
+        market.fixtureId = fixtureId;
+        market.league = league;
+        market.teamA = teamA;
+        market.teamB = teamB;
+        market.status = MarketStatus.Open;
+        market.hasWinner = false;
+        market.winningOutcome = Outcome.Home;
+        market.poolHome = 0;
+        market.poolDraw = 0;
+        market.poolAway = 0;
+        market.totalPool = 0;
+        market.marketDistributed = 0;
+        market.probHomeBps = homeProbBps;
+        market.probDrawBps = drawProbBps;
+        market.probAwayBps = awayProbBps;
+        market.feeBps = 0;
+        market.feeAmount = 0;
+        market.createdAt = block.timestamp;
+        market.resolvedAt = 0;
 
         emit MarketCreated(
             fixtureId,
@@ -221,6 +218,26 @@ contract WalaBetting is ReentrancyGuard {
             drawProbBps,
             awayProbBps
         );
+    }
+
+    function _validateProbabilities(
+        uint16 homeProbBps,
+        uint16 drawProbBps,
+        uint16 awayProbBps
+    ) internal pure {
+        uint256 totalProb =
+            uint256(homeProbBps) +
+            uint256(drawProbBps) +
+            uint256(awayProbBps);
+
+        if (
+            homeProbBps == 0 ||
+            drawProbBps == 0 ||
+            awayProbBps == 0 ||
+            totalProb != BPS
+        ) {
+            revert InvalidProbabilityConfig();
+        }
     }
 
     function buyPosition(
@@ -236,7 +253,9 @@ contract WalaBetting is ReentrancyGuard {
         if (market.status != MarketStatus.Open) revert MarketClosed();
 
         bytes32 positionKey = getPositionKey(fixtureId, msg.sender, couponId);
-        if (positions[positionKey].exists) revert PositionAlreadyExists();
+        Position storage position = positions[positionKey];
+
+        if (position.exists) revert PositionAlreadyExists();
 
         vwala.safeTransferFrom(msg.sender, address(this), amount);
 
@@ -250,16 +269,14 @@ contract WalaBetting is ReentrancyGuard {
 
         market.totalPool += amount;
 
-        positions[positionKey] = Position({
-            exists: true,
-            fixtureId: fixtureId,
-            user: msg.sender,
-            couponId: couponId,
-            outcome: outcome,
-            amount: amount,
-            claimed: false,
-            claimedAmount: 0
-        });
+        position.exists = true;
+        position.fixtureId = fixtureId;
+        position.user = msg.sender;
+        position.couponId = couponId;
+        position.outcome = outcome;
+        position.amount = amount;
+        position.claimed = false;
+        position.claimedAmount = 0;
 
         emit PositionBought(fixtureId, couponId, msg.sender, outcome, amount);
     }
@@ -319,6 +336,38 @@ contract WalaBetting is ReentrancyGuard {
         if (position.claimed) revert PositionAlreadyClaimed();
         if (position.outcome != market.winningOutcome) revert NotWinner();
 
+        ClaimAmounts memory amounts = _buildClaimAmounts(market, position);
+
+        if (amounts.fromTreasury > treasury.trackedBalance) {
+            revert TreasuryInsufficient();
+        }
+
+        market.marketDistributed += amounts.fromMarket;
+
+        if (amounts.fromTreasury > 0) {
+            treasury.trackedBalance -= amounts.fromTreasury;
+            treasury.totalDistributed += amounts.fromTreasury;
+        }
+
+        position.claimed = true;
+        position.claimedAmount = amounts.payout;
+
+        vwala.safeTransfer(msg.sender, amounts.payout);
+
+        emit PositionClaimed(
+            fixtureId,
+            couponId,
+            msg.sender,
+            amounts.payout,
+            amounts.fromMarket,
+            amounts.fromTreasury
+        );
+    }
+
+    function _buildClaimAmounts(
+        Market storage market,
+        Position storage position
+    ) internal view returns (ClaimAmounts memory amounts) {
         uint256 outcomeProbBps = _probForOutcome(market, market.winningOutcome);
         if (outcomeProbBps == 0 || outcomeProbBps >= BPS) {
             revert InvalidProbabilityConfig();
@@ -326,37 +375,14 @@ contract WalaBetting is ReentrancyGuard {
 
         uint256 grossProfit = (position.amount * (BPS - outcomeProbBps)) / BPS;
         uint256 feeOnProfit = (grossProfit * market.feeBps) / BPS;
-        uint256 netProfit = grossProfit - feeOnProfit;
-        uint256 payout = position.amount + netProfit;
 
-        if (payout == 0) revert InvalidPayout();
+
+        amounts.payout = position.amount + (grossProfit - feeOnProfit);
+        if (amounts.payout == 0) revert InvalidPayout();
 
         uint256 marketAvailable = market.totalPool - market.marketDistributed;
-        uint256 fromMarket = marketAvailable >= payout ? payout : marketAvailable;
-        uint256 fromTreasury = payout - fromMarket;
-
-        if (fromTreasury > treasury.trackedBalance) revert TreasuryInsufficient();
-
-        market.marketDistributed += fromMarket;
-
-        if (fromTreasury > 0) {
-            treasury.trackedBalance -= fromTreasury;
-            treasury.totalDistributed += fromTreasury;
-        }
-
-        position.claimed = true;
-        position.claimedAmount = payout;
-
-        vwala.safeTransfer(msg.sender, payout);
-
-        emit PositionClaimed(
-            fixtureId,
-            couponId,
-            msg.sender,
-            payout,
-            fromMarket,
-            fromTreasury
-        );
+        amounts.fromMarket = marketAvailable >= amounts.payout ? amounts.payout : marketAvailable;
+        amounts.fromTreasury = amounts.payout - amounts.fromMarket;
     }
 
     function previewPayout(
@@ -379,12 +405,129 @@ contract WalaBetting is ReentrancyGuard {
         payout = amount + netProfit;
     }
 
+    function getMarketState(
+        uint64 fixtureId
+    )
+        external
+        view
+        returns (
+            bool exists,
+            address authority,
+            uint64 storedFixtureId,
+            MarketStatus status,
+            bool hasWinner,
+            Outcome winningOutcome,
+            uint256 createdAt,
+            uint256 resolvedAt
+        )
+    {
+        Market storage market = markets[fixtureId];
+
+        return (
+            market.exists,
+            market.authority,
+            market.fixtureId,
+            market.status,
+            market.hasWinner,
+            market.winningOutcome,
+            market.createdAt,
+            market.resolvedAt
+        );
+    }
+
+    function getMarketNames(
+        uint64 fixtureId
+    )
+        external
+        view
+        returns (
+            string memory league,
+            string memory teamA,
+            string memory teamB
+        )
+    {
+        Market storage market = markets[fixtureId];
+        return (market.league, market.teamA, market.teamB);
+    }
+
+    function getMarketPools(
+        uint64 fixtureId
+    )
+        external
+        view
+        returns (
+            uint256 poolHome,
+            uint256 poolDraw,
+            uint256 poolAway,
+            uint256 totalPool,
+            uint256 marketDistributed
+        )
+    {
+        Market storage market = markets[fixtureId];
+
+        return (
+            market.poolHome,
+            market.poolDraw,
+            market.poolAway,
+            market.totalPool,
+            market.marketDistributed
+        );
+    }
+
+    function getMarketProbabilities(
+        uint64 fixtureId
+    )
+        external
+        view
+        returns (
+            uint16 probHomeBps,
+            uint16 probDrawBps,
+            uint16 probAwayBps,
+            uint16 feeBps,
+            uint256 feeAmount
+        )
+    {
+        Market storage market = markets[fixtureId];
+
+        return (
+            market.probHomeBps,
+            market.probDrawBps,
+            market.probAwayBps,
+            market.feeBps,
+            market.feeAmount
+        );
+    }
+
     function getPosition(
         uint64 fixtureId,
         address user,
         uint64 couponId
-    ) external view returns (Position memory) {
-        return positions[getPositionKey(fixtureId, user, couponId)];
+    )
+        external
+        view
+        returns (
+            bool exists,
+            uint64 storedFixtureId,
+            address positionUser,
+            uint64 storedCouponId,
+            Outcome outcome,
+            uint256 amount,
+            bool claimed,
+            uint256 claimedAmount
+        )
+    {
+        Position storage position = positions[getPositionKey(fixtureId, user, couponId)];
+
+        return (
+            position.exists,
+            position.fixtureId,
+            position.user,
+            position.couponId,
+            position.outcome,
+            position.amount,
+            position.claimed,
+            position.claimedAmount
+        );
     }
 
     function getPositionKey(
