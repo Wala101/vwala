@@ -179,7 +179,7 @@ contract WalaBetting is ReentrancyGuard {
         uint16 homeProbBps,
         uint16 drawProbBps,
         uint16 awayProbBps
-    ) external onlyOperator {
+    ) external {
         if (markets[fixtureId].exists) revert MarketAlreadyExists();
         if (feeBps > MAX_FEE_BPS) revert FeeTooHigh();
 
@@ -188,7 +188,7 @@ contract WalaBetting is ReentrancyGuard {
         Market storage market = markets[fixtureId];
 
         market.exists = true;
-        market.authority = operator;
+        market.authority = msg.sender;
         market.fixtureId = fixtureId;
         market.league = league;
         market.teamA = teamA;

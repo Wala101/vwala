@@ -13,7 +13,7 @@ const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rp
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
-const BETTING_ADDRESS = import.meta.env.VITE_WALA_BETTING_ADDRESS || '0x3276c60b77e70C79Ac4aDA7003C0980fdCC3CfBF'
+const BETTING_ADDRESS = import.meta.env.VITE_WALA_BETTING_ADDRESS || '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
 const API_BASE = '/.netlify/functions'
 
 const ERC20_ABI = [
@@ -25,6 +25,7 @@ const ERC20_ABI = [
 
 const BETTING_ABI = [
   'function previewPayout(uint64 fixtureId, uint8 outcome, uint256 amount) external view returns (uint256 payout, uint256 netProfit)',
+  'function createMarket(uint64 fixtureId, string league, string teamA, string teamB, uint16 feeBps, uint16 homeProbBps, uint16 drawProbBps, uint16 awayProbBps) external',
   'function buyPosition(uint64 fixtureId, uint64 couponId, uint8 outcome, uint256 amount) external',
   'function claimPosition(uint64 fixtureId, uint64 couponId) external',
   'function getMarketState(uint64 fixtureId) external view returns (bool exists, address authority, uint64 storedFixtureId, uint8 status, bool hasWinner, uint8 winningOutcome, uint256 createdAt, uint256 resolvedAt)',
@@ -251,6 +252,8 @@ function getFriendlyError(error) {
   if (text.includes('notwinner')) return 'Essa posição não venceu.'
   if (text.includes('positionnotfound')) return 'Posição não encontrada.'
   if (text.includes('positionalreadyclaimed')) return 'Essa posição já foi resgatada.'
+  if (text.includes('marketalreadyexists')) return 'Esse mercado acabou de ser iniciado por outro usuário.'
+  if (text.includes('marketnotfound')) return 'Esse mercado ainda não foi criado no contrato.'
   if (text.includes('marketnotresolved')) return 'Esse mercado ainda não foi resolvido.'
   if (text.includes('marketclosed')) return 'Esse mercado já está fechado.'
   return error?.shortMessage || error?.message || 'Erro ao processar transação.'
@@ -545,19 +548,20 @@ async function hydrateMatch(match) {
 async function loadMatches() {
   try {
     const rawMatches = await fetchMatches()
+    const baseMatches = loadCouponsForMatches(rawMatches)
 
     if (!state.betting) {
-      state.matches = rawMatches
+      state.matches = baseMatches
       renderMatches()
       return
     }
 
     const hydrated = []
-    for (const match of rawMatches) {
+    for (const match of baseMatches) {
       hydrated.push(await hydrateMatch(match))
     }
 
-    state.matches = hydrated.filter((item) => item.exists)
+    state.matches = loadCouponsForMatches(hydrated)
     await refreshAllPositions()
     renderMatches()
   } catch (error) {
@@ -631,7 +635,30 @@ function loadCouponsForMatches(matches) {
   }))
 }
 
-async function previewPayout(fixtureId, outcome, amountUi) {
+async function previewPayout(fixtureId, outcome, amountUi, match = null) {
+  const numericAmount = Number(String(amountUi).replace(',', '.'))
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    return null
+  }
+
+  if (match && !match.exists) {
+    const probs = {
+      [Outcome.HOME]: Number(match.probHomeBps || 0),
+      [Outcome.DRAW]: Number(match.probDrawBps || 0),
+      [Outcome.AWAY]: Number(match.probAwayBps || 0)
+    }
+
+    const outcomeProbBps = Number(probs[Number(outcome)] || 0)
+    const profit = numericAmount * ((10000 - outcomeProbBps) / 10000)
+    const payout = numericAmount + profit
+
+    return {
+      payout: String(payout),
+      profit: String(profit)
+    }
+  }
+
   if (!state.betting) return null
 
   const amount = parseUnits(String(amountUi).replace(',', '.'), state.decimals)
@@ -641,6 +668,41 @@ async function previewPayout(fixtureId, outcome, amountUi) {
     payout: formatUnits(result[0], state.decimals),
     profit: formatUnits(result[1], state.decimals)
   }
+}
+
+async function ensureMarketExists(match, signer) {
+  if (match.exists) return
+
+  const bettingContract = state.betting.connect(signer)
+
+  try {
+    const tx = await bettingContract.createMarket(
+      BigInt(match.fixtureId),
+      match.league,
+      match.teamA,
+      match.teamB,
+      0,
+      Number(match.probHomeBps),
+      Number(match.probDrawBps),
+      Number(match.probAwayBps)
+    )
+
+    await tx.wait()
+  } catch (error) {
+    const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
+
+    if (!text.includes('marketalreadyexists')) {
+      throw error
+    }
+  }
+
+  match.exists = true
+  match.status = MarketStatus.OPEN
+  match.hasWinner = false
+  match.poolHome = match.poolHome || '0'
+  match.poolDraw = match.poolDraw || '0'
+  match.poolAway = match.poolAway || '0'
+  match.totalPool = match.totalPool || '0'
 }
 
 async function approveIfNeeded(amountUi, signer) {
@@ -757,9 +819,9 @@ function createCard(match) {
       <button class="launch js-pick-btn" data-outcome="2" type="button">${match.teamB}</button>
     </div>
 
-    <button class="launch confirm-bet-btn js-confirm-bet-btn" type="button" ${Number(match.status) !== MarketStatus.OPEN || !match.exists ? 'disabled' : ''}>
-      ${match.exists ? 'Abrir posição' : 'Mercado indisponível'}
-    </button>
+    <button class="launch confirm-bet-btn js-confirm-bet-btn" type="button" ${match.exists && Number(match.status) !== MarketStatus.OPEN ? 'disabled' : ''}>
+  ${match.exists ? 'Abrir posição' : 'Criar mercado e apostar'}
+</button>
 
   `
 
@@ -800,7 +862,7 @@ function createCard(match) {
     }
 
     try {
-      const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi)
+const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi, match)
 
       payoutEl.textContent = `Retorno estimado: ${formatNumber(projected.payout)} ${TOKEN_SYMBOL}`
       hintEl.textContent = `Lucro estimado: ${formatNumber(projected.profit)} ${TOKEN_SYMBOL}`
@@ -855,10 +917,16 @@ function createCard(match) {
       }
 
       confirmBtn.disabled = true
+
+      if (!match.exists) {
+        confirmBtn.textContent = 'Criando mercado...'
+        await ensureMarketExists(match, signer)
+      }
+
       confirmBtn.textContent = 'Abrindo posição...'
 
       await buyPosition(match, selectedOutcome, amountUi, signer)
-      showAlert('Sucesso', 'Posição aberta com sucesso.')
+      showAlert('Sucesso', 'Mercado criado e posição aberta com sucesso.')
 
       await refreshWalletBalance()
       state.matches = loadCouponsForMatches(state.matches)
