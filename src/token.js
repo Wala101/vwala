@@ -886,8 +886,9 @@ function renderPage() {
           </div>
         </section>
 
-        <div class="token-layout">
-          <section>
+        <section class="token-content-card">
+          <div class="token-layout">
+            <section>
             <div class="token-card">
               <div class="token-label-top">Dados do token</div>
 
@@ -1125,7 +1126,8 @@ function renderPage() {
               </div>
             </div>
           </aside>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
 

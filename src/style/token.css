@@ -113,6 +113,7 @@ textarea{
 }
 
 .token-main-card,
+.token-content-card,
 .token-card,
 .token-preview-card,
 .token-security-card,
@@ -125,6 +126,10 @@ textarea{
 }
 
 .token-main-card{
+  margin-bottom:18px;
+}
+
+.token-content-card{
   margin-bottom:18px;
 }
 
@@ -729,6 +734,11 @@ button{
     font-size:28px;
   }
 
+  .token-content-card{
+    padding:14px;
+    border-radius:16px;
+  }
+
   .token-inline-grid,
   .token-actions,
   .token-social-grid{
@@ -778,6 +788,7 @@ button{
   }
 
   .token-main-card,
+  .token-content-card,
   .token-card,
   .token-preview-card,
   .token-security-card,
