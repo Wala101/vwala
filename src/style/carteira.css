@@ -509,9 +509,10 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
 }
 
 .wallet-auth-modal p {
-  margin: 0 0 22px;
+  margin: 0 0 16px;
   color: rgba(255, 255, 255, 0.74);
   line-height: 1.55;
+  overflow-wrap: anywhere;
 }
 
 .wallet-auth-google-btn {
@@ -534,6 +535,40 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
 
 .wallet-ui-modal-box {
   width: min(100%, 420px);
+}
+
+.wallet-modal-address-box {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  text-align: center;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.wallet-modal-address-box.hidden {
+  display: none;
+}
+
+.wallet-modal-qr {
+  display: block;
+  width: 180px;
+  height: 180px;
+  margin: 14px auto 0;
+  padding: 10px;
+  border-radius: 20px;
+  background: #ffffff;
+  object-fit: contain;
+}
+
+.wallet-modal-qr.hidden {
+  display: none;
 }
 
 .wallet-modal-input {
@@ -565,10 +600,21 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
 
 .wallet-modal-actions > button {
   flex: 1;
+  min-width: 0;
+}
+
+.wallet-modal-actions > .wallet-auth-google-btn,
+.wallet-modal-actions > .wallet-modal-secondary-btn {
+  width: auto;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  text-align: center;
 }
 
 .wallet-modal-secondary-btn {
-  min-height: 52px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
@@ -576,4 +622,41 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.wallet-modal-secondary-btn:hover {
+  border-color: rgba(37, 255, 138, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wallet-ui-modal-box {
+  position: relative;
+}
+
+.wallet-modal-close-btn {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 1.25rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.wallet-modal-close-btn:hover {
+  border-color: rgba(37, 255, 138, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.wallet-modal-close-btn.hidden {
+  display: none;
 }

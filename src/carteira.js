@@ -8,6 +8,7 @@ import {
 } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, formatEther } from 'ethers'
+import QRCode from 'qrcode'
 
 const app = document.querySelector('#app')
 
@@ -26,7 +27,8 @@ let currentWalletAddress = ''
 
 const modalState = {
   resolve: null,
-  mode: 'message'
+  mode: 'message',
+  addressText: ''
 }
 
 const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL
@@ -117,27 +119,14 @@ async function handleWalletAction(action) {
       return
     }
 
-    try {
-      await navigator.clipboard.writeText(currentWalletAddress)
-
-      await showMessageModal(
-        'Endereço copiado',
-        currentWalletAddress,
-        'Fechar'
-      )
-    } catch (error) {
-      console.error('Erro ao copiar endereço:', error)
-
-      await showMessageModal(
-        'Seu endereço',
-        currentWalletAddress,
-        'Fechar'
-      )
-    }
+    await showAddressModal(
+      'Receber',
+      currentWalletAddress,
+      'Copiar'
+    )
 
     return
   }
-
   if (action === 'swap') {
     await showMessageModal(
       'Swap',
@@ -286,9 +275,26 @@ app.innerHTML = `
 
   <div id="uiModal" class="wallet-auth-gate hidden">
     <div class="wallet-auth-modal wallet-ui-modal-box">
+      <button
+        id="uiModalCloseBtn"
+        class="wallet-modal-close-btn hidden"
+        type="button"
+        aria-label="Fechar modal"
+      >
+        ×
+      </button>
+
       <div class="wallet-auth-badge">W</div>
       <h2 id="uiModalTitle">Aviso</h2>
       <p id="uiModalText"></p>
+
+      <div id="uiModalAddressBox" class="wallet-modal-address-box hidden"></div>
+
+      <img
+        id="uiModalQr"
+        class="wallet-modal-qr hidden"
+        alt="QR Code da carteira"
+      />
 
       <input
         id="uiModalInput"
@@ -317,9 +323,12 @@ const googleLoginBtn = document.getElementById('googleLoginBtn')
 const uiModal = document.getElementById('uiModal')
 const uiModalTitle = document.getElementById('uiModalTitle')
 const uiModalText = document.getElementById('uiModalText')
+const uiModalAddressBox = document.getElementById('uiModalAddressBox')
+const uiModalQr = document.getElementById('uiModalQr')
 const uiModalInput = document.getElementById('uiModalInput')
 const uiModalCancelBtn = document.getElementById('uiModalCancelBtn')
 const uiModalConfirmBtn = document.getElementById('uiModalConfirmBtn')
+const uiModalCloseBtn = document.getElementById('uiModalCloseBtn')
 
 function openUiModal({
   title = 'Aviso',
@@ -330,17 +339,37 @@ function openUiModal({
   placeholder = '',
   password = false,
   initialValue = '',
-  showCancel = false
+  showCancel = false,
+  addressText = '',
+  qrDataUrl = ''
 } = {}) {
   return new Promise((resolve) => {
     modalState.resolve = resolve
     modalState.mode = mode
+    modalState.addressText = addressText || ''
 
     uiModalTitle.textContent = title
     uiModalText.textContent = text
     uiModalConfirmBtn.textContent = confirmText
     uiModalCancelBtn.textContent = cancelText
-    uiModalCancelBtn.style.display = showCancel ? 'inline-flex' : 'none'
+    uiModalCancelBtn.style.display = showCancel ? 'flex' : 'none'
+    uiModalCloseBtn.classList.toggle('hidden', mode !== 'address')
+
+    uiModalAddressBox.classList.add('hidden')
+    uiModalAddressBox.textContent = ''
+
+    uiModalQr.classList.add('hidden')
+    uiModalQr.removeAttribute('src')
+
+    if (addressText) {
+      uiModalAddressBox.textContent = addressText
+      uiModalAddressBox.classList.remove('hidden')
+    }
+
+    if (qrDataUrl) {
+      uiModalQr.src = qrDataUrl
+      uiModalQr.classList.remove('hidden')
+    }
 
     if (mode === 'prompt') {
       uiModalInput.classList.remove('hidden')
@@ -362,6 +391,8 @@ function closeUiModal(result = null) {
 
   const resolve = modalState.resolve
   modalState.resolve = null
+  modalState.mode = 'message'
+  modalState.addressText = ''
 
   if (resolve) {
     resolve(result)
@@ -390,9 +421,54 @@ async function showPinModal(title, text, confirmText = 'Continuar') {
   })
 }
 
-uiModalConfirmBtn?.addEventListener('click', () => {
+async function showAddressModal(title, address, confirmText = 'Copiar') {
+  let qrDataUrl = ''
+
+  try {
+    qrDataUrl = await QRCode.toDataURL(address, {
+      width: 220,
+      margin: 1
+    })
+  } catch (error) {
+    console.error('Erro ao gerar QR Code:', error)
+  }
+
+  await openUiModal({
+    title,
+    text: 'Use este endereço ou leia o QR Code abaixo.',
+    mode: 'address',
+    confirmText,
+    showCancel: false,
+    addressText: address,
+    qrDataUrl
+  })
+}
+
+uiModalConfirmBtn?.addEventListener('click', async () => {
   if (modalState.mode === 'prompt') {
     closeUiModal(uiModalInput.value)
+    return
+  }
+
+  if (modalState.mode === 'address') {
+    if (!modalState.addressText) return
+
+    const originalText = uiModalConfirmBtn.textContent
+
+    try {
+      await navigator.clipboard.writeText(modalState.addressText)
+      uiModalConfirmBtn.textContent = 'Copiado'
+    } catch (error) {
+      console.error('Erro ao copiar endereço do modal:', error)
+      uiModalConfirmBtn.textContent = 'Falhou'
+    }
+
+    setTimeout(() => {
+      if (!uiModal.classList.contains('hidden') && modalState.mode === 'address') {
+        uiModalConfirmBtn.textContent = originalText
+      }
+    }, 1200)
+
     return
   }
 
@@ -400,6 +476,10 @@ uiModalConfirmBtn?.addEventListener('click', () => {
 })
 
 uiModalCancelBtn?.addEventListener('click', () => {
+  closeUiModal(null)
+})
+
+uiModalCloseBtn?.addEventListener('click', () => {
   closeUiModal(null)
 })
 
