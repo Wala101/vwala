@@ -776,8 +776,7 @@ async function showCreatedTokenReceiveModal(token) {
   await openUiModal({
     title: `Receber ${token.symbol || 'TOKEN'}`,
     text: `
-      <strong>Contrato do token:</strong><br>${escapeHtml(token.tokenAddress)}
-      <br><br><strong>Envie ${escapeHtml(token.symbol || 'TOKEN')} para este endereço da sua carteira.</strong>
+      <strong>Envie ${escapeHtml(token.symbol || 'TOKEN')} para este endereço da sua carteira.</strong>
     `,
     mode: 'address',
     confirmText: 'Copiar endereço',
@@ -1209,13 +1208,13 @@ app.innerHTML = `
       <h2 id="uiModalTitle">Aviso</h2>
       <p id="uiModalText"></p>
 
-      <div id="uiModalAddressBox" class="wallet-modal-address-box hidden"></div>
-
       <img
         id="uiModalQr"
         class="wallet-modal-qr hidden"
         alt="QR Code da carteira"
       />
+
+      <div id="uiModalAddressBox" class="wallet-modal-address-box hidden"></div>
 
       <input
         id="uiModalInput"
