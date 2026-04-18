@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
+import { Contract, JsonRpcProvider, formatUnits } from 'ethers'
 
 const app = document.querySelector('#app')
 
@@ -14,18 +15,42 @@ if (!app) {
 }
 
 const TOKEN_SYMBOL = 'vWALA'
+const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
+const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
-let walletConnected = false
-let connectedAddress = ''
+const ERC20_ABI = [
+  'function balanceOf(address account) view returns (uint256)',
+  'function decimals() view returns (uint8)'
+]
 
-function getEthereumProvider() {
-  if (window.ethereum) return window.ethereum
-  return null
+function readWalletProfile() {
+  try {
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+    if (rawProfile) return JSON.parse(rawProfile)
+
+    const rawDeviceWallet = localStorage.getItem('vwala_device_wallet')
+    return rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+  } catch (error) {
+    console.error('Erro ao ler carteira local:', error)
+    return null
+  }
 }
 
-function formatWalletAddress(address = '') {
-  if (!address) return 'Conectar Wallet'
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
+function getCurrentWalletAddress() {
+  return String(readWalletProfile()?.walletAddress || '').trim()
+}
+
+function formatTokenBalance(value = 0) {
+  const num = Number(value || 0)
+
+  if (!Number.isFinite(num)) {
+    return `0,00 ${TOKEN_SYMBOL}`
+  }
+
+  return `${num.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  })} ${TOKEN_SYMBOL}`
 }
 
 function setConnectButtonText(text) {
@@ -33,54 +58,38 @@ function setConnectButtonText(text) {
   if (connectBtn) connectBtn.textContent = text
 }
 
-async function detectVwalaTokenProgram() {
-  const mintInfo = await connection.getAccountInfo(VWALA_MINT)
-
-  if (!mintInfo) {
-    throw new Error('Mint vWala não encontrada na rede.')
-  }
-
-  vwalaTokenProgramId = mintInfo.owner.equals(TOKEN_2022_PROGRAM_ID)
-    ? TOKEN_2022_PROGRAM_ID
-    : TOKEN_PROGRAM_ID
-
-  return vwalaTokenProgramId
-}
-
-async function loadWalletTokenBalance() {
+async function loadUserTokenBalance() {
   try {
-    if (!connectedPublicKey) return
+    const walletAddress = getCurrentWalletAddress()
 
-    const tokenProgram = await detectVwalaTokenProgram()
-
-    const userAta = await getAssociatedTokenAddress(
-      VWALA_MINT,
-      connectedPublicKey,
-      false,
-      tokenProgram
-    )
-
-    const ataInfo = await connection.getAccountInfo(userAta)
-
-    if (!ataInfo) {
-      setConnectButtonText(formatTokenBalance(0))
+    if (!walletAddress) {
+      setConnectButtonText(`Sem carteira`)
       return
     }
 
-    const balance = await connection.getTokenAccountBalance(userAta)
-    const uiAmount = Number(balance?.value?.uiAmount || 0)
+    setConnectButtonText('Carregando saldo...')
 
-    setConnectButtonText(formatTokenBalance(uiAmount))
-    console.log(`Saldo token ${TOKEN_SYMBOL}:`, uiAmount)
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_ABI, provider)
+
+    const [rawBalance, decimals] = await Promise.all([
+      tokenContract.balanceOf(walletAddress),
+      tokenContract.decimals()
+    ])
+
+    const formattedBalance = Number(formatUnits(rawBalance, decimals))
+
+    setConnectButtonText(formatTokenBalance(formattedBalance))
+    console.log(`Saldo ${TOKEN_SYMBOL} da carteira ${walletAddress}:`, formattedBalance)
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
-    setConnectButtonText(formatTokenBalance(0))
+    setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
   }
 }
 
 app.innerHTML = `
   <div id="sidebarOverlay" class="overlay"></div>
-  <div id="walletOverlay" class="overlay"></div>
+
 
   <div class="page-shell">
     <div class="app-frame">
@@ -100,14 +109,11 @@ app.innerHTML = `
         </div>
 
         <button id="connectBtn" class="connect" type="button">
-          Conectar Wallet
+          Carregando saldo...
         </button>
       </header>
 
-      <div id="walletMenu" class="wallet-menu">
-        <a href="/claim" id="claimAction">Claim vWALA</a>
-        <a href="javascript:void(0)" id="disconnectAction" style="display:none;">Desconectar Wallet</a>
-      </div>
+
 
       <aside id="sidebar" class="side-menu">
        <a href="/carteira">Carteira</a>
@@ -263,12 +269,12 @@ app.innerHTML = `
 `
 
 const sidebar = document.getElementById('sidebar')
-const walletMenu = document.getElementById('walletMenu')
+
 const sidebarOverlay = document.getElementById('sidebarOverlay')
-const walletOverlay = document.getElementById('walletOverlay')
+
 const menuBtn = document.getElementById('menuBtn')
 const connectBtn = document.getElementById('connectBtn')
-const disconnectAction = document.getElementById('disconnectAction')
+
 const clickableCards = document.querySelectorAll('.clickable-card')
 
 function goTo(path) {
@@ -286,24 +292,7 @@ function closeSidebar() {
   sidebarOverlay.classList.remove('active')
 }
 
-function openWalletMenu() {
-  walletMenu.style.right = '0'
-  walletOverlay.classList.add('active')
-}
 
-function closeWalletMenu() {
-  walletMenu.style.right = '-280px'
-  walletOverlay.classList.remove('active')
-}
-
-function setConnectedUI() {
-  disconnectAction.style.display = 'block'
-}
-
-function setDisconnectedUI() {
-  disconnectAction.style.display = 'none'
-  setConnectButtonText('Conectar Wallet')
-}
 
 async function initFirebaseSession() {
   try {
@@ -329,82 +318,17 @@ async function initFirebaseSession() {
   }
 }
 
-async function connectWallet() {
-  try {
-    const provider = getPhantomProvider()
 
-    if (!provider) {
-      alert('Phantom não encontrada.')
-      return
-    }
-
-    setConnectButtonText('Conectando...')
-
-    const resp = await provider.connect()
-    connectedAddress = resp.publicKey.toString()
-    connectedPublicKey = resp.publicKey
-    walletConnected = true
-
-    setConnectedUI()
-    await loadWalletTokenBalance()
-    closeWalletMenu()
-  } catch (error) {
-    console.error('Erro ao conectar Phantom:', error)
-    walletConnected = false
-    connectedAddress = ''
-    connectedPublicKey = null
-    setDisconnectedUI()
-  }
-}
-
-async function restoreWalletSession() {
-  try {
-    const provider = getPhantomProvider()
-    if (!provider) return
-
-    const resp = await provider.connect({ onlyIfTrusted: true })
-    connectedAddress = resp.publicKey.toString()
-    connectedPublicKey = resp.publicKey
-    walletConnected = true
-
-    setConnectedUI()
-    await loadWalletTokenBalance()
-  } catch {
-    setDisconnectedUI()
-  }
-}
-
-async function disconnectWallet() {
-  try {
-    const provider = getPhantomProvider()
-    if (provider?.disconnect) {
-      await provider.disconnect()
-    }
-  } catch (error) {
-    console.warn('Aviso ao desconectar Phantom:', error)
-  }
-
-  walletConnected = false
-  connectedAddress = ''
-  connectedPublicKey = null
-  setDisconnectedUI()
-  closeWalletMenu()
-}
 
 menuBtn?.addEventListener('click', openSidebar)
 sidebarOverlay?.addEventListener('click', closeSidebar)
-walletOverlay?.addEventListener('click', closeWalletMenu)
+
 
 connectBtn?.addEventListener('click', () => {
-  if (walletConnected) {
-    openWalletMenu()
-    return
-  }
-
-  connectWallet()
+  loadUserTokenBalance()
 })
 
-disconnectAction?.addEventListener('click', disconnectWallet)
+
 
 clickableCards.forEach((card) => {
   const target = card.getAttribute('data-href')
@@ -427,19 +351,12 @@ document.querySelectorAll('#sidebar a').forEach((link) => {
   })
 })
 
-document.querySelectorAll('#walletMenu a').forEach((link) => {
-  link.addEventListener('click', () => {
-    const href = link.getAttribute('href') || ''
-    if (href && href !== 'javascript:void(0)') {
-      closeWalletMenu()
-    }
-  })
-})
+
 
 async function initApp() {
-  setDisconnectedUI()
+
   await initFirebaseSession()
-  await restoreWalletSession()
+  await loadUserTokenBalance()
 }
 
 initApp()
