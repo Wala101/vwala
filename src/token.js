@@ -874,19 +874,7 @@ function renderPage() {
           <div class="token-chip">ERC-20 Fixed</div>
         </header>
 
-        <section class="token-main-card">
-          <div class="token-label-top">Token moderno e fixo</div>
-          <div class="token-title">Crie seu token com imagem, links sociais e selo do WALA</div>
-          <p class="token-subtitle">
-            Esta tela já nasce pronta para um token em Polygon com supply fixo, 18 decimals, sem mint extra depois do deploy e com metadata do projeto.
-          </p>
 
-          <div class="token-meta-chip-row">
-            <div class="token-mini-chip">Supply inicial padrão: 70.000.000</div>
-            <div class="token-mini-chip">Pagamento: carteira interna</div>
-            <div class="token-mini-chip token-brand-created">Feito no WALA</div>
-          </div>
-        </section>
 
         <section class="token-content-card">
           <div class="token-layout">
@@ -1113,20 +1101,7 @@ function renderPage() {
               </div>
             </div>
 
-            <div class="token-tip-card">
-              <div class="token-label-top">Objetivo</div>
-              <p>
-                Esta tela prepara o token no padrão certo: logo, socials, selo do WALA, supply fixo e carteira interna como pagadora do deploy.
-              </p>
 
-              <div class="token-notice-list">
-                <div class="token-notice-item">• imagem pronta para metadata</div>
-                <div class="token-notice-item">• X e Telegram inclusos</div>
-                <div class="token-notice-item">• default 70.000.000</div>
-                <div class="token-notice-item">• qualquer usuário pode criar o seu</div>
-                <div class="token-notice-item">• deploy pago pela carteira do site</div>
-              </div>
-            </div>
           </aside>
           </div>
         </section>
