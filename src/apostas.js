@@ -55,67 +55,95 @@ document.querySelector('#app').innerHTML = `
   <div id="sidebarOverlay" class="overlay"></div>
   <div id="walletOverlay" class="overlay"></div>
 
-  <div class="container">
-    <div class="topbar">
-      <div class="menu-btn" id="menuBtn" aria-label="Abrir menu">
-        <span></span>
-        <span></span>
-        <span></span>
-      </div>
+  <div class="page-shell">
+    <div class="app-frame">
+      <header class="topbar">
+        <button class="menu-btn" id="menuBtn" type="button" aria-label="Abrir menu">
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
 
-<button id="connectBtn" class="connect" type="button">Conectar Carteira</button>
-    </div>
-
-    <div id="walletMenu" class="wallet-menu">
-      <a href="/claim.html">Claim vWALA</a>
-      <a href="/posicoes.html">Minhas Posições</a>
-      <a href="javascript:void(0)" id="disconnectAction" style="display:none;">Desconectar Wallet</a>
-    </div>
-
-    <div id="sidebar" class="side-menu">
-      <a href="/">Wallet</a>
-      <a href="/apostas.html">Apostas</a>
-      <a href="/claim.html">Claim vWALA</a>
-      <a href="/posicoes.html">Minhas Posições</a>
-    </div>
-
-    <div class="card">
-      <h1 class="title"><span class="wala-color">vWALA</span> Football Bets</h1>
-      <p class="wallet-subtitle">
-        Apostas on-chain em Polygon usando vWALA.
-      </p>
-
-      <div class="wallet-stats">
-        <div class="wallet-stat-box">
-          <span class="wallet-stat-label">Wallet</span>
-          <strong id="walletAddressText" class="wallet-stat-value">Não conectada</strong>
+        <div class="brand-wrap">
+          <div class="brand-badge">W</div>
+          <div class="brand-text">
+            <strong>Wala-v2</strong>
+            <span>Futebol</span>
+          </div>
         </div>
 
-        <div class="wallet-stat-box">
-          <span class="wallet-stat-label">Saldo vWALA</span>
-          <strong id="walletBalanceText" class="wallet-stat-value">0</strong>
-        </div>
+        <button id="connectBtn" class="connect" type="button">
+          Carregando saldo...
+        </button>
+      </header>
+
+      <div id="walletMenu" class="wallet-menu">
+        <a href="/claim.html">Claim vWALA</a>
+        <a href="/posicoes.html">Minhas Posições</a>
+        <a href="javascript:void(0)" id="disconnectAction" style="display:none;">Desconectar Wallet</a>
       </div>
 
-      <input
-        id="searchInput"
-        class="input"
-        type="text"
-        placeholder="Buscar por campeonato ou time"
-      />
-    </div>
+      <aside id="sidebar" class="side-menu">
+        <a href="/carteira">Carteira</a>
+        <a href="/token">Criar Token</a>
+        <a href="/apostas">Futebol</a>
+        <a href="/posicoes">H/Futebol</a>
+        <a href="/historico">H/Futures</a>
+      </aside>
 
-    <div class="card">
-      <div class="section-head">
-        <h3>Mercados</h3>
-        <span class="section-count" id="marketCount">0</span>
-      </div>
+      <main class="app-content">
+        <section class="hero-card">
+          <div class="hero-copy">
+            <p class="eyebrow">VWALA · POLYGON</p>
+            <h1>Mercado de Futebol</h1>
+            <p class="hero-text">
+              Abra posições em jogos on-chain usando a carteira interna do site.
+            </p>
+          </div>
 
-      <div id="marketGrid" class="match-grid"></div>
+          <div class="hero-stats">
+            <div class="stat-box">
+              <span>Mercado</span>
+              <strong>Futebol</strong>
+            </div>
 
-      <div id="marketEmpty" class="empty-state">
-        Nenhum mercado disponível no momento.
-      </div>
+            <div class="stat-box">
+              <span>Liquidação</span>
+              <strong>Winner Claim</strong>
+            </div>
+
+            <div class="stat-box">
+              <span>Rede</span>
+              <strong>Polygon</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">BUSCA</p>
+              <h2>Mercados abertos</h2>
+            </div>
+            <span class="section-count" id="marketCount">0</span>
+          </div>
+
+          <input
+            id="searchInput"
+            class="input"
+            type="text"
+            placeholder="Buscar por campeonato ou time"
+          />
+        </section>
+
+        <section class="card">
+          <div id="marketGrid" class="match-grid"></div>
+
+          <div id="marketEmpty" class="empty-state">
+            Nenhum mercado disponível no momento.
+          </div>
+        </section>
+      </main>
     </div>
   </div>
 
@@ -143,8 +171,6 @@ const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
 const searchInput = document.getElementById('searchInput')
 const connectBtn = document.getElementById('connectBtn')
-const walletAddressText = document.getElementById('walletAddressText')
-const walletBalanceText = document.getElementById('walletBalanceText')
 const disconnectAction = document.getElementById('disconnectAction')
 const sidebar = document.getElementById('sidebar')
 const walletMenu = document.getElementById('walletMenu')
@@ -235,21 +261,34 @@ function generateCouponId(match) {
 }
 
 
-function getStoredDeviceWallet() {
-  const raw = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
-
-  if (!raw) return null
-
+function readWalletProfile() {
   try {
-    return JSON.parse(raw)
-  } catch {
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+    if (rawProfile) return JSON.parse(rawProfile)
+
+    const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+    return rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+  } catch (error) {
+    console.error('Erro ao ler carteira local:', error)
     return null
   }
 }
 
+function getCurrentWalletAddress() {
+  const wallet = readWalletProfile()
+
+  return String(
+    wallet?.walletAddress ||
+    wallet?.address ||
+    wallet?.wallet_address ||
+    ''
+  ).trim()
+}
+
 function getDeviceWalletPrivateKey(walletData) {
   if (!walletData || typeof walletData !== 'object') return ''
-  return (
+
+  return String(
     walletData.privateKey ||
     walletData.private_key ||
     walletData.pk ||
@@ -257,18 +296,52 @@ function getDeviceWalletPrivateKey(walletData) {
   ).trim()
 }
 
-function getDeviceWalletAddress(walletData) {
-  if (!walletData || typeof walletData !== 'object') return ''
-  return (
-    walletData.address ||
-    walletData.walletAddress ||
-    walletData.wallet_address ||
-    ''
-  ).trim()
+function formatTokenBalance(value = 0) {
+  const num = Number(value || 0)
+
+  if (!Number.isFinite(num)) {
+    return `0,00 ${TOKEN_SYMBOL}`
+  }
+
+  return `${num.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4
+  })} ${TOKEN_SYMBOL}`
+}
+
+function setConnectButtonText(text) {
+  if (connectBtn) connectBtn.textContent = text
+}
+
+async function loadUserTokenBalance() {
+  try {
+    const walletAddress = getCurrentWalletAddress()
+
+    if (!walletAddress) {
+      setConnectButtonText('Sem carteira')
+      return
+    }
+
+    setConnectButtonText('Carregando saldo...')
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const tokenContract = new Contract(VWALA_TOKEN, ERC20_ABI, provider)
+
+    const [rawBalance, decimals] = await Promise.all([
+      tokenContract.balanceOf(walletAddress),
+      tokenContract.decimals()
+    ])
+
+    const formattedBalance = Number(formatUnits(rawBalance, decimals))
+    setConnectButtonText(formatTokenBalance(formattedBalance))
+  } catch (error) {
+    console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
+    setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
+  }
 }
 
 function getInternalWalletSigner() {
-  const walletData = getStoredDeviceWallet()
+  const walletData = readWalletProfile()
 
   if (!walletData) {
     throw new Error('Carteira interna não encontrada no dispositivo.')
@@ -290,20 +363,12 @@ function getInternalWalletSigner() {
   }
 }
 
-async function getEthereumProvider() {
-  const { provider } = getInternalWalletSigner()
-  return provider
-}
+
 
 async function connectWallet() {
   try {
-    const { provider, signer, walletData } = getInternalWalletSigner()
+    const { provider, signer } = getInternalWalletSigner()
     const userAddress = await signer.getAddress()
-    const storedAddress = getDeviceWalletAddress(walletData)
-
-    if (storedAddress && storedAddress.toLowerCase() !== userAddress.toLowerCase()) {
-      throw new Error('A private key salva não corresponde ao endereço salvo da carteira interna.')
-    }
 
     state.provider = provider
     state.signer = signer
@@ -312,10 +377,9 @@ async function connectWallet() {
     state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, signer)
     state.decimals = Number(await state.token.decimals())
 
-    walletAddressText.textContent = compactAddress(userAddress)
     disconnectAction.style.display = 'block'
 
-    await refreshWalletBalance()
+    await loadUserTokenBalance()
     state.matches = loadCouponsForMatches(state.matches)
     await refreshAllPositions()
     renderMatches()
@@ -331,24 +395,13 @@ async function disconnectWallet() {
   state.token = null
   state.betting = null
   state.positions = {}
-  walletAddressText.textContent = 'Não conectada'
-  walletBalanceText.textContent = '0'
-  connectBtn.textContent = 'Conectar Wallet'
   disconnectAction.style.display = 'none'
+  setConnectButtonText('Sem carteira')
   renderMatches()
 }
 
 async function refreshWalletBalance() {
-  if (!state.token || !state.userAddress) {
-    walletBalanceText.textContent = '0'
-    connectBtn.textContent = 'Conectar Wallet'
-    return
-  }
-
-  const balance = await state.token.balanceOf(state.userAddress)
-  const uiBalance = formatUnits(balance, state.decimals)
-  walletBalanceText.textContent = formatNumber(uiBalance, 4)
-  connectBtn.textContent = `${formatNumber(uiBalance, 2)} ${TOKEN_SYMBOL}`
+  await loadUserTokenBalance()
 }
 
 async function fetchMatches() {
@@ -707,7 +760,7 @@ function createCard(match) {
     }
 
     if (!state.userAddress || !state.betting) {
-      hintEl.textContent = 'Conecte a wallet para apostar.'
+      hintEl.textContent = 'Configure a carteira interna para apostar.'
       confirmBtn.disabled = true
       return
     }
@@ -752,7 +805,7 @@ function createCard(match) {
   confirmBtn.addEventListener('click', async () => {
     try {
       if (!state.userAddress) {
-        showAlert('Wallet necessária', 'Conecte a wallet antes de apostar.')
+        showAlert('Carteira necessária', 'Configure a carteira interna antes de apostar.')
         return
       }
 
@@ -836,7 +889,15 @@ async function boot() {
 
   sidebarOverlay.addEventListener('click', closeSidebar)
   walletOverlay.addEventListener('click', closeWalletMenu)
-  connectBtn.addEventListener('click', connectWallet)
+  connectBtn.addEventListener('click', async () => {
+    if (state.userAddress) {
+      await loadUserTokenBalance()
+      openWalletMenu()
+      return
+    }
+
+    await connectWallet()
+  })
   disconnectAction.addEventListener('click', disconnectWallet)
   searchInput.addEventListener('input', renderMatches)
   closeAppNoticeBtn.addEventListener('click', closeAlert)
