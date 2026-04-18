@@ -7,7 +7,7 @@ import {
   signInWithRedirect
 } from 'firebase/auth'
 import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
-import { Contract, JsonRpcProvider, Wallet, formatEther, isAddress, parseEther, parseUnits } from 'ethers'
+import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, isAddress, parseEther, parseUnits } from 'ethers'
 import QRCode from 'qrcode'
 
 const app = document.querySelector('#app')
@@ -37,8 +37,17 @@ const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
+const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
+const VWALA_SWAP_ADDRESS = '0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35'
+
+const VWALA_SWAP_ABI = [
+  'function buy() payable returns (uint256)',
+  'function quote(uint256 polAmountWei) view returns (uint256)'
+]
+
 const ERC20_TOKEN_ABI = [
   'function decimals() view returns (uint8)',
+  'function balanceOf(address account) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)'
 ]
 
@@ -90,6 +99,23 @@ function updatePolygonBalanceUI(value = '0') {
   }
 }
 
+function updateVWalaBalanceUI(value = '0') {
+  walletState.vwalaBalance = value
+
+  const vwalaChip = document.querySelector('.wallet-vwala-chip')
+  if (vwalaChip) {
+    vwalaChip.textContent = formatAmount(value, 'vWALA')
+  }
+
+  const vwalaBalanceStrong = document.querySelector(
+    '.wallet-token-list .wallet-token-card:nth-child(2) .wallet-token-balance strong'
+  )
+
+  if (vwalaBalanceStrong) {
+    vwalaBalanceStrong.textContent = formatAmount(value, 'vWALA')
+  }
+}
+
 async function loadPolygonBalance(walletAddress) {
   try {
     if (!walletAddress) return
@@ -102,6 +128,35 @@ async function loadPolygonBalance(walletAddress) {
   } catch (error) {
     console.error('Erro ao carregar saldo POL:', error)
     updatePolygonBalanceUI('0')
+  }
+}
+
+async function loadVWalaBalance(walletAddress) {
+  try {
+    if (!walletAddress) return
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const tokenContract = new Contract(
+      VWALA_TOKEN_ADDRESS,
+      ERC20_TOKEN_ABI,
+      provider
+    )
+
+    let decimals = 18
+
+    try {
+      decimals = Number(await tokenContract.decimals())
+    } catch (error) {
+      decimals = 18
+    }
+
+    const balance = await tokenContract.balanceOf(walletAddress)
+    const balanceFormatted = formatUnits(balance, decimals)
+
+    updateVWalaBalanceUI(balanceFormatted)
+  } catch (error) {
+    console.error('Erro ao carregar saldo vWALA:', error)
+    updateVWalaBalanceUI('0')
   }
 }
 
@@ -675,6 +730,249 @@ async function handleSendPolygon() {
   }
 }
 
+function getSwapErrorMessage(error) {
+  const rawMessage = String(error?.shortMessage || error?.message || '').toLowerCase()
+
+  if (
+    rawMessage.includes('invalid password') ||
+    rawMessage.includes('wrong password') ||
+    rawMessage.includes('incorrect password')
+  ) {
+    return 'PIN incorreto. Tente novamente.'
+  }
+
+  if (rawMessage.includes('insufficient funds')) {
+    return 'Saldo insuficiente para cobrir o swap e a taxa de rede.'
+  }
+
+  if (
+    rawMessage.includes('insufficienttokenliquidity') ||
+    rawMessage.includes('insufficient token liquidity') ||
+    rawMessage.includes('tokentransferfailed')
+  ) {
+    return 'O swap está sem liquidez suficiente de vWALA.'
+  }
+
+  if (
+    rawMessage.includes('network error') ||
+    rawMessage.includes('failed to fetch') ||
+    rawMessage.includes('timeout')
+  ) {
+    return 'Falha de rede ao executar o swap. Tente novamente.'
+  }
+
+  return 'Não foi possível concluir o swap agora.'
+}
+
+async function handleBuyVWala() {
+  if (!currentGoogleUser) {
+    openAuthGate()
+    return
+  }
+
+  if (!currentWalletAddress) {
+    await showMessageModal(
+      'Carteira',
+      'Carteira ainda não carregada.'
+    )
+    return
+  }
+
+  const amountInput = await showPromptModal({
+    title: 'Comprar vWALA',
+    text: 'Informe quanto POL deseja trocar por vWALA.',
+    confirmText: 'Continuar',
+    cancelText: 'Cancelar',
+    placeholder: '1'
+  })
+
+  if (amountInput === null) {
+    return
+  }
+
+  const normalizedAmount = normalizeAmountInput(amountInput)
+
+  if (!normalizedAmount) {
+    await showMessageModal(
+      'Valor inválido',
+      'Informe um valor para o swap.'
+    )
+    return
+  }
+
+  let amountWei
+  let amountNumber
+
+  try {
+    amountWei = parseEther(normalizedAmount)
+    amountNumber = Number(normalizedAmount)
+  } catch (error) {
+    await showMessageModal(
+      'Valor inválido',
+      'Digite um valor válido em POL.'
+    )
+    return
+  }
+
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    await showMessageModal(
+      'Valor inválido',
+      'Digite um valor maior que zero.'
+    )
+    return
+  }
+
+  let quotedFormatted = '0'
+
+  try {
+    showLoadingModal(
+      'Calculando swap',
+      'Consultando o contrato para calcular quanto vWALA você vai receber.'
+    )
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const swapContract = new Contract(
+      VWALA_SWAP_ADDRESS,
+      VWALA_SWAP_ABI,
+      provider
+    )
+
+    const tokenContract = new Contract(
+      VWALA_TOKEN_ADDRESS,
+      ERC20_TOKEN_ABI,
+      provider
+    )
+
+    let decimals = 18
+
+    try {
+      decimals = Number(await tokenContract.decimals())
+    } catch (error) {
+      decimals = 18
+    }
+
+    const quotedAmount = await swapContract.quote(amountWei)
+    quotedFormatted = formatUnits(quotedAmount, decimals)
+
+    hideLoadingModal()
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro ao consultar swap:', error)
+
+    await showMessageModal(
+      'Erro no swap',
+      'Não foi possível consultar a cotação do swap agora.'
+    )
+    return
+  }
+
+  const confirmSwap = await showConfirmModal(
+    'Confirmar swap',
+    `<strong>Você vai enviar:</strong><br>${escapeHtml(formatAmount(normalizedAmount, 'POL'))}<br><br><strong>Você vai receber:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'vWALA'))}`,
+    'Trocar',
+    'Cancelar'
+  )
+
+  if (!confirmSwap) {
+    return
+  }
+
+  const pin = await showPinModal(
+    'Confirmar PIN',
+    'Digite seu PIN para autorizar o swap.',
+    'Trocar'
+  )
+
+  if (pin === null) {
+    return
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Digite seu PIN para continuar.'
+    )
+    return
+  }
+
+  try {
+    showLoadingModal(
+      'Executando swap',
+      'Aguarde enquanto a transação é assinada e enviada.'
+    )
+
+    const walletProfile = await getCurrentUserWalletProfile()
+    const deviceVault = await ensureDeviceWalletAccess(
+      currentGoogleUser,
+      walletProfile
+    )
+
+    if (!deviceVault?.walletKeystoreLocal) {
+      throw new Error('PIN deste aparelho ainda não configurado.')
+    }
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      deviceVault.walletKeystoreLocal,
+      pin.trim()
+    )
+    const signer = unlockedWallet.connect(provider)
+
+    const swapContract = new Contract(
+      VWALA_SWAP_ADDRESS,
+      VWALA_SWAP_ABI,
+      signer
+    )
+
+    const liveBalanceWei = await provider.getBalance(signer.address)
+    const feeData = await provider.getFeeData()
+    const gasEstimate = await swapContract.buy.estimateGas({
+      value: amountWei
+    })
+    const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
+    const estimatedFeeWei = gasEstimate * gasPrice
+
+    if (liveBalanceWei < amountWei + estimatedFeeWei) {
+      hideLoadingModal()
+
+      await showMessageModal(
+        'Saldo insuficiente',
+        'Seu saldo não cobre o valor do swap e a taxa de rede.'
+      )
+      return
+    }
+
+    const tx = await swapContract.buy({
+      value: amountWei
+    })
+
+    showLoadingModal(
+      'Confirmando na rede',
+      'Aguarde a confirmação do swap na Polygon.'
+    )
+
+    await tx.wait()
+
+    hideLoadingModal()
+
+    await loadPolygonBalance(currentWalletAddress)
+    await loadVWalaBalance(currentWalletAddress)
+
+    await showMessageModal(
+      'Swap concluído',
+      `<strong>Compra confirmada com sucesso.</strong><br><br><strong>Recebido:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'vWALA'))}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
+    )
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro ao executar swap:', error)
+
+    await showMessageModal(
+      'Erro no swap',
+      getSwapErrorMessage(error)
+    )
+  }
+}
+
 async function handleWalletAction(action) {
   if (action === 'enviar') {
     await handleSendPolygon()
@@ -700,10 +998,8 @@ async function handleWalletAction(action) {
   }
 
   if (action === 'swap') {
-    await showMessageModal(
-      'Swap',
-      'O swap interno 1 POL = 1 vWALA será ligado ao sistema.'
-    )
+    await handleBuyVWala()
+    return
   }
 }
 
@@ -1693,6 +1989,7 @@ async function initFirebaseAuthGate() {
 
           if (walletProfile?.walletAddress) {
             await loadPolygonBalance(walletProfile.walletAddress)
+            await loadVWalaBalance(walletProfile.walletAddress)
           }
 
           await refreshUserCreatedTokens(user.uid)
@@ -1710,6 +2007,8 @@ async function initFirebaseAuthGate() {
       currentWalletAddress = ''
       walletState.userTokens = []
       localStorage.removeItem('vwala_wallet_profile')
+      updatePolygonBalanceUI('0')
+      updateVWalaBalanceUI('0')
       updateUserTokensListUI()
       openAuthGate()
     })
