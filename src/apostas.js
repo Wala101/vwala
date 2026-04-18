@@ -353,6 +353,13 @@ function bpsToPercentText(bps) {
   return `${(Number(bps || 0) / 100).toFixed(2).replace('.', ',')}%`
 }
 
+function getOutcomeLabel(match, outcome) {
+  if (Number(outcome) === Outcome.HOME) return match.teamA
+  if (Number(outcome) === Outcome.DRAW) return 'Empate'
+  if (Number(outcome) === Outcome.AWAY) return match.teamB
+  return 'Selecione um lado'
+}
+
 function cleanTeamName(name = '') {
   return String(name || '')
     .replace(/\b(SC|EC|FC|AC|AFC|SAF|SE|AA|CA|FBPA)\b/gi, ' ')
