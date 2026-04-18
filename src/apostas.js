@@ -323,26 +323,7 @@ async function loadUserTokenBalance() {
 }
 
 function getInternalWalletSigner() {
-  const walletData = readWalletProfile()
-
-  if (!walletData) {
-    throw new Error('Carteira interna não encontrada no dispositivo.')
-  }
-
-  const privateKey = getDeviceWalletPrivateKey(walletData)
-
-  if (!privateKey) {
-    throw new Error('Private key da carteira interna não encontrada no localStorage.')
-  }
-
-  const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
-  const signer = new Wallet(privateKey, provider)
-
-  return {
-    provider,
-    signer,
-    walletData
-  }
+  return null
 }
 
 
@@ -353,24 +334,13 @@ async function initWalletSession() {
 
     state.provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
     state.userAddress = walletAddress
+    state.signer = null
     state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
     state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider)
     state.decimals = Number(await state.token.decimals())
 
-    try {
-      const { signer } = getInternalWalletSigner()
-
-      state.signer = signer
-      state.token = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-      state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, signer)
-    } catch (error) {
-      state.signer = null
-      console.warn('Carteira interna sem chave local para assinatura nesta página.')
-    }
-
     await loadUserTokenBalance()
     state.matches = loadCouponsForMatches(state.matches)
-    await refreshAllPositions()
     renderMatches()
   } catch (error) {
     console.error('Erro ao iniciar carteira da página de apostas:', error)
@@ -577,60 +547,8 @@ async function buyPosition(match, outcome, amountUi) {
   saveCouponId(match.fixtureId, couponId.toString())
 }
 
-async function claimPosition(match, couponId) {
-  const tx = await state.betting.claimPosition(BigInt(match.fixtureId), BigInt(couponId))
-  await tx.wait()
-}
-
-function getOutcomeLabel(match, outcome) {
-  if (Number(outcome) === Outcome.HOME) return match.teamA
-  if (Number(outcome) === Outcome.DRAW) return 'Empate'
-  return match.teamB
-}
-
-function canClaim(match, position) {
-  if (!position?.exists) return false
-  if (position.claimed) return false
-  if (Number(match.status) !== MarketStatus.RESOLVED) return false
-  if (!match.hasWinner) return false
-  return Number(position.outcome) === Number(match.winningOutcome)
-}
-
-function createPositionBlock(match) {
-  const coupons = match.userCoupons || []
-
-  if (!state.userAddress || coupons.length === 0) return ''
-
-  const items = coupons
-    .map((couponId) => state.positions[`${match.fixtureId}:${couponId}`])
-    .filter(Boolean)
-
-  if (items.length === 0) return ''
-
-  return `
-    <div class="user-positions-box">
-      <div class="user-positions-title">Minhas posições</div>
-      ${items.map((position) => `
-        <div class="user-position-row">
-          <div>
-            <strong>${getOutcomeLabel(match, position.outcome)}</strong>
-            <small>Cupom ${position.couponId}</small>
-          </div>
-
-          <div class="user-position-right">
-            <span>${formatNumber(position.amount)} ${TOKEN_SYMBOL}</span>
-            ${
-              canClaim(match, position)
-                ? `<button class="claim-btn js-claim-btn" data-fixture-id="${match.fixtureId}" data-coupon-id="${position.couponId}">Resgatar</button>`
-                : position.claimed
-                  ? `<span class="claimed-badge">Resgatado</span>`
-                  : `<span class="pending-badge">Aguardando resultado</span>`
-            }
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `
+function createPositionBlock() {
+  return ''
 }
 
 function createCard(match) {
@@ -713,11 +631,10 @@ function createCard(match) {
       <button class="launch js-pick-btn" data-outcome="2" type="button">${match.teamB}</button>
     </div>
 
-    <button class="launch confirm-bet-btn js-confirm-bet-btn" type="button" ${Number(match.status) !== MarketStatus.OPEN ? 'disabled' : ''}>
-      Abrir posição
+    <button class="launch confirm-bet-btn js-confirm-bet-btn" type="button" ${Number(match.status) !== MarketStatus.OPEN || !match.exists ? 'disabled' : ''}>
+      ${match.exists ? 'Abrir posição' : 'Mercado indisponível'}
     </button>
 
-    ${createPositionBlock(match)}
   `
 
   const amountInputEl = card.querySelector('.js-bet-amount-input')
@@ -726,7 +643,6 @@ function createCard(match) {
   const outcomeChipEl = card.querySelector('.js-selected-outcome-chip')
   const confirmBtn = card.querySelector('.js-confirm-bet-btn')
   const pickButtons = [...card.querySelectorAll('.js-pick-btn')]
-  const claimButtons = [...card.querySelectorAll('.js-claim-btn')]
 
   let selectedOutcome = null
 
@@ -794,6 +710,11 @@ function createCard(match) {
       }
 
       if (!state.signer) {
+        showAlert('PIN necessário', 'A abertura de posição com a carteira interna será ligada no próximo passo usando o PIN do aparelho.')
+        return
+      }
+
+      if (!state.signer) {
         showAlert('Assinatura indisponível', 'Esta carteira está apenas em leitura neste aparelho.')
         return
       }
@@ -827,30 +748,7 @@ function createCard(match) {
     }
   })
 
-  claimButtons.forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      try {
-        if (!state.signer) {
-          showAlert('Assinatura indisponível', 'Esta carteira está apenas em leitura neste aparelho.')
-          return
-        }
 
-        btn.disabled = true
-        btn.textContent = 'Resgatando...'
-
-        await claimPosition(match, btn.dataset.couponId)
-        showAlert('Sucesso', 'Resgate realizado com sucesso.')
-
-        await refreshWalletBalance()
-        await refreshAllPositions()
-        renderMatches()
-      } catch (error) {
-        showAlert('Erro', getFriendlyError(error))
-      } finally {
-        btn.textContent = 'Resgatar'
-      }
-    })
-  })
 
   return card
 }
@@ -896,9 +794,7 @@ async function boot() {
       hydrated.push(await hydrateMatch(match))
     }
 
-    state.matches = loadCouponsForMatches(
-      hydrated.filter((item) => item.exists)
-    )
+    state.matches = loadCouponsForMatches(hydrated)
 
     await refreshAllPositions()
   }
