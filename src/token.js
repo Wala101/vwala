@@ -1,4 +1,17 @@
+import { Contract, JsonRpcProvider, Wallet } from 'ethers'
+
 const app = document.querySelector('#app')
+
+const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
+const TOKEN_FACTORY_ADDRESS = '0xf47F70A3CdA8cA0e474571D64562d6F508aE3005'
+const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
+const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
+
+const TOKEN_FACTORY_ABI = [
+  'event TokenCreated(address indexed creator, address indexed owner, address indexed token, string name, string symbol, uint256 wholeSupply, string metadataURI)',
+  'function createToken(string name_, string symbol_, uint256 wholeSupply_, address owner_, string metadataURI_) external returns (address token)',
+  'function getTokensByCreator(address creator_) external view returns (address[] memory)'
+]
 
 if (!app) {
   throw new Error('Elemento #app não encontrado.')
@@ -41,6 +54,94 @@ function readUserProfile() {
 }
 
 
+
+function getLocalDeviceWallet() {
+  try {
+    const raw = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch (error) {
+    console.error('Erro ao ler carteira local do aparelho:', error)
+    return null
+  }
+}
+
+function getMatchingLocalDeviceWallet(walletAddress = '') {
+  const localVault = getLocalDeviceWallet()
+
+  if (!localVault?.walletKeystoreLocal) return null
+
+  const localAddress = String(localVault.walletAddress || '').toLowerCase()
+  const targetAddress = String(walletAddress || '').toLowerCase()
+
+  if (!localAddress || !targetAddress || localAddress !== targetAddress) {
+    return null
+  }
+
+  return localVault
+}
+
+function buildMetadataUri(values) {
+  const url = new URL('/token.html', window.location.origin)
+
+  url.searchParams.set('symbol', values.symbol)
+  url.searchParams.set('name', values.name)
+  url.searchParams.set('createdOn', values.createdOn)
+
+  if (values.website) {
+    url.searchParams.set('website', values.website)
+  }
+
+  if (values.x) {
+    url.searchParams.set('x', values.x)
+  }
+
+  if (values.telegram) {
+    url.searchParams.set('telegram', values.telegram)
+  }
+
+  return url.toString()
+}
+
+function saveCreatedTokenLocally(payload) {
+  try {
+    const raw = localStorage.getItem(CREATED_TOKENS_STORAGE_KEY)
+    const current = raw ? JSON.parse(raw) : []
+    const next = [payload, ...current].slice(0, 50)
+
+    localStorage.setItem(
+      CREATED_TOKENS_STORAGE_KEY,
+      JSON.stringify(next)
+    )
+  } catch (error) {
+    console.error('Erro ao salvar token criado localmente:', error)
+  }
+}
+
+function getCreateTokenErrorMessage(error) {
+  const rawMessage = String(error?.shortMessage || error?.message || '').toLowerCase()
+
+  if (
+    rawMessage.includes('invalid password') ||
+    rawMessage.includes('wrong password') ||
+    rawMessage.includes('incorrect password')
+  ) {
+    return 'PIN incorreto. Tente novamente.'
+  }
+
+  if (rawMessage.includes('insufficient funds')) {
+    return 'Saldo insuficiente para pagar o gás da criação.'
+  }
+
+  if (
+    rawMessage.includes('network error') ||
+    rawMessage.includes('failed to fetch') ||
+    rawMessage.includes('timeout')
+  ) {
+    return 'Falha de rede ao criar o token. Tente novamente.'
+  }
+
+  return 'Não foi possível concluir a criação do token agora.'
+}
 
 function escapeHtml(value = '') {
   return String(value)
@@ -339,6 +440,35 @@ async function showMessageModal(title, text, confirmText = 'OK') {
   })
 }
 
+async function showPromptModal(
+  title,
+  text,
+  confirmText = 'Continuar',
+  cancelText = 'Cancelar',
+  placeholder = ''
+) {
+  return openModal({
+    title,
+    text,
+    mode: 'prompt',
+    confirmText,
+    cancelText,
+    placeholder,
+    showCancel: true,
+    closeVisible: false
+  })
+}
+
+async function showPinModal(title, text, confirmText = 'Confirmar') {
+  return showPromptModal(
+    title,
+    text,
+    confirmText,
+    'Cancelar',
+    'Digite seu PIN'
+  )
+}
+
 async function showConfirmModal(
   title,
   text,
@@ -507,10 +637,16 @@ async function handleCreateToken() {
 
   setFormError('')
 
+  const metadataURI = buildMetadataUri(values)
+
   const confirmed = await showConfirmModal(
     'Confirmar criação',
-    buildSummaryHtml(values),
-    'Salvar preparação',
+    `
+      ${buildSummaryHtml(values)}
+      <br><br><strong>Factory:</strong><br>${escapeHtml(TOKEN_FACTORY_ADDRESS)}
+      <br><br><strong>Metadata URI inicial:</strong><br>${escapeHtml(metadataURI)}
+    `,
+    'Criar token',
     'Cancelar'
   )
 
@@ -518,38 +654,128 @@ async function handleCreateToken() {
     return
   }
 
-  try {
-    showLoadingModal(
-      'Preparando token',
-      'Aguarde enquanto montamos o payload com imagem, links sociais e metadata.'
+  const pin = await showPinModal(
+    'Confirmar PIN',
+    'Digite seu PIN para autorizar a criação do token.',
+    'Criar token'
+  )
+
+  if (pin === null) {
+    return
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Digite seu PIN para continuar.'
     )
+    return
+  }
+
+  try {
+    const deviceVault = getMatchingLocalDeviceWallet(values.owner)
+
+    if (!deviceVault?.walletKeystoreLocal) {
+      await showMessageModal(
+        'Carteira não pronta',
+        'Abra a página da carteira nesta mesma sessão para garantir que o PIN deste aparelho esteja configurado.'
+      )
+      return
+    }
+
+    showLoadingModal(
+      'Criando token',
+      'Aguarde enquanto sua carteira assina a transação da factory.'
+    )
+
+    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      deviceVault.walletKeystoreLocal,
+      pin.trim()
+    )
+    const signer = unlockedWallet.connect(provider)
+
+    if (signer.address.toLowerCase() !== values.owner.toLowerCase()) {
+      throw new Error('A carteira desbloqueada não corresponde à carteira do usuário.')
+    }
+
+    const tokenFactory = new Contract(
+      TOKEN_FACTORY_ADDRESS,
+      TOKEN_FACTORY_ABI,
+      signer
+    )
+
+    const tx = await tokenFactory.createToken(
+      values.name,
+      values.symbol,
+      BigInt(values.supply),
+      values.owner,
+      metadataURI
+    )
+
+    showLoadingModal(
+      'Confirmando na rede',
+      'Aguarde a confirmação da criação do token na Polygon.'
+    )
+
+    const receipt = await tx.wait()
+
+    let createdTokenAddress = ''
+
+    for (const log of receipt.logs) {
+      try {
+        const parsedLog = tokenFactory.interface.parseLog(log)
+
+        if (parsedLog?.name === 'TokenCreated') {
+          createdTokenAddress = parsedLog.args.token
+          break
+        }
+      } catch (error) {
+        // ignora logs que não pertencem à factory
+      }
+    }
 
     const draft = buildMetadataDraft(values)
 
-    localStorage.setItem(TOKEN_DRAFT_STORAGE_KEY, JSON.stringify(draft))
+    saveCreatedTokenLocally({
+      tokenAddress: createdTokenAddress,
+      ownerAddress: values.owner,
+      name: values.name,
+      symbol: values.symbol,
+      supply: values.supply,
+      website: values.website,
+      x: values.x,
+      telegram: values.telegram,
+      description: values.description,
+      imageName: values.imageName,
+      metadataURI,
+      txHash: tx.hash,
+      chainId: 137,
+      createdAt: new Date().toISOString(),
+      draft
+    })
 
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    localStorage.setItem(TOKEN_DRAFT_STORAGE_KEY, JSON.stringify(draft))
 
     hideLoadingModal()
 
     await showMessageModal(
-      'Estrutura pronta',
+      'Token criado com sucesso',
       `
-        <strong>Rascunho do token salvo com sucesso.</strong>
-        <br><br><strong>Supply inicial:</strong><br>${escapeHtml(formatWholeNumber(values.supply))}
-        <br><br><strong>Imagem:</strong><br>${escapeHtml(values.imageName || 'Imagem pronta')}
-        <br><br><strong>Selo do projeto:</strong><br>Feito no ${escapeHtml(values.createdOn)}
-        <br><br><strong>Pagador do deploy:</strong><br>Carteira interna do site
-        <br><br><strong>Próximo passo:</strong><br>Ligar este payload ao deploy real do contrato e ao upload da metadata no Irys.
+        <strong>Seu token foi criado na Polygon com sucesso.</strong>
+        <br><br><strong>Contrato:</strong><br>${escapeHtml(createdTokenAddress || 'Não encontrado no evento')}
+        <br><br><strong>Hash:</strong><br>${escapeHtml(tx.hash)}
+        <br><br><strong>Supply:</strong><br>${escapeHtml(formatWholeNumber(values.supply))}
+        <br><br><strong>Dono inicial:</strong><br>${escapeHtml(values.owner)}
       `
     )
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro ao preparar token:', error)
+    console.error('Erro ao criar token:', error)
 
     await showMessageModal(
-      'Erro ao preparar',
-      'Não foi possível concluir a preparação do token agora.'
+      'Erro ao criar token',
+      getCreateTokenErrorMessage(error)
     )
   }
 }
@@ -692,7 +918,7 @@ function renderPage() {
 
               <div class="token-actions" style="margin-top:18px;">
                 <button id="validateTokenBtn" class="token-btn-secondary" type="button">Validar padrão</button>
-                <button id="createTokenBtn" class="token-btn" type="button">Preparar criação</button>
+                <button id="createTokenBtn" class="token-btn" type="button">Criar token</button>
               </div>
             </div>
 
