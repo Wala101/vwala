@@ -1438,7 +1438,7 @@ async function showAddressModal(title, address, confirmText = 'Copiar') {
 
   await openUiModal({
     title,
-    text: '<strong>Envie apenas Polygon para este endereço.</strong>',
+    text: '',
     mode: 'address',
     confirmText,
     showCancel: false,
