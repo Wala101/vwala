@@ -248,7 +248,7 @@ app.innerHTML = `
           <strong>Criar Token</strong>
           <small>Saldo e ações internas</small>
         </a>
-🧾
+
 
 
           <a class="shortcut-card" href="/carteira.html">
