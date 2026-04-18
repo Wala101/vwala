@@ -775,9 +775,7 @@ async function showCreatedTokenReceiveModal(token) {
 
   await openUiModal({
     title: `Receber ${token.symbol || 'TOKEN'}`,
-    text: `
-      <strong>Envie ${escapeHtml(token.symbol || 'TOKEN')} para este endereço da sua carteira.</strong>
-    `,
+    text: '',
     mode: 'address',
     confirmText: 'Copiar endereço',
     showCancel: false,

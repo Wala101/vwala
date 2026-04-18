@@ -788,3 +788,24 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
     transform: rotate(360deg);
   }
 }
+
+@media (max-width: 640px) {
+  .wallet-auth-modal.wallet-ui-modal-box {
+    width: calc(100vw - 24px);
+    max-width: 420px;
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    padding: 20px 16px;
+  }
+
+  .wallet-modal-qr {
+    width: min(220px, 68vw);
+    height: auto;
+  }
+
+  .wallet-modal-address-box {
+    font-size: 14px;
+    padding: 14px 12px;
+    word-break: break-all;
+  }
+}
