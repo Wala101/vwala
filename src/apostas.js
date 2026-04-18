@@ -1,7 +1,9 @@
 import './style/style.css'
-import { BrowserProvider, Contract, formatUnits, parseUnits } from 'ethers'
+import { JsonRpcProvider, Wallet, Contract, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
+const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
+const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const BETTING_ADDRESS = import.meta.env.VITE_WALA_BETTING_ADDRESS || '0x3276c60b77e70C79Ac4aDA7003C0980fdCC3CfBF'
@@ -39,7 +41,6 @@ const MarketStatus = {
 
 const state = {
   provider: null,
-  browserProvider: null,
   signer: null,
   userAddress: '',
   token: null,
@@ -62,7 +63,7 @@ document.querySelector('#app').innerHTML = `
         <span></span>
       </div>
 
-      <button id="connectBtn" class="connect" type="button">Conectar Wallet</button>
+<button id="connectBtn" class="connect" type="button">Conectar Carteira</button>
     </div>
 
     <div id="walletMenu" class="wallet-menu">
@@ -233,37 +234,78 @@ function generateCouponId(match) {
   return BigInt(`${match.fixtureId}${String(now).slice(-6)}${random}`)
 }
 
+
+function getStoredDeviceWallet() {
+  const raw = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+
+  if (!raw) return null
+
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function getDeviceWalletPrivateKey(walletData) {
+  if (!walletData || typeof walletData !== 'object') return ''
+  return (
+    walletData.privateKey ||
+    walletData.private_key ||
+    walletData.pk ||
+    ''
+  ).trim()
+}
+
+function getDeviceWalletAddress(walletData) {
+  if (!walletData || typeof walletData !== 'object') return ''
+  return (
+    walletData.address ||
+    walletData.walletAddress ||
+    walletData.wallet_address ||
+    ''
+  ).trim()
+}
+
+function getInternalWalletSigner() {
+  const walletData = getStoredDeviceWallet()
+
+  if (!walletData) {
+    throw new Error('Carteira interna não encontrada no dispositivo.')
+  }
+
+  const privateKey = getDeviceWalletPrivateKey(walletData)
+
+  if (!privateKey) {
+    throw new Error('Private key da carteira interna não encontrada no localStorage.')
+  }
+
+  const provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
+  const signer = new Wallet(privateKey, provider)
+
+  return {
+    provider,
+    signer,
+    walletData
+  }
+}
+
 async function getEthereumProvider() {
-  if (!window.ethereum) {
-    throw new Error('MetaMask não encontrada.')
-  }
-
-  const browserProvider = new BrowserProvider(window.ethereum)
-  const network = await browserProvider.getNetwork()
-
-  if (Number(network.chainId) !== POLYGON_CHAIN_ID) {
-    try {
-      await window.ethereum.request({
-        method: 'wallet_switchEthereumChain',
-        params: [{ chainId: `0x${POLYGON_CHAIN_ID.toString(16)}` }]
-      })
-    } catch (error) {
-      throw new Error('Conecte a wallet na Polygon antes de continuar.')
-    }
-  }
-
-  return browserProvider
+  const { provider } = getInternalWalletSigner()
+  return provider
 }
 
 async function connectWallet() {
   try {
-    const browserProvider = await getEthereumProvider()
-    await browserProvider.send('eth_requestAccounts', [])
-
-    const signer = await browserProvider.getSigner()
+    const { provider, signer, walletData } = getInternalWalletSigner()
     const userAddress = await signer.getAddress()
+    const storedAddress = getDeviceWalletAddress(walletData)
 
-    state.browserProvider = browserProvider
+    if (storedAddress && storedAddress.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error('A private key salva não corresponde ao endereço salvo da carteira interna.')
+    }
+
+    state.provider = provider
     state.signer = signer
     state.userAddress = userAddress
     state.token = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
@@ -274,6 +316,7 @@ async function connectWallet() {
     disconnectAction.style.display = 'block'
 
     await refreshWalletBalance()
+    state.matches = loadCouponsForMatches(state.matches)
     await refreshAllPositions()
     renderMatches()
   } catch (error) {
@@ -282,7 +325,7 @@ async function connectWallet() {
 }
 
 async function disconnectWallet() {
-  state.browserProvider = null
+  state.provider = null
   state.signer = null
   state.userAddress = ''
   state.token = null
@@ -290,6 +333,7 @@ async function disconnectWallet() {
   state.positions = {}
   walletAddressText.textContent = 'Não conectada'
   walletBalanceText.textContent = '0'
+  connectBtn.textContent = 'Conectar Wallet'
   disconnectAction.style.display = 'none'
   renderMatches()
 }
@@ -799,17 +843,14 @@ async function boot() {
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
-  if (window.ethereum) {
-    try {
-      const browserProvider = await getEthereumProvider()
-      const accounts = await browserProvider.send('eth_accounts', [])
+  try {
+    const walletData = getStoredDeviceWallet()
 
-      if (accounts.length > 0) {
-        await connectWallet()
-      }
-    } catch (error) {
-      console.warn(error)
+    if (walletData) {
+      await connectWallet()
     }
+  } catch (error) {
+    console.warn(error)
   }
 
   const initialMatches = await fetchMatches()
