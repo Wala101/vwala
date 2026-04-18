@@ -246,7 +246,7 @@ app.innerHTML = `
          <a class="shortcut-card" href="/token.html">
           <span class="shortcut-icon">🧾</span>
           <strong>Criar Token</strong>
-          <small>Saldo e ações internas</small>
+          <small>Crie seu token</small>
         </a>
 
 
