@@ -12,3 +12,4 @@ artifacts
 cache
 typechain-types
 coverage
+types/ethers-contracts
