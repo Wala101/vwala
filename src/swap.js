@@ -1177,58 +1177,72 @@ async function handleSellVWala() {
     }
 
     const allowance = await tokenContract.allowance(
-      signer.address,
-      VWALA_POOL_ADDRESS
+  signer.address,
+  VWALA_POOL_ADDRESS
+)
+
+const feeData = await provider.getFeeData()
+const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
+const gasReserveWei = parseEther(POL_GAS_RESERVE)
+
+let approveGasEstimate = 0n
+
+if (allowance < amountUnits) {
+  approveGasEstimate = await tokenContract.approve.estimateGas(
+    VWALA_POOL_ADDRESS,
+    amountUnits
+  )
+}
+
+let liveBalanceWei = await provider.getBalance(signer.address)
+
+if (allowance < amountUnits) {
+  const approveFeeWei = approveGasEstimate * gasPrice
+
+  if (liveBalanceWei < approveFeeWei + gasReserveWei) {
+    hideLoadingModal()
+
+    await showMessageModal(
+      'POL insuficiente',
+      `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para pagar a aprovação e a venda.`
     )
+    return
+  }
 
-    const feeData = await provider.getFeeData()
-    const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
+  showLoadingModal(
+    'Aprovando vWALA',
+    'Aguarde a aprovação do token.'
+  )
 
-    let approveGasEstimate = 0n
+  const approveTx = await tokenContract.approve(
+    VWALA_POOL_ADDRESS,
+    amountUnits
+  )
 
-    if (allowance < amountUnits) {
-      approveGasEstimate = await tokenContract.approve.estimateGas(
-        VWALA_POOL_ADDRESS,
-        amountUnits
-      )
-    }
+  await approveTx.wait()
 
-    const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
-    const estimatedFeeWei = (approveGasEstimate + sellGasEstimate) * gasPrice
-    const liveBalanceWei = await provider.getBalance(signer.address)
-    const gasReserveWei = parseEther(POL_GAS_RESERVE)
+  liveBalanceWei = await provider.getBalance(signer.address)
+}
 
-    if (liveBalanceWei < estimatedFeeWei || liveBalanceWei < gasReserveWei) {
-      hideLoadingModal()
+const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
+const sellFeeWei = sellGasEstimate * gasPrice
 
-      await showMessageModal(
-        'POL insuficiente',
-        `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para pagar a aprovação e a venda.`
-      )
-      return
-    }
+if (liveBalanceWei < sellFeeWei + gasReserveWei) {
+  hideLoadingModal()
 
-    if (allowance < amountUnits) {
-      showLoadingModal(
-        'Aprovando vWALA',
-        'Aguarde a aprovação do token.'
-      )
+  await showMessageModal(
+    'POL insuficiente',
+    `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para concluir a venda.`
+  )
+  return
+}
 
-      const approveTx = await tokenContract.approve(
-        VWALA_POOL_ADDRESS,
-        amountUnits
-      )
+showLoadingModal(
+  'Vendendo vWALA',
+  'Aguarde a confirmação da venda.'
+)
 
-      await approveTx.wait()
-    }
-
-    showLoadingModal(
-      'Vendendo vWALA',
-      'Aguarde a confirmação da venda.'
-    )
-
-    const tx = await poolContract.sell(amountUnits)
-
+const tx = await poolContract.sell(amountUnits)
     await tx.wait()
 
     hideLoadingModal()
