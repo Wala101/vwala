@@ -17,7 +17,6 @@ contract VWalaFixedSwap {
 
     address public immutable treasury;
 
-    // vWALA fixo deste swap
     address public constant VWALA_TOKEN =
         0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83;
 
@@ -47,7 +46,6 @@ contract VWalaFixedSwap {
         locked = false;
     }
 
-    // 1 POL = 1 vWALA
     function quote(uint256 polAmountWei) public view returns (uint256) {
         if (tokenDecimals == 18) {
             return polAmountWei;
@@ -72,7 +70,7 @@ contract VWalaFixedSwap {
         bool ok = token.transfer(msg.sender, vwalaOut);
         if (!ok) revert TokenTransferFailed();
 
-        (bool sent, ) = payable(treasury).call{ value: msg.value }("");
+        (bool sent, ) = payable(treasury).call{value: msg.value}("");
         if (!sent) revert TreasuryTransferFailed();
 
         emit SwapExecuted(msg.sender, msg.value, vwalaOut);
