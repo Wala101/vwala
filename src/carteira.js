@@ -34,6 +34,7 @@ const modalState = {
 const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
+const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
 function formatAmount(value = '0', symbol = '') {
@@ -141,6 +142,109 @@ function saveLocalDeviceWallet(payload) {
     DEVICE_WALLET_STORAGE_KEY,
     JSON.stringify(payload)
   )
+}
+
+function formatTokenSupply(value = '0', symbol = '') {
+  const num = Number(value || 0)
+
+  if (!Number.isFinite(num)) {
+    return `0 ${symbol}`.trim()
+  }
+
+  return `${num.toLocaleString('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  })} ${symbol}`.trim()
+}
+
+function normalizeCreatedTokenForWallet(token = {}) {
+  const tokenAddress = String(
+    token.tokenAddress || token.tokenAddressLower || token.address || ''
+  ).trim()
+
+  if (!tokenAddress) {
+    return null
+  }
+
+  return {
+    tokenAddress,
+    name: String(token.name || 'Token criado'),
+    symbol: String(token.symbol || 'TOKEN'),
+    balance: String(token.supply || token.initialSupply || '0'),
+    caption: token.createdOn
+      ? `Feito no ${token.createdOn}`
+      : 'Token do usuário',
+    createdAt: String(token.createdAtClient || token.createdAt || '')
+  }
+}
+
+function readLocalCreatedTokens() {
+  try {
+    const raw = localStorage.getItem(CREATED_TOKENS_STORAGE_KEY)
+    if (!raw) return []
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+
+    return parsed
+      .map((token) => normalizeCreatedTokenForWallet(token))
+      .filter(Boolean)
+  } catch (error) {
+    console.error('Erro ao ler tokens locais criados:', error)
+    return []
+  }
+}
+
+function mergeCreatedTokens(...groups) {
+  const map = new Map()
+
+  groups
+    .flat()
+    .filter(Boolean)
+    .forEach((token) => {
+      const key = String(token.tokenAddress || '').toLowerCase()
+
+      if (!key) return
+      if (!map.has(key)) {
+        map.set(key, token)
+      }
+    })
+
+  return Array.from(map.values()).sort((a, b) =>
+    String(b.createdAt || '').localeCompare(String(a.createdAt || ''))
+  )
+}
+
+function updateUserTokensListUI() {
+  const container = document.getElementById('walletUserTokensContainer')
+
+  if (container) {
+    container.innerHTML = renderUserTokens()
+  }
+}
+
+async function loadCreatedTokensFromFirestore(uid = '') {
+  if (!uid) return []
+
+  try {
+    const tokensRef = collection(db, 'users', uid, 'createdTokens')
+    const snapshot = await getDocs(tokensRef)
+
+    return snapshot.docs
+      .map((docSnap) => normalizeCreatedTokenForWallet(docSnap.data()))
+      .filter(Boolean)
+  } catch (error) {
+    console.error('Erro ao carregar tokens do Firestore:', error)
+    return []
+  }
+}
+
+async function refreshUserCreatedTokens(uid = '') {
+  const localTokens = readLocalCreatedTokens()
+  const cloudTokens = uid ? await loadCreatedTokensFromFirestore(uid) : []
+
+  walletState.userTokens = mergeCreatedTokens(cloudTokens, localTokens)
+  updateUserTokensListUI()
 }
 
 function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
@@ -543,6 +647,10 @@ async function handleSendPolygon() {
     )
 
     await loadPolygonBalance(currentWalletAddress)
+
+    if (currentGoogleUser?.uid) {
+      await refreshUserCreatedTokens(currentGoogleUser.uid)
+    }
   } catch (error) {
     hideLoadingModal()
     console.error('Erro ao enviar Polygon:', error)
@@ -602,14 +710,14 @@ function renderUserTokens() {
           <div class="wallet-token-left">
             <div class="wallet-token-icon user">T</div>
             <div class="wallet-token-info">
-              <div class="wallet-token-name">${token.name}</div>
-              <div class="wallet-token-symbol">${token.symbol}</div>
+              <div class="wallet-token-name">${escapeHtml(token.name)}</div>
+              <div class="wallet-token-symbol">${escapeHtml(token.symbol)}</div>
             </div>
           </div>
 
           <div class="wallet-token-balance">
-            <strong>${formatAmount(token.balance, token.symbol)}</strong>
-            <small>Token do usuário</small>
+            <strong>${formatTokenSupply(token.balance, token.symbol)}</strong>
+            <small>${escapeHtml(token.caption || 'Token do usuário')}</small>
           </div>
         </div>
       `
@@ -706,7 +814,9 @@ app.innerHTML = `
             </div>
           </div>
 
-          ${renderUserTokens()}
+          <div id="walletUserTokensContainer">
+            ${renderUserTokens()}
+          </div>
         </section>
       </section>
     </div>
@@ -1188,6 +1298,8 @@ async function initFirebaseAuthGate() {
           if (walletProfile?.walletAddress) {
             await loadPolygonBalance(walletProfile.walletAddress)
           }
+
+          await refreshUserCreatedTokens(user.uid)
         } catch (error) {
           console.error('Erro ao preparar carteira do usuário:', error)
 
@@ -1200,7 +1312,9 @@ async function initFirebaseAuthGate() {
       }
 
       currentWalletAddress = ''
+      walletState.userTokens = []
       localStorage.removeItem('vwala_wallet_profile')
+      updateUserTokensListUI()
       openAuthGate()
     })
   } catch (error) {
