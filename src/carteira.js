@@ -434,14 +434,14 @@ async function showAddressModal(title, address, confirmText = 'Copiar') {
   }
 
   await openUiModal({
-    title,
-    text: 'Use este endereço ou leia o QR Code abaixo.',
-    mode: 'address',
-    confirmText,
-    showCancel: false,
-    addressText: address,
-    qrDataUrl
-  })
+  title,
+  text: 'Envie apenas Polygon para este endereço.',
+  mode: 'address',
+  confirmText,
+  showCancel: false,
+  addressText: address,
+  qrDataUrl
+})
 }
 
 uiModalConfirmBtn?.addEventListener('click', async () => {
