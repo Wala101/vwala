@@ -174,7 +174,15 @@ function normalizeCreatedTokenForWallet(token = {}) {
     caption: token.createdOn
       ? `Feito no ${token.createdOn}`
       : 'Token do usuário',
-    createdAt: String(token.createdAtClient || token.createdAt || '')
+    createdAt: String(token.createdAtClient || token.createdAt || ''),
+    imageUrl: String(
+      token.imageDataUrl ||
+      token.imageUrl ||
+      token.logoUrl ||
+      token.logo ||
+      token.draft?.metadata?.image ||
+      ''
+    ).trim()
   }
 }
 
@@ -705,10 +713,14 @@ function renderUserTokens() {
 
   return walletState.userTokens
     .map((token) => {
+      const iconHtml = token.imageUrl
+        ? `<img src="${token.imageUrl}" alt="${escapeHtml(token.symbol)}" />`
+        : 'T'
+
       return `
         <div class="wallet-token-card">
           <div class="wallet-token-left">
-            <div class="wallet-token-icon user">T</div>
+            <div class="wallet-token-icon user">${iconHtml}</div>
             <div class="wallet-token-info">
               <div class="wallet-token-name">${escapeHtml(token.name)}</div>
               <div class="wallet-token-symbol">${escapeHtml(token.symbol)}</div>

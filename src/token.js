@@ -71,37 +71,38 @@ async function saveCreatedTokenInFirestore(payload) {
   const tokenRef = doc(db, 'users', uid, 'createdTokens', tokenId)
 
   await setDoc(
-    tokenRef,
-    {
-      uid,
-      tokenId,
-      tokenAddress,
-      tokenAddressLower: tokenId,
-      ownerAddress: payload.ownerAddress || '',
-      name: payload.name || '',
-      symbol: payload.symbol || '',
-      supply: payload.supply || '',
-      website: payload.website || '',
-      x: payload.x || '',
-      telegram: payload.telegram || '',
-      description: payload.description || '',
-      imageName: payload.imageName || '',
-      metadataURI: payload.metadataURI || '',
-      txHash: payload.txHash || '',
-      chainId: payload.chainId || 137,
-      status: payload.status || 'active',
-      factoryAddress: payload.factoryAddress || TOKEN_FACTORY_ADDRESS,
-      createdOn: payload.createdOn || CREATED_ON_LABEL,
-      createdOnUrl: payload.createdOnUrl || window.location.origin,
-      metadataStorage: payload.metadataStorage || METADATA_STORAGE_PROVIDER,
-      isFromWala: true,
-      source: 'wala_token_factory',
-      createdAtClient: payload.createdAt || new Date().toISOString(),
-      updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp()
-    },
-    { merge: true }
-  )
+  tokenRef,
+  {
+    uid,
+    tokenId,
+    tokenAddress,
+    tokenAddressLower: tokenId,
+    ownerAddress: payload.ownerAddress || '',
+    name: payload.name || '',
+    symbol: payload.symbol || '',
+    supply: payload.supply || '',
+    website: payload.website || '',
+    x: payload.x || '',
+    telegram: payload.telegram || '',
+    description: payload.description || '',
+    imageName: payload.imageName || '',
+    imageDataUrl: payload.imageDataUrl || '',
+    metadataURI: payload.metadataURI || '',
+    txHash: payload.txHash || '',
+    chainId: payload.chainId || 137,
+    status: payload.status || 'active',
+    factoryAddress: payload.factoryAddress || TOKEN_FACTORY_ADDRESS,
+    createdOn: payload.createdOn || CREATED_ON_LABEL,
+    createdOnUrl: payload.createdOnUrl || window.location.origin,
+    metadataStorage: payload.metadataStorage || METADATA_STORAGE_PROVIDER,
+    isFromWala: true,
+    source: 'wala_token_factory',
+    createdAtClient: payload.createdAt || new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+    createdAt: serverTimestamp()
+  },
+  { merge: true }
+)
 
   return true
 }
@@ -791,27 +792,28 @@ async function handleCreateToken() {
     const draft = buildMetadataDraft(values)
 
     const createdTokenPayload = {
-      tokenAddress: createdTokenAddress,
-      ownerAddress: values.owner,
-      name: values.name,
-      symbol: values.symbol,
-      supply: values.supply,
-      website: values.website,
-      x: values.x,
-      telegram: values.telegram,
-      description: values.description,
-      imageName: values.imageName,
-      metadataURI,
-      txHash: tx.hash,
-      chainId: 137,
-      createdAt: new Date().toISOString(),
-      draft,
-      status: 'active',
-      factoryAddress: TOKEN_FACTORY_ADDRESS,
-      createdOn: values.createdOn,
-      createdOnUrl: values.createdOnUrl,
-      metadataStorage: values.metadataStorage
-    }
+  tokenAddress: createdTokenAddress,
+  ownerAddress: values.owner,
+  name: values.name,
+  symbol: values.symbol,
+  supply: values.supply,
+  website: values.website,
+  x: values.x,
+  telegram: values.telegram,
+  description: values.description,
+  imageName: values.imageName,
+  imageDataUrl: values.imageDataUrl,
+  metadataURI,
+  txHash: tx.hash,
+  chainId: 137,
+  createdAt: new Date().toISOString(),
+  draft,
+  status: 'active',
+  factoryAddress: TOKEN_FACTORY_ADDRESS,
+  createdOn: values.createdOn,
+  createdOnUrl: values.createdOnUrl,
+  metadataStorage: values.metadataStorage
+}
 
     let savedInCloud = false
 
