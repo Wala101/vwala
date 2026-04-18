@@ -247,18 +247,7 @@ async function refreshUserCreatedTokens(uid = '') {
   updateUserTokensListUI()
 }
 
-function formatTokenSupply(value = '0', symbol = '') {
-  const num = Number(value || 0)
 
-  if (!Number.isFinite(num)) {
-    return `0 ${symbol}`.trim()
-  }
-
-  return `${num.toLocaleString('pt-BR', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  })} ${symbol}`.trim()
-}
 
 function normalizeCreatedTokenForWallet(token = {}) {
   const tokenAddress = String(
