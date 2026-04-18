@@ -110,11 +110,10 @@ app.innerHTML = `
       </div>
 
       <aside id="sidebar" class="side-menu">
-       <a href="/carteira.html">Carteira</a>
-        <a href="/carteira">Carteira</a>
+       <a href="/carteira">Carteira</a>
         <a href="/token">Criar Token</a>
-<a href="/futuros">Futures</a>
-<a href="/posicoes">H/Futebol</a>
+        <a href="/futuros">Futures</a>
+        <a href="/posicoes">H/Futebol</a>
 <a href="/historico">H/Futures</a>
       </aside>
 
@@ -199,6 +198,29 @@ app.innerHTML = `
               <strong style="display: none;">futuros.html</strong>
             </div>
           </article>
+
+          <article
+            class="feature-card clickable-card"
+            data-href="/token.html"
+            role="button"
+            tabindex="0"
+            aria-label="Abrir página Criar Token"
+          >
+            <div class="feature-card-top">
+              <span class="feature-badge">🧾</span>
+              <span class="feature-chip">Token</span>
+            </div>
+
+            <h3>Criar Token</h3>
+            <p>
+              Crie seu token com imagem, nome, símbolo e metadata ligada ao ecossistema WALA.
+            </p>
+
+            <div class="feature-card-footer">
+              <span>Abrir</span>
+              <strong style="display: none;">token.html</strong>
+            </div>
+          </article>
         </section>
 
         <section class="section-head">
@@ -221,17 +243,19 @@ app.innerHTML = `
             <small>Previsões futuras</small>
           </a>
 
-          <a class="shortcut-card" href="/carteira.html">
-  <span class="shortcut-icon">👛</span>
-  <strong>Carteira</strong>
-  <small>Saldo e ações internas</small>
-</a>
+         <a class="shortcut-card" href="/token.html">
+          <span class="shortcut-icon">🧾</span>
+          <strong>Criar Token</strong>
+          <small>Saldo e ações internas</small>
+        </a>
+🧾
 
-          <a class="shortcut-card shortcut-card-disabled" href="javascript:void(0)" aria-disabled="true" tabindex="-1">
-  <span class="shortcut-icon">🧾</span>
-  <strong>Posições</strong>
-  <small>Histórico do usuário</small>
-</a>
+
+          <a class="shortcut-card" href="/carteira.html">
+            <span class="shortcut-icon">👛</span>
+            <strong>Carteira</strong>
+            <small>Saldo e ações internas</small>
+          </a>
         </section>
       </main>
     </div>
