@@ -1,0 +1,1167 @@
+const app = document.querySelector('#app')
+
+if (!app) {
+  throw new Error('Elemento #app não encontrado.')
+}
+
+const DEFAULT_TOKEN_SUPPLY = '70000000'
+const TOKEN_DRAFT_STORAGE_KEY = 'vwala_token_draft'
+const CREATED_ON_LABEL = 'WALA'
+const METADATA_STORAGE_PROVIDER = 'irys'
+
+const tokenState = {
+  modalResolve: null,
+  modalMode: 'message',
+  currentWallet: readWalletProfile(),
+  currentUser: readUserProfile(),
+  selectedImageDataUrl: '',
+  selectedImageName: ''
+}
+
+injectExtraStyles()
+
+function readWalletProfile() {
+  try {
+    const raw = localStorage.getItem('vwala_wallet_profile')
+    return raw ? JSON.parse(raw) : null
+  } catch (error) {
+    console.error('Erro ao ler perfil da carteira:', error)
+    return null
+  }
+}
+
+function readUserProfile() {
+  try {
+    const raw = localStorage.getItem('vwala_user')
+    return raw ? JSON.parse(raw) : null
+  } catch (error) {
+    console.error('Erro ao ler usuário local:', error)
+    return null
+  }
+}
+
+function injectExtraStyles() {
+  if (document.getElementById('tokenPageExtraStyles')) {
+    return
+  }
+
+  const style = document.createElement('style')
+  style.id = 'tokenPageExtraStyles'
+  style.textContent = `
+    .token-image-upload-box{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:14px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.03);
+      min-height:92px;
+    }
+
+    .token-image-preview{
+      width:72px;
+      height:72px;
+      border-radius:18px;
+      overflow:hidden;
+      flex-shrink:0;
+      border:1px solid rgba(255,255,255,0.08);
+      background:#10131a;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .token-image-preview img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .token-image-placeholder{
+      color:rgba(255,255,255,0.35);
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:0.08em;
+      text-transform:uppercase;
+    }
+
+    .token-image-upload-content{
+      min-width:0;
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+    }
+
+    .token-image-upload-title{
+      font-size:14px;
+      font-weight:700;
+      color:#fff;
+    }
+
+    .token-image-upload-subtitle{
+      font-size:12px;
+      color:rgba(255,255,255,0.62);
+      line-height:1.45;
+    }
+
+    .token-image-upload-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    .token-image-input-hidden{
+      display:none;
+    }
+
+    .token-meta-chip-row{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:14px;
+    }
+
+    .token-mini-chip{
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:700;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.03);
+      color:#fff;
+    }
+
+    .token-brand-created{
+      color:#25ff8a;
+    }
+
+    .token-preview-image-card{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      padding:14px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,0.08);
+      background:rgba(255,255,255,0.03);
+      margin-bottom:14px;
+    }
+
+    .token-preview-image-circle{
+      width:64px;
+      height:64px;
+      border-radius:18px;
+      overflow:hidden;
+      flex-shrink:0;
+      border:1px solid rgba(255,255,255,0.08);
+      background:#10131a;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    .token-preview-image-circle img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:block;
+    }
+
+    .token-preview-image-text{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:0;
+    }
+
+    .token-preview-image-text strong{
+      font-size:14px;
+      color:#fff;
+    }
+
+    .token-preview-image-text span{
+      font-size:12px;
+      color:rgba(255,255,255,0.62);
+      line-height:1.4;
+    }
+
+    .token-preview-value.break{
+      word-break:break-all;
+    }
+
+    .token-social-grid{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:14px;
+    }
+
+    .token-form-error{
+      margin-top:16px;
+      padding:14px 16px;
+      border-radius:16px;
+      border:1px solid rgba(255,80,80,0.18);
+      background:rgba(255,80,80,0.08);
+      color:#ffd5d5;
+      font-size:13px;
+      line-height:1.45;
+    }
+
+    .token-form-error.hidden{
+      display:none;
+    }
+
+    .token-loading-modal{
+      width:min(100%,360px);
+    }
+
+    .token-loading-spinner{
+      width:58px;
+      height:58px;
+      margin:0 auto 18px;
+      border-radius:50%;
+      border:4px solid rgba(255,255,255,0.10);
+      border-top-color:#25ff8a;
+      border-right-color:#5cffb4;
+      animation:token-spin 0.85s linear infinite;
+      box-shadow:0 0 24px rgba(37,255,138,0.12);
+    }
+
+    @keyframes token-spin {
+      from { transform:rotate(0deg); }
+      to { transform:rotate(360deg); }
+    }
+
+    @media (max-width: 700px){
+      .token-social-grid{
+        grid-template-columns:1fr;
+      }
+
+      .token-image-upload-box{
+        align-items:flex-start;
+        flex-direction:column;
+      }
+    }
+  `
+  document.head.appendChild(style)
+}
+
+function escapeHtml(value = '') {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function formatWalletAddress(address = '') {
+  if (!address) return 'Carteira não encontrada'
+  return `${address.slice(0, 6)}...${address.slice(-4)}`
+}
+
+function normalizeSymbol(value = '') {
+  return String(value || '')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, '')
+    .slice(0, 10)
+}
+
+function normalizeSupply(value = '') {
+  return String(value || '')
+    .replace(/[^\d]/g, '')
+    .replace(/^0+(?=\d)/, '')
+}
+
+function normalizeWebsite(value = '') {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^https:\/\//i.test(raw)) return raw
+  return raw
+}
+
+function normalizeX(value = '') {
+  let raw = String(value || '').trim()
+  if (!raw) return ''
+
+  raw = raw.replace(/^@/, '')
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.replace(/^http:\/\//i, 'https://')
+  }
+
+  raw = raw.replace(/^x\.com\//i, '')
+  raw = raw.replace(/^twitter\.com\//i, '')
+
+  return `https://x.com/${raw}`
+}
+
+function normalizeTelegram(value = '') {
+  let raw = String(value || '').trim()
+  if (!raw) return ''
+
+  raw = raw.replace(/^@/, '')
+
+  if (/^https?:\/\//i.test(raw)) {
+    return raw.replace(/^http:\/\//i, 'https://')
+  }
+
+  raw = raw.replace(/^t\.me\//i, '')
+
+  return `https://t.me/${raw}`
+}
+
+function formatWholeNumber(value = '') {
+  const raw = String(value || '0').replace(/[^\d]/g, '')
+  if (!raw) return '0'
+  return raw.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+}
+
+function readFileAsDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      resolve(String(reader.result || ''))
+    }
+
+    reader.onerror = () => {
+      reject(new Error('Não foi possível ler a imagem.'))
+    }
+
+    reader.readAsDataURL(file)
+  })
+}
+
+function getFormValues() {
+  const owner = tokenState.currentWallet?.walletAddress || ''
+  const name = document.getElementById('tokenName')?.value?.trim() || ''
+  const symbol = normalizeSymbol(document.getElementById('tokenSymbol')?.value || '')
+  const supply = normalizeSupply(document.getElementById('tokenSupply')?.value || '')
+  const website = normalizeWebsite(document.getElementById('tokenWebsite')?.value || '')
+  const x = normalizeX(document.getElementById('tokenX')?.value || '')
+  const telegram = normalizeTelegram(document.getElementById('tokenTelegram')?.value || '')
+  const description = document.getElementById('tokenDescription')?.value?.trim() || ''
+
+  return {
+    name,
+    symbol,
+    supply,
+    decimals: 18,
+    owner,
+    website,
+    x,
+    telegram,
+    description,
+    imageDataUrl: tokenState.selectedImageDataUrl,
+    imageName: tokenState.selectedImageName,
+    createdOn: CREATED_ON_LABEL,
+    createdOnUrl: window.location.origin,
+    metadataStorage: METADATA_STORAGE_PROVIDER,
+    paymentSource: 'carteira-interna-do-site'
+  }
+}
+
+function getValidationError(values) {
+  if (!values.owner) {
+    return 'Carteira interna não encontrada. Entre na carteira antes de criar o token.'
+  }
+
+  if (!values.imageDataUrl) {
+    return 'Selecione a imagem do token.'
+  }
+
+  if (values.name.length < 3 || values.name.length > 32) {
+    return 'O nome do token deve ter entre 3 e 32 caracteres.'
+  }
+
+  if (values.symbol.length < 2 || values.symbol.length > 10) {
+    return 'O símbolo do token deve ter entre 2 e 10 caracteres.'
+  }
+
+  if (!/^[A-Z0-9]+$/.test(values.symbol)) {
+    return 'O símbolo do token deve usar apenas letras e números.'
+  }
+
+  if (!values.supply) {
+    return 'Informe o supply total do token.'
+  }
+
+  if (!/^\d+$/.test(values.supply)) {
+    return 'O supply total deve ser inteiro.'
+  }
+
+  try {
+    if (BigInt(values.supply) <= 0n) {
+      return 'O supply total deve ser maior que zero.'
+    }
+
+    if (BigInt(values.supply) > 1000000000000000000n) {
+      return 'Use um supply menor. Esse valor ficou exageradamente alto.'
+    }
+  } catch (error) {
+    return 'O supply informado é inválido.'
+  }
+
+  if (values.website && !/^https:\/\//i.test(values.website)) {
+    return 'Quando informar site, use https:// no começo.'
+  }
+
+  if (values.x && !/^https:\/\//i.test(values.x)) {
+    return 'O campo X precisa virar um link https:// válido.'
+  }
+
+  if (values.telegram && !/^https:\/\//i.test(values.telegram)) {
+    return 'O campo Telegram precisa virar um link https:// válido.'
+  }
+
+  if (values.description.length > 280) {
+    return 'A descrição curta deve ter no máximo 280 caracteres.'
+  }
+
+  return ''
+}
+
+function setFormError(message = '') {
+  const box = document.getElementById('tokenFormError')
+  if (!box) return
+
+  box.textContent = message
+  box.classList.toggle('hidden', !message)
+}
+
+function renderImageBoxes() {
+  const uploadPreview = document.getElementById('tokenImagePreview')
+  const previewCircle = document.getElementById('previewTokenImage')
+
+  const imageHtml = tokenState.selectedImageDataUrl
+    ? `<img src="${tokenState.selectedImageDataUrl}" alt="Imagem do token" />`
+    : `<div class="token-image-placeholder">Sem imagem</div>`
+
+  if (uploadPreview) {
+    uploadPreview.innerHTML = imageHtml
+  }
+
+  if (previewCircle) {
+    previewCircle.innerHTML = imageHtml
+  }
+
+  const fileNameEl = document.getElementById('tokenImageFileName')
+  if (fileNameEl) {
+    fileNameEl.textContent = tokenState.selectedImageName || 'Nenhum arquivo selecionado.'
+  }
+}
+
+function renderPreview() {
+  const values = getFormValues()
+
+  const previewName = document.getElementById('previewName')
+  const previewSymbol = document.getElementById('previewSymbol')
+  const previewSupply = document.getElementById('previewSupply')
+  const previewOwner = document.getElementById('previewOwner')
+  const previewWebsite = document.getElementById('previewWebsite')
+  const previewX = document.getElementById('previewX')
+  const previewTelegram = document.getElementById('previewTelegram')
+  const previewCreatedOn = document.getElementById('previewCreatedOn')
+
+  if (previewName) previewName.textContent = values.name || 'Nome do token'
+  if (previewSymbol) previewSymbol.textContent = values.symbol || 'SYMBOL'
+  if (previewSupply) previewSupply.textContent = formatWholeNumber(values.supply || '0')
+  if (previewOwner) previewOwner.textContent = values.owner ? formatWalletAddress(values.owner) : 'Sem carteira'
+  if (previewWebsite) previewWebsite.textContent = values.website || 'Não informado'
+  if (previewX) previewX.textContent = values.x || 'Não informado'
+  if (previewTelegram) previewTelegram.textContent = values.telegram || 'Não informado'
+  if (previewCreatedOn) previewCreatedOn.textContent = `${values.createdOn} • metadata ${values.metadataStorage}`
+
+  renderImageBoxes()
+}
+
+function openModal({
+  title = 'Aviso',
+  text = '',
+  mode = 'message',
+  confirmText = 'OK',
+  cancelText = 'Cancelar',
+  placeholder = '',
+  showCancel = false,
+  closeVisible = false
+} = {}) {
+  const modal = document.getElementById('tokenModal')
+  const titleEl = document.getElementById('tokenModalTitle')
+  const textEl = document.getElementById('tokenModalText')
+  const inputEl = document.getElementById('tokenModalInput')
+  const cancelBtn = document.getElementById('tokenModalCancelBtn')
+  const confirmBtn = document.getElementById('tokenModalConfirmBtn')
+  const closeBtn = document.getElementById('tokenModalCloseBtn')
+
+  return new Promise((resolve) => {
+    tokenState.modalResolve = resolve
+    tokenState.modalMode = mode
+
+    titleEl.textContent = title
+    textEl.innerHTML = text
+    confirmBtn.textContent = confirmText
+    cancelBtn.textContent = cancelText
+    cancelBtn.style.display = showCancel ? 'block' : 'none'
+    closeBtn.classList.toggle('hidden', !closeVisible)
+
+    if (mode === 'prompt') {
+      inputEl.classList.remove('hidden')
+      inputEl.value = ''
+      inputEl.placeholder = placeholder
+      setTimeout(() => inputEl.focus(), 0)
+    } else {
+      inputEl.classList.add('hidden')
+      inputEl.value = ''
+      inputEl.placeholder = ''
+    }
+
+    modal.classList.remove('hidden')
+  })
+}
+
+function closeModal(result = null) {
+  const modal = document.getElementById('tokenModal')
+  modal?.classList.add('hidden')
+
+  const resolve = tokenState.modalResolve
+  tokenState.modalResolve = null
+  tokenState.modalMode = 'message'
+
+  if (resolve) {
+    resolve(result)
+  }
+}
+
+async function showMessageModal(title, text, confirmText = 'OK') {
+  await openModal({
+    title,
+    text,
+    confirmText,
+    showCancel: false,
+    closeVisible: false
+  })
+}
+
+async function showConfirmModal(
+  title,
+  text,
+  confirmText = 'Confirmar',
+  cancelText = 'Cancelar'
+) {
+  return openModal({
+    title,
+    text,
+    confirmText,
+    cancelText,
+    showCancel: true,
+    closeVisible: false
+  })
+}
+
+function showLoadingModal(
+  title = 'Processando',
+  text = 'Aguarde enquanto concluímos sua solicitação.'
+) {
+  const gate = document.getElementById('tokenLoadingGate')
+  const titleEl = document.getElementById('tokenLoadingTitle')
+  const textEl = document.getElementById('tokenLoadingText')
+
+  if (titleEl) titleEl.textContent = title
+  if (textEl) textEl.textContent = text
+
+  gate?.classList.remove('hidden')
+  document.body.style.overflow = 'hidden'
+}
+
+function hideLoadingModal() {
+  const gate = document.getElementById('tokenLoadingGate')
+  gate?.classList.add('hidden')
+  document.body.style.overflow = ''
+}
+
+function buildMetadataDraft(values) {
+  return {
+    standard: 'ERC20',
+    chain: 'polygon',
+    contractProfile: 'fixed-supply-no-extra-mint',
+    createdAt: new Date().toISOString(),
+    paymentSource: values.paymentSource,
+    ownerAddress: values.owner,
+    initialSupply: values.supply,
+    decimals: values.decimals,
+    metadataStorage: values.metadataStorage,
+    createdOn: values.createdOn,
+    createdOnUrl: values.createdOnUrl,
+    metadata: {
+      name: values.name,
+      symbol: values.symbol,
+      description:
+        values.description ||
+        `${values.name} (${values.symbol}) criado no ${values.createdOn}.`,
+      image: values.imageDataUrl,
+      imageFileName: values.imageName || 'token-image',
+      external_url: values.website || values.createdOnUrl,
+      extensions: {
+        website: values.website || '',
+        x: values.x || '',
+        telegram: values.telegram || '',
+        createdOn: values.createdOn,
+        createdOnUrl: values.createdOnUrl,
+        displaySource: 'WALA Token Factory',
+        paymentWallet: values.owner
+      }
+    }
+  }
+}
+
+function buildSummaryHtml(values) {
+  return `
+    <strong>Confira os dados do token.</strong>
+    <br><br><strong>Nome:</strong><br>${escapeHtml(values.name)}
+    <br><br><strong>Símbolo:</strong><br>${escapeHtml(values.symbol)}
+    <br><br><strong>Supply total:</strong><br>${escapeHtml(formatWholeNumber(values.supply))}
+    <br><br><strong>Decimals:</strong><br>18
+    <br><br><strong>Wallet pagadora e inicial:</strong><br>${escapeHtml(values.owner)}
+    <br><br><strong>Website:</strong><br>${escapeHtml(values.website || 'Não informado')}
+    <br><br><strong>X:</strong><br>${escapeHtml(values.x || 'Não informado')}
+    <br><br><strong>Telegram:</strong><br>${escapeHtml(values.telegram || 'Não informado')}
+    <br><br><strong>Metadata:</strong><br>Imagem + site + X + Telegram + selo “Feito no ${escapeHtml(values.createdOn)}”
+    <br><br><strong>Storage preparado para:</strong><br>${escapeHtml(values.metadataStorage)}
+    <br><br><strong>Contrato alvo:</strong><br>ERC-20 fixed supply, sem mint extra depois do deploy.
+  `
+}
+
+async function handleImageSelected(event) {
+  const file = event.target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  if (!file.type.startsWith('image/')) {
+    await showMessageModal(
+      'Imagem inválida',
+      'Escolha um arquivo de imagem válido.'
+    )
+    event.target.value = ''
+    return
+  }
+
+  if (file.size > 4 * 1024 * 1024) {
+    await showMessageModal(
+      'Imagem muito grande',
+      'Use uma imagem de até 4MB.'
+    )
+    event.target.value = ''
+    return
+  }
+
+  try {
+    const dataUrl = await readFileAsDataURL(file)
+    tokenState.selectedImageDataUrl = dataUrl
+    tokenState.selectedImageName = file.name
+    setFormError('')
+    renderPreview()
+  } catch (error) {
+    console.error('Erro ao ler imagem do token:', error)
+
+    await showMessageModal(
+      'Erro na imagem',
+      'Não foi possível carregar a imagem escolhida.'
+    )
+  } finally {
+    event.target.value = ''
+  }
+}
+
+function clearSelectedImage() {
+  tokenState.selectedImageDataUrl = ''
+  tokenState.selectedImageName = ''
+  renderPreview()
+}
+
+async function handleValidateForm() {
+  const values = getFormValues()
+  const error = getValidationError(values)
+
+  if (error) {
+    setFormError(error)
+    await showMessageModal('Dados inválidos', error)
+    return
+  }
+
+  setFormError('')
+
+  await showMessageModal(
+    'Padrão validado',
+    buildSummaryHtml(values)
+  )
+}
+
+async function handleCreateToken() {
+  const values = getFormValues()
+  const error = getValidationError(values)
+
+  if (error) {
+    setFormError(error)
+    await showMessageModal('Dados inválidos', error)
+    return
+  }
+
+  setFormError('')
+
+  const confirmed = await showConfirmModal(
+    'Confirmar criação',
+    buildSummaryHtml(values),
+    'Salvar preparação',
+    'Cancelar'
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    showLoadingModal(
+      'Preparando token',
+      'Aguarde enquanto montamos o payload com imagem, links sociais e metadata.'
+    )
+
+    const draft = buildMetadataDraft(values)
+
+    localStorage.setItem(TOKEN_DRAFT_STORAGE_KEY, JSON.stringify(draft))
+
+    await new Promise((resolve) => setTimeout(resolve, 1100))
+
+    hideLoadingModal()
+
+    await showMessageModal(
+      'Estrutura pronta',
+      `
+        <strong>Rascunho do token salvo com sucesso.</strong>
+        <br><br><strong>Supply inicial:</strong><br>${escapeHtml(formatWholeNumber(values.supply))}
+        <br><br><strong>Imagem:</strong><br>${escapeHtml(values.imageName || 'Imagem pronta')}
+        <br><br><strong>Selo do projeto:</strong><br>Feito no ${escapeHtml(values.createdOn)}
+        <br><br><strong>Pagador do deploy:</strong><br>Carteira interna do site
+        <br><br><strong>Próximo passo:</strong><br>Ligar este payload ao deploy real do contrato e ao upload da metadata no Irys.
+      `
+    )
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro ao preparar token:', error)
+
+    await showMessageModal(
+      'Erro ao preparar',
+      'Não foi possível concluir a preparação do token agora.'
+    )
+  }
+}
+
+function renderPage() {
+  const ownerAddress = tokenState.currentWallet?.walletAddress || ''
+  const ownerAddressText = ownerAddress || 'Entre primeiro na carteira para usar esta página.'
+  const userName =
+    tokenState.currentUser?.name ||
+    tokenState.currentUser?.email ||
+    'Usuário'
+
+  app.innerHTML = `
+    <div class="token-page">
+      <div class="token-shell">
+        <header class="token-topbar">
+          <div class="token-brand">
+            <div class="token-brand-badge">T</div>
+            <div class="token-brand-text">
+              <strong>vWALA</strong>
+              <span>Criar token</span>
+            </div>
+          </div>
+
+          <div class="token-chip">ERC-20 Fixed</div>
+        </header>
+
+        <section class="token-main-card">
+          <div class="token-label-top">Token moderno e fixo</div>
+          <div class="token-title">Crie seu token com imagem, links sociais e selo do WALA</div>
+          <p class="token-subtitle">
+            Esta tela já nasce pronta para um token em Polygon com supply fixo, 18 decimals, sem mint extra depois do deploy e com metadata do projeto.
+          </p>
+
+          <div class="token-meta-chip-row">
+            <div class="token-mini-chip">Supply inicial padrão: 70.000.000</div>
+            <div class="token-mini-chip">Pagamento: carteira interna</div>
+            <div class="token-mini-chip token-brand-created">Feito no WALA</div>
+          </div>
+        </section>
+
+        <div class="token-layout">
+          <section>
+            <div class="token-card">
+              <div class="token-label-top">Dados do token</div>
+
+              <div class="token-grid">
+                <div class="token-field">
+                  <label>Imagem do token</label>
+
+                  <div class="token-image-upload-box">
+                    <div id="tokenImagePreview" class="token-image-preview">
+                      <div class="token-image-placeholder">Sem imagem</div>
+                    </div>
+
+                    <div class="token-image-upload-content">
+                      <div class="token-image-upload-title">Logo do token</div>
+                      <div class="token-image-upload-subtitle">
+                        Esta imagem entra no metadata do token para depois subir no Irys e ser usada no ecossistema WALA.
+                      </div>
+
+                      <div id="tokenImageFileName" class="token-image-upload-subtitle">
+                        Nenhum arquivo selecionado.
+                      </div>
+
+                      <div class="token-image-upload-actions">
+                        <button id="pickTokenImageBtn" class="token-btn-secondary" type="button">Escolher imagem</button>
+                        <button id="clearTokenImageBtn" class="token-btn-secondary" type="button">Remover</button>
+                      </div>
+
+                      <input
+                        id="tokenImageInput"
+                        class="token-image-input-hidden"
+                        type="file"
+                        accept="image/*"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div class="token-field">
+                  <label for="tokenName">Nome do token</label>
+                  <input id="tokenName" class="token-input" type="text" placeholder="Ex: Wala Reserve" maxlength="32" />
+                  <span class="token-help">Use um nome claro e profissional.</span>
+                </div>
+
+                <div class="token-inline-grid">
+                  <div class="token-field">
+                    <label for="tokenSymbol">Símbolo</label>
+                    <input id="tokenSymbol" class="token-input" type="text" placeholder="WALA" maxlength="10" />
+                    <span class="token-help">Só letras e números.</span>
+                  </div>
+
+                  <div class="token-field">
+                    <label>Decimals</label>
+                    <div class="token-locked-chip">18 fixo</div>
+                    <span class="token-help">Padrão aceito em ERC-20.</span>
+                  </div>
+                </div>
+
+                <div class="token-field">
+                  <label for="tokenSupply">Supply total</label>
+                  <input id="tokenSupply" class="token-input" type="text" inputmode="numeric" value="${DEFAULT_TOKEN_SUPPLY}" placeholder="Ex: 70000000" />
+                  <span class="token-help">Agora já começa em 70 milhões, mas continua dinâmico para qualquer usuário.</span>
+                </div>
+
+                <div class="token-field">
+                  <label>Carteira inicial e pagadora</label>
+                  <div class="token-readonly" id="tokenOwnerAddress">${escapeHtml(ownerAddressText)}</div>
+                  <span class="token-help">O deploy deve ser pago pela carteira interna do site ligada a este usuário.</span>
+                </div>
+
+                <div class="token-field">
+                  <label for="tokenWebsite">Website oficial</label>
+                  <input id="tokenWebsite" class="token-input" type="text" placeholder="https://seusite.com" />
+                  <span class="token-help">Opcional, mas recomendado.</span>
+                </div>
+
+                <div class="token-social-grid">
+                  <div class="token-field">
+                    <label for="tokenX">X</label>
+                    <input id="tokenX" class="token-input" type="text" placeholder="@seuprojeto ou https://x.com/seuprojeto" />
+                    <span class="token-help">Pode digitar @usuario ou o link completo.</span>
+                  </div>
+
+                  <div class="token-field">
+                    <label for="tokenTelegram">Telegram</label>
+                    <input id="tokenTelegram" class="token-input" type="text" placeholder="@seucanal ou https://t.me/seucanal" />
+                    <span class="token-help">Pode digitar @canal ou o link completo.</span>
+                  </div>
+                </div>
+
+                <div class="token-field">
+                  <label for="tokenDescription">Descrição curta</label>
+                  <textarea id="tokenDescription" class="token-textarea" maxlength="280" placeholder="Descreva o objetivo do token de forma séria e objetiva."></textarea>
+                </div>
+              </div>
+
+              <div id="tokenFormError" class="token-form-error hidden"></div>
+
+              <div class="token-actions" style="margin-top:18px;">
+                <button id="validateTokenBtn" class="token-btn-secondary" type="button">Validar padrão</button>
+                <button id="createTokenBtn" class="token-btn" type="button">Preparar criação</button>
+              </div>
+            </div>
+
+            <div class="token-security-card">
+              <div class="token-label-top">Regras do padrão</div>
+              <div class="token-security-list">
+                <div class="token-security-item">
+                  <div class="token-security-icon">✓</div>
+                  <div>
+                    <strong>Fixed supply</strong>
+                    <span>O supply nasce no deploy e não deve existir função pública para criar mais tokens depois.</span>
+                  </div>
+                </div>
+
+                <div class="token-security-item">
+                  <div class="token-security-icon">✓</div>
+                  <div>
+                    <strong>Sem mint administrativo</strong>
+                    <span>Nada de owner criando supply novo depois.</span>
+                  </div>
+                </div>
+
+                <div class="token-security-item">
+                  <div class="token-security-icon">✓</div>
+                  <div>
+                    <strong>Metadata do WALA</strong>
+                    <span>Imagem, site, X, Telegram e selo “Feito no WALA” ficam preparados no metadata.</span>
+                  </div>
+                </div>
+
+                <div class="token-security-item">
+                  <div class="token-security-icon">✓</div>
+                  <div>
+                    <strong>Pagamento interno</strong>
+                    <span>O deploy deve sair da carteira interna do usuário dentro do site.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="token-sticky">
+            <div class="token-preview-card">
+              <div class="token-label-top">Prévia</div>
+
+              <div class="token-preview-image-card">
+                <div id="previewTokenImage" class="token-preview-image-circle">
+                  <div class="token-image-placeholder">Sem imagem</div>
+                </div>
+
+                <div class="token-preview-image-text">
+                  <strong>Visual do token</strong>
+                  <span>Esta prévia acompanha o metadata que vamos subir depois.</span>
+                </div>
+              </div>
+
+              <div class="token-preview-grid">
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Criador</span>
+                  </div>
+                  <div class="token-preview-value">${escapeHtml(userName)}</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Nome</span>
+                  </div>
+                  <div class="token-preview-value" id="previewName">Nome do token</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Símbolo</span>
+                  </div>
+                  <div class="token-preview-value" id="previewSymbol">SYMBOL</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Supply</span>
+                  </div>
+                  <div class="token-preview-value" id="previewSupply">70.000.000</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Wallet inicial</span>
+                  </div>
+                  <div class="token-preview-value" id="previewOwner">${escapeHtml(ownerAddress ? formatWalletAddress(ownerAddress) : 'Sem carteira')}</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Website</span>
+                  </div>
+                  <div class="token-preview-value break" id="previewWebsite">Não informado</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">X</span>
+                  </div>
+                  <div class="token-preview-value break" id="previewX">Não informado</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Telegram</span>
+                  </div>
+                  <div class="token-preview-value break" id="previewTelegram">Não informado</div>
+                </div>
+
+                <div class="token-preview-row">
+                  <div>
+                    <span class="token-preview-label">Origem</span>
+                  </div>
+                  <div class="token-preview-value break" id="previewCreatedOn">${CREATED_ON_LABEL} • metadata ${METADATA_STORAGE_PROVIDER}</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="token-tip-card">
+              <div class="token-label-top">Objetivo</div>
+              <p>
+                Esta tela prepara o token no padrão certo: logo, socials, selo do WALA, supply fixo e carteira interna como pagadora do deploy.
+              </p>
+
+              <div class="token-notice-list">
+                <div class="token-notice-item">• imagem pronta para metadata</div>
+                <div class="token-notice-item">• X e Telegram inclusos</div>
+                <div class="token-notice-item">• default 70.000.000</div>
+                <div class="token-notice-item">• qualquer usuário pode criar o seu</div>
+                <div class="token-notice-item">• deploy pago pela carteira do site</div>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
+
+    <div id="tokenModal" class="token-auth-gate hidden">
+      <div class="token-auth-modal token-ui-modal-box">
+        <button id="tokenModalCloseBtn" class="token-modal-close-btn hidden" type="button" aria-label="Fechar modal">×</button>
+        <div class="token-auth-badge">T</div>
+        <h2 id="tokenModalTitle">Aviso</h2>
+        <p id="tokenModalText"></p>
+        <input id="tokenModalInput" class="token-modal-input hidden" type="text" placeholder="" autocomplete="off" />
+        <div class="token-modal-actions">
+          <button id="tokenModalCancelBtn" class="token-modal-secondary-btn" type="button">Cancelar</button>
+          <button id="tokenModalConfirmBtn" class="token-btn" type="button">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="tokenLoadingGate" class="token-auth-gate hidden">
+      <div class="token-auth-modal token-loading-modal">
+        <div class="token-loading-spinner" aria-hidden="true"></div>
+        <h2 id="tokenLoadingTitle">Processando</h2>
+        <p id="tokenLoadingText">Aguarde enquanto concluímos sua solicitação.</p>
+      </div>
+    </div>
+  `
+
+  bindEvents()
+  renderPreview()
+}
+
+function bindEvents() {
+  const nameInput = document.getElementById('tokenName')
+  const symbolInput = document.getElementById('tokenSymbol')
+  const supplyInput = document.getElementById('tokenSupply')
+  const websiteInput = document.getElementById('tokenWebsite')
+  const xInput = document.getElementById('tokenX')
+  const telegramInput = document.getElementById('tokenTelegram')
+  const descriptionInput = document.getElementById('tokenDescription')
+  const imageInput = document.getElementById('tokenImageInput')
+
+  nameInput?.addEventListener('input', () => {
+    setFormError('')
+    renderPreview()
+  })
+
+  symbolInput?.addEventListener('input', () => {
+    symbolInput.value = normalizeSymbol(symbolInput.value)
+    setFormError('')
+    renderPreview()
+  })
+
+  supplyInput?.addEventListener('input', () => {
+    supplyInput.value = normalizeSupply(supplyInput.value)
+    setFormError('')
+    renderPreview()
+  })
+
+  websiteInput?.addEventListener('input', () => {
+    setFormError('')
+    renderPreview()
+  })
+
+  xInput?.addEventListener('input', () => {
+    setFormError('')
+    renderPreview()
+  })
+
+  telegramInput?.addEventListener('input', () => {
+    setFormError('')
+    renderPreview()
+  })
+
+  descriptionInput?.addEventListener('input', () => {
+    setFormError('')
+  })
+
+  document.getElementById('pickTokenImageBtn')?.addEventListener('click', () => {
+    imageInput?.click()
+  })
+
+  document.getElementById('clearTokenImageBtn')?.addEventListener('click', () => {
+    clearSelectedImage()
+    setFormError('')
+  })
+
+  imageInput?.addEventListener('change', handleImageSelected)
+
+  document.getElementById('validateTokenBtn')?.addEventListener('click', handleValidateForm)
+  document.getElementById('createTokenBtn')?.addEventListener('click', handleCreateToken)
+
+  document.getElementById('tokenModalConfirmBtn')?.addEventListener('click', () => {
+    if (tokenState.modalMode === 'prompt') {
+      const inputEl = document.getElementById('tokenModalInput')
+      closeModal(inputEl?.value || '')
+      return
+    }
+
+    closeModal(true)
+  })
+
+  document.getElementById('tokenModalCancelBtn')?.addEventListener('click', () => {
+    closeModal(null)
+  })
+
+  document.getElementById('tokenModalCloseBtn')?.addEventListener('click', () => {
+    closeModal(null)
+  })
+
+  document.getElementById('tokenModal')?.addEventListener('click', (event) => {
+    if (event.target.id === 'tokenModal') {
+      closeModal(null)
+    }
+  })
+
+  document.getElementById('tokenModalInput')?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      const inputEl = document.getElementById('tokenModalInput')
+      closeModal(inputEl?.value || '')
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeModal(null)
+    }
+  })
+}
+
+renderPage()
