@@ -223,6 +223,13 @@ function bpsToPercentText(bps) {
   return `${(Number(bps || 0) / 100).toFixed(2).replace('.', ',')}%`
 }
 
+function getOutcomeLabel(match, outcome) {
+  if (Number(outcome) === Outcome.HOME) return match.teamA
+  if (Number(outcome) === Outcome.DRAW) return 'Empate'
+  if (Number(outcome) === Outcome.AWAY) return match.teamB
+  return 'Selecione um lado'
+}
+
 function getFriendlyError(error) {
   const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
 
