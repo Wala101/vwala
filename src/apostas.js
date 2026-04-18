@@ -331,6 +331,27 @@ function getOutcomeLabel(match, outcome) {
   return 'Selecione um lado'
 }
 
+function normalizeMarketProbabilities(match = {}) {
+  const home = Number(match.homeProbBps || 0)
+  const draw = Number(match.drawProbBps || 0)
+  const away = Number(match.awayProbBps || 0)
+  const total = home + draw + away
+
+  if (home > 0 && draw > 0 && away > 0 && total === 10000) {
+    return {
+      homeProbBps: home,
+      drawProbBps: draw,
+      awayProbBps: away
+    }
+  }
+
+  return {
+    homeProbBps: 4000,
+    drawProbBps: 3000,
+    awayProbBps: 3000
+  }
+}
+
 function getBettingErrorName(error) {
   const candidates = [
     error?.data,
@@ -677,7 +698,13 @@ async function hydrateMatch(match) {
 
 async function loadMatches() {
   try {
-    const rawMatches = await fetchMatches()
+    const fetchedMatches = await fetchMatches()
+
+    const rawMatches = fetchedMatches.map((match) => ({
+      ...match,
+      ...normalizeMarketProbabilities(match)
+    }))
+
     const baseMatches = loadCouponsForMatches(rawMatches)
 
     if (!state.betting) {
@@ -773,10 +800,12 @@ async function previewPayout(fixtureId, outcome, amountUi, match = null) {
   }
 
   if (match && !match.exists) {
+    const normalized = normalizeMarketProbabilities(match)
+
     const probs = {
-      [Outcome.HOME]: Number(match.probHomeBps || 0),
-      [Outcome.DRAW]: Number(match.probDrawBps || 0),
-      [Outcome.AWAY]: Number(match.probAwayBps || 0)
+      [Outcome.HOME]: normalized.homeProbBps,
+      [Outcome.DRAW]: normalized.drawProbBps,
+      [Outcome.AWAY]: normalized.awayProbBps
     }
 
     const outcomeProbBps = Number(probs[Number(outcome)] || 0)
@@ -804,6 +833,7 @@ async function ensureMarketExists(match, signer) {
   if (match.exists) return
 
   const bettingContract = state.betting.connect(signer)
+  const normalized = normalizeMarketProbabilities(match)
 
   try {
     const tx = await bettingContract.createMarket(
@@ -812,9 +842,9 @@ async function ensureMarketExists(match, signer) {
       match.teamA,
       match.teamB,
       0,
-      Number(match.probHomeBps),
-      Number(match.probDrawBps),
-      Number(match.probAwayBps)
+      normalized.homeProbBps,
+      normalized.drawProbBps,
+      normalized.awayProbBps
     )
 
     await tx.wait()
