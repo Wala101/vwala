@@ -42,14 +42,14 @@ textarea{
   min-height:100vh;
   display:flex;
   justify-content:center;
-  padding:20px 0 40px;
+  padding:20px 6px 40px;
   background:var(--wallet-bg);
 }
 
 .token-shell{
-  width:420px;
-  max-width:calc(100vw - 24px);
-  padding:20px;
+  width:460px;
+  max-width:calc(100vw - 12px);
+  padding:12px 6px 20px;
 }
 
 .token-topbar{
@@ -721,13 +721,13 @@ button{
 
 @media (max-width:480px){
   .token-page{
-    padding:14px 0 28px;
+    padding:12px 6px 24px;
   }
 
   .token-shell{
     width:100%;
-    max-width:100%;
-    padding:14px;
+    max-width:calc(100vw - 12px);
+    padding:6px 2px 12px;
   }
 
   .token-title{
