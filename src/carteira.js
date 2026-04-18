@@ -24,6 +24,11 @@ const walletState = {
 let currentGoogleUser = null
 let currentWalletAddress = ''
 
+const modalState = {
+  resolve: null,
+  mode: 'message'
+}
+
 const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 
@@ -96,29 +101,48 @@ async function loadPolygonBalance(walletAddress) {
 
 async function handleWalletAction(action) {
   if (action === 'enviar') {
-    alert('A função Enviar será ligada à carteira interna.')
+    await showMessageModal(
+      'Enviar',
+      'A função Enviar será ligada à carteira interna.'
+    )
     return
   }
 
   if (action === 'receber') {
     if (!currentWalletAddress) {
-      alert('Carteira ainda não carregada.')
+      await showMessageModal(
+        'Carteira',
+        'Carteira ainda não carregada.'
+      )
       return
     }
 
     try {
       await navigator.clipboard.writeText(currentWalletAddress)
-      alert(`Endereço copiado:\n${currentWalletAddress}`)
+
+      await showMessageModal(
+        'Endereço copiado',
+        currentWalletAddress,
+        'Fechar'
+      )
     } catch (error) {
       console.error('Erro ao copiar endereço:', error)
-      alert(`Seu endereço é:\n${currentWalletAddress}`)
+
+      await showMessageModal(
+        'Seu endereço',
+        currentWalletAddress,
+        'Fechar'
+      )
     }
 
     return
   }
 
   if (action === 'swap') {
-    alert('O swap interno 1 POL = 1 vWALA será ligado ao sistema.')
+    await showMessageModal(
+      'Swap',
+      'O swap interno 1 POL = 1 vWALA será ligado ao sistema.'
+    )
   }
 }
 
@@ -259,10 +283,144 @@ app.innerHTML = `
       </button>
     </div>
   </div>
+
+  <div id="uiModal" class="wallet-auth-gate hidden">
+    <div class="wallet-auth-modal wallet-ui-modal-box">
+      <div class="wallet-auth-badge">W</div>
+      <h2 id="uiModalTitle">Aviso</h2>
+      <p id="uiModalText"></p>
+
+      <input
+        id="uiModalInput"
+        class="wallet-modal-input hidden"
+        type="password"
+        placeholder=""
+        autocomplete="off"
+      />
+
+      <div class="wallet-modal-actions">
+        <button id="uiModalCancelBtn" class="wallet-modal-secondary-btn" type="button">
+          Cancelar
+        </button>
+
+        <button id="uiModalConfirmBtn" class="wallet-auth-google-btn" type="button">
+          OK
+        </button>
+      </div>
+    </div>
+  </div>
 `
 
 const authGate = document.getElementById('authGate')
 const googleLoginBtn = document.getElementById('googleLoginBtn')
+
+const uiModal = document.getElementById('uiModal')
+const uiModalTitle = document.getElementById('uiModalTitle')
+const uiModalText = document.getElementById('uiModalText')
+const uiModalInput = document.getElementById('uiModalInput')
+const uiModalCancelBtn = document.getElementById('uiModalCancelBtn')
+const uiModalConfirmBtn = document.getElementById('uiModalConfirmBtn')
+
+function openUiModal({
+  title = 'Aviso',
+  text = '',
+  mode = 'message',
+  confirmText = 'OK',
+  cancelText = 'Cancelar',
+  placeholder = '',
+  password = false,
+  initialValue = '',
+  showCancel = false
+} = {}) {
+  return new Promise((resolve) => {
+    modalState.resolve = resolve
+    modalState.mode = mode
+
+    uiModalTitle.textContent = title
+    uiModalText.textContent = text
+    uiModalConfirmBtn.textContent = confirmText
+    uiModalCancelBtn.textContent = cancelText
+    uiModalCancelBtn.style.display = showCancel ? 'inline-flex' : 'none'
+
+    if (mode === 'prompt') {
+      uiModalInput.classList.remove('hidden')
+      uiModalInput.type = password ? 'password' : 'text'
+      uiModalInput.placeholder = placeholder
+      uiModalInput.value = initialValue
+      setTimeout(() => uiModalInput.focus(), 0)
+    } else {
+      uiModalInput.classList.add('hidden')
+      uiModalInput.value = ''
+    }
+
+    uiModal.classList.remove('hidden')
+  })
+}
+
+function closeUiModal(result = null) {
+  uiModal.classList.add('hidden')
+
+  const resolve = modalState.resolve
+  modalState.resolve = null
+
+  if (resolve) {
+    resolve(result)
+  }
+}
+
+async function showMessageModal(title, text, confirmText = 'OK') {
+  await openUiModal({
+    title,
+    text,
+    confirmText,
+    showCancel: false
+  })
+}
+
+async function showPinModal(title, text, confirmText = 'Continuar') {
+  return openUiModal({
+    title,
+    text,
+    mode: 'prompt',
+    confirmText,
+    cancelText: 'Cancelar',
+    placeholder: 'Digite seu PIN',
+    password: true,
+    showCancel: true
+  })
+}
+
+uiModalConfirmBtn?.addEventListener('click', () => {
+  if (modalState.mode === 'prompt') {
+    closeUiModal(uiModalInput.value)
+    return
+  }
+
+  closeUiModal(true)
+})
+
+uiModalCancelBtn?.addEventListener('click', () => {
+  closeUiModal(null)
+})
+
+uiModal?.addEventListener('click', (event) => {
+  if (event.target === uiModal) {
+    closeUiModal(null)
+  }
+})
+
+uiModalInput?.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    closeUiModal(uiModalInput.value)
+    return
+  }
+
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeUiModal(null)
+  }
+})
 
 function openAuthGate() {
   authGate?.classList.remove('hidden')
@@ -316,16 +474,40 @@ async function ensureUserWalletProfile(user) {
     return userData
   }
 
-  const pin = window.prompt('Crie um PIN da carteira com pelo menos 6 caracteres.')
+  const pin = await showPinModal(
+    'Criar PIN',
+    'Crie um PIN da carteira com pelo menos 6 caracteres.',
+    'Continuar'
+  )
 
-  if (!pin || pin.trim().length < 6) {
-    throw new Error('PIN inválido. Use pelo menos 6 caracteres.')
+  if (pin === null) {
+    return null
   }
 
-  const confirmPin = window.prompt('Confirme o PIN da carteira.')
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Use pelo menos 6 caracteres.'
+    )
+    return null
+  }
+
+  const confirmPin = await showPinModal(
+    'Confirmar PIN',
+    'Confirme o PIN da carteira.',
+    'Confirmar'
+  )
+
+  if (confirmPin === null) {
+    return null
+  }
 
   if (pin !== confirmPin) {
-    throw new Error('Os PINs não coincidem.')
+    await showMessageModal(
+      'PIN diferente',
+      'Os PINs não coincidem.'
+    )
+    return null
   }
 
   const wallet = Wallet.createRandom()
@@ -359,7 +541,11 @@ async function ensureUserWalletProfile(user) {
     })
   )
 
-  alert('Carteira criada com sucesso.')
+  await showMessageModal(
+    'Carteira criada',
+    'Carteira criada com sucesso.'
+  )
+
   return payload
 }
 
@@ -389,7 +575,11 @@ async function loginWithGoogle() {
     }
   } catch (error) {
     console.error('Erro ao entrar com Google:', error)
-    alert('Não foi possível entrar com Google.')
+
+    await showMessageModal(
+      'Erro de login',
+      'Não foi possível entrar com Google.'
+    )
   } finally {
     googleLoginBtn.disabled = false
     googleLoginBtn.textContent = originalText
@@ -408,13 +598,19 @@ async function initFirebaseAuthGate() {
         closeAuthGate()
 
         try {
-          await ensureUserWalletProfile(user)
-          await loadPolygonBalance(currentWalletAddress)
+          const walletProfile = await ensureUserWalletProfile(user)
+
+          if (walletProfile?.walletAddress) {
+            await loadPolygonBalance(walletProfile.walletAddress)
+          }
         } catch (error) {
           console.error('Erro ao preparar carteira do usuário:', error)
-          alert(error?.message || 'Não foi possível preparar sua carteira.')
-        }
 
+          await showMessageModal(
+            'Erro da carteira',
+            error?.message || 'Não foi possível preparar sua carteira.'
+          )
+        }
         return
       }
 

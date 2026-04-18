@@ -531,3 +531,49 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
   opacity: 0.7;
   cursor: wait;
 }
+
+.wallet-ui-modal-box {
+  width: min(100%, 420px);
+}
+
+.wallet-modal-input {
+  width: 100%;
+  min-height: 52px;
+  margin-top: 8px;
+  padding: 0 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  outline: none;
+  font-size: 1rem;
+}
+
+.wallet-modal-input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+}
+
+.wallet-modal-input.hidden {
+  display: none;
+}
+
+.wallet-modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.wallet-modal-actions > button {
+  flex: 1;
+}
+
+.wallet-modal-secondary-btn {
+  min-height: 52px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
