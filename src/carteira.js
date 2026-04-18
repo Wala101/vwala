@@ -33,6 +33,8 @@ const modalState = {
 
 const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
+const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
+const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
 if (!POLYGON_RPC_URL) {
   throw new Error('VITE_POLYGON_RPC_URL não configurada.')
@@ -117,6 +119,203 @@ function formatTxHash(hash = '') {
 
 function normalizeAmountInput(value = '') {
   return String(value || '').replace(',', '.').trim()
+}
+
+function buildCloudPassword(user) {
+  if (!user?.uid) {
+    throw new Error('Usuário inválido para gerar acesso da carteira.')
+  }
+
+  return `${CLOUD_PASSWORD_SALT}:${user.uid}`
+}
+
+function getLocalDeviceWallet() {
+  try {
+    const raw = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch (error) {
+    console.error('Erro ao ler carteira local do aparelho:', error)
+    return null
+  }
+}
+
+function saveLocalDeviceWallet(payload) {
+  localStorage.setItem(
+    DEVICE_WALLET_STORAGE_KEY,
+    JSON.stringify(payload)
+  )
+}
+
+function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
+  const localVault = getLocalDeviceWallet()
+
+  if (!localVault) return null
+  if (localVault.uid !== uid) return null
+  if (!localVault.walletKeystoreLocal) return null
+
+  const localAddress = String(localVault.walletAddress || '').toLowerCase()
+  const targetAddress = String(walletAddress || '').toLowerCase()
+
+  if (!localAddress || !targetAddress || localAddress !== targetAddress) {
+    return null
+  }
+
+  return localVault
+}
+
+async function promptCreateDevicePin() {
+  const pin = await showPinModal(
+    'Criar PIN neste aparelho',
+    'Crie um novo PIN para usar sua carteira neste aparelho.',
+    'Continuar'
+  )
+
+  if (pin === null) {
+    return null
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Use pelo menos 6 caracteres.'
+    )
+    return null
+  }
+
+  const confirmPin = await showPinModal(
+    'Confirmar PIN',
+    'Confirme o novo PIN deste aparelho.',
+    'Confirmar'
+  )
+
+  if (confirmPin === null) {
+    return null
+  }
+
+  if (pin !== confirmPin) {
+    await showMessageModal(
+      'PIN diferente',
+      'Os PINs não coincidem.'
+    )
+    return null
+  }
+
+  return pin.trim()
+}
+
+async function ensureDeviceWalletAccess(user, walletProfile) {
+  const walletAddress = walletProfile?.walletAddress || ''
+
+  const localVault = getMatchingLocalDeviceWallet(user?.uid, walletAddress)
+  if (localVault) {
+    return localVault
+  }
+
+  if (walletProfile?.walletKeystoreCloud) {
+    const newPin = await promptCreateDevicePin()
+
+    if (!newPin) {
+      return null
+    }
+
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      walletProfile.walletKeystoreCloud,
+      buildCloudPassword(user)
+    )
+
+    const walletKeystoreLocal = await unlockedWallet.encrypt(newPin)
+
+    const deviceVault = {
+      uid: user.uid,
+      walletAddress: unlockedWallet.address,
+      walletKeystoreLocal,
+      chainId: walletProfile.chainId || POLYGON_CHAIN_ID,
+      network: walletProfile.network || 'polygon'
+    }
+
+    saveLocalDeviceWallet(deviceVault)
+
+    await showMessageModal(
+      'PIN criado',
+      'Novo PIN criado com sucesso neste aparelho.'
+    )
+
+    return deviceVault
+  }
+
+  if (walletProfile?.walletKeystore) {
+    const legacyPin = await showPinModal(
+      'Atualizar acesso',
+      'Digite seu PIN atual uma única vez para ativar o novo modelo com PIN por aparelho.',
+      'Continuar'
+    )
+
+    if (legacyPin === null) {
+      return null
+    }
+
+    if (!legacyPin || legacyPin.trim().length < 6) {
+      await showMessageModal(
+        'PIN inválido',
+        'Digite seu PIN atual para continuar.'
+      )
+      return null
+    }
+
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        walletProfile.walletKeystore,
+        legacyPin.trim()
+      )
+
+      const walletKeystoreCloud = await unlockedWallet.encrypt(
+        buildCloudPassword(user)
+      )
+
+      const walletKeystoreLocal = await unlockedWallet.encrypt(
+        legacyPin.trim()
+      )
+
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          walletKeystoreCloud,
+          walletModel: 'google_device_pin_v1',
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      )
+
+      const deviceVault = {
+        uid: user.uid,
+        walletAddress: unlockedWallet.address,
+        walletKeystoreLocal,
+        chainId: walletProfile.chainId || POLYGON_CHAIN_ID,
+        network: walletProfile.network || 'polygon'
+      }
+
+      saveLocalDeviceWallet(deviceVault)
+
+      await showMessageModal(
+        'Acesso atualizado',
+        'Pronto. Nos próximos aparelhos você poderá criar um novo PIN após login com Google.'
+      )
+
+      return deviceVault
+    } catch (error) {
+      console.error('Erro ao migrar carteira antiga:', error)
+
+      await showMessageModal(
+        'PIN inválido',
+        'Não foi possível validar seu PIN atual.'
+      )
+
+      return null
+    }
+  }
+
+  throw new Error('Carteira sem dados para configurar o PIN deste aparelho.')
 }
 
 function getSendErrorMessage(error) {
@@ -292,14 +491,18 @@ async function handleSendPolygon() {
     )
 
     const walletProfile = await getCurrentUserWalletProfile()
+    const deviceVault = await ensureDeviceWalletAccess(
+      currentGoogleUser,
+      walletProfile
+    )
 
-    if (!walletProfile?.walletKeystore) {
-      throw new Error('Keystore da carteira não encontrado.')
+    if (!deviceVault?.walletKeystoreLocal) {
+      throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
     const provider = new JsonRpcProvider(POLYGON_RPC_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
-      walletProfile.walletKeystore,
+      deviceVault.walletKeystoreLocal,
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
@@ -873,47 +1076,20 @@ async function ensureUserWalletProfile(user) {
       })
     )
 
+    await ensureDeviceWalletAccess(user, userData)
+
     return userData
   }
 
-  const pin = await showPinModal(
-    'Criar PIN',
-    'Crie um PIN da carteira com pelo menos 6 caracteres.',
-    'Continuar'
-  )
+  const pin = await promptCreateDevicePin()
 
-  if (pin === null) {
-    return null
-  }
-
-  if (!pin || pin.trim().length < 6) {
-    await showMessageModal(
-      'PIN inválido',
-      'Use pelo menos 6 caracteres.'
-    )
-    return null
-  }
-
-  const confirmPin = await showPinModal(
-    'Confirmar PIN',
-    'Confirme o PIN da carteira.',
-    'Confirmar'
-  )
-
-  if (confirmPin === null) {
-    return null
-  }
-
-  if (pin !== confirmPin) {
-    await showMessageModal(
-      'PIN diferente',
-      'Os PINs não coincidem.'
-    )
+  if (!pin) {
     return null
   }
 
   const wallet = Wallet.createRandom()
-  const walletKeystore = await wallet.encrypt(pin.trim())
+  const walletKeystoreCloud = await wallet.encrypt(buildCloudPassword(user))
+  const walletKeystoreLocal = await wallet.encrypt(pin)
 
   const payload = {
     uid: user.uid,
@@ -921,7 +1097,8 @@ async function ensureUserWalletProfile(user) {
     name: user.displayName || '',
     photo: user.photoURL || '',
     walletAddress: wallet.address,
-    walletKeystore,
+    walletKeystoreCloud,
+    walletModel: 'google_device_pin_v1',
     chainId: POLYGON_CHAIN_ID,
     network: 'polygon',
     createdAt: serverTimestamp(),
@@ -929,6 +1106,14 @@ async function ensureUserWalletProfile(user) {
   }
 
   await setDoc(userRef, payload)
+
+  saveLocalDeviceWallet({
+    uid: user.uid,
+    walletAddress: wallet.address,
+    walletKeystoreLocal,
+    chainId: POLYGON_CHAIN_ID,
+    network: 'polygon'
+  })
 
   currentWalletAddress = wallet.address
   updateWalletAddressUI(currentWalletAddress)
@@ -945,7 +1130,7 @@ async function ensureUserWalletProfile(user) {
 
   await showMessageModal(
     'Carteira criada',
-    'Carteira criada com sucesso.'
+    'Carteira criada com sucesso. Neste aparelho seu PIN já ficou definido.'
   )
 
   return payload
