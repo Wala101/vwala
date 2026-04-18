@@ -209,9 +209,8 @@ document.querySelector('#app').innerHTML = `
       </div>
 
       <div class="notice-modal-footer app-pin-actions">
-        <button id="appPinCancelBtn" class="app-secondary-btn" type="button">Cancelar</button>
-        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
-      </div>
+  <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+</div>
     </div>
   </div>
 
@@ -248,7 +247,6 @@ const appPinTitle = document.getElementById('appPinTitle')
 const appPinText = document.getElementById('appPinText')
 const appPinInput = document.getElementById('appPinInput')
 const closeAppPinBtn = document.getElementById('closeAppPinBtn')
-const appPinCancelBtn = document.getElementById('appPinCancelBtn')
 const appPinConfirmBtn = document.getElementById('appPinConfirmBtn')
 
 const appLoadingOverlay = document.getElementById('appLoadingOverlay')
@@ -362,8 +360,9 @@ function getOutcomeLabel(match, outcome) {
 
 function cleanTeamName(name = '') {
   return String(name || '')
-    .replace(/\b(SC|EC|FC|AC|AFC|SAF|SE|AA|CA|FBPA)\b/gi, ' ')
-    .replace(/\b(Paulista)\b/gi, ' ')
+    .replace(/^\b(SC|EC|FC|AC|AFC|SAF|SE|AA)\b\s+/i, '')
+    .replace(/\s+\b(SC|EC|FC|AC|AFC|SAF|SE|AA|FBPA|FBC)\b$/i, '')
+    .replace(/\s+\b(Paulista)\b$/i, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -942,6 +941,8 @@ function createCard(match) {
   const card = document.createElement('div')
   card.className = 'match-card inline-market-card'
 
+  const displayProbabilities = normalizeMarketProbabilities(match)
+
   card.innerHTML = `
     <div class="match-box inline-match-box">
       <div class="match-league">${match.league}</div>
@@ -966,17 +967,17 @@ function createCard(match) {
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
         <span class="stat-label">Prob. ${match.teamA}</span>
-        <strong class="stat-value">${bpsToPercentText(match.probHomeBps)}</strong>
+        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probHomeBps)}</strong>
       </div>
 
       <div class="stat-box">
         <span class="stat-label">Empate</span>
-        <strong class="stat-value">${bpsToPercentText(match.probDrawBps)}</strong>
+        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probDrawBps)}</strong>
       </div>
 
       <div class="stat-box">
         <span class="stat-label">Prob. ${match.teamB}</span>
-        <strong class="stat-value">${bpsToPercentText(match.probAwayBps)}</strong>
+        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probAwayBps)}</strong>
       </div>
     </div>
 
@@ -1186,7 +1187,6 @@ async function boot() {
   appNoticeOverlay.addEventListener('click', closeAlert)
 
   closeAppPinBtn.addEventListener('click', () => closePinModal(null))
-  appPinCancelBtn.addEventListener('click', () => closePinModal(null))
   appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
   appPinOverlay.addEventListener('click', () => closePinModal(null))
 

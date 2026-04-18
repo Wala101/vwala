@@ -1645,3 +1645,57 @@ body{
 #menuBtn{
   display:none !important;
 }
+
+
+#appPinModal.active,
+#appLoadingModal.active {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(0, 0, 0, 0.72) !important;
+}
+
+#appPinModal .notice-modal-card,
+#appLoadingModal .notice-modal-card {
+  width: min(92vw, 380px) !important;
+  max-width: 380px !important;
+  height: auto !important;
+  max-height: none !important;
+  margin: 0 auto !important;
+  border-radius: 18px !important;
+  background: #0f0f17 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+#appPinModal .notice-modal-body,
+#appLoadingModal .notice-modal-body {
+  padding: 8px 0 0 !important;
+}
+
+#appLoadingModal .app-loading-body {
+  min-height: 180px;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+#appLoadingModal .app-loading-spinner {
+  margin: 0 auto 8px !important;
+}
+
+.app-pin-actions {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 0 !important;
+}
+
+#appPinConfirmBtn {
+  width: 100% !important;
+}
+
+#appPinCancelBtn {
+  display: none !important;
+}
