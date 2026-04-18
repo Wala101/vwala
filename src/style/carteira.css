@@ -323,7 +323,11 @@ body{
   margin-top:3px;
 }
 
-.wallet-token-balance{
+.wallet-token-balance {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
   text-align:right;
   flex-shrink:0;
 }
@@ -808,4 +812,35 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
     padding: 14px 12px;
     word-break: break-all;
   }
+}
+
+.wallet-vwala-sell-btn {
+  margin-top: 8px;
+  align-self: flex-end;
+  min-width: 86px;
+  height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #5cffb4, #25ff8a);
+  color: #04110a;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(37, 255, 138, 0.18);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.wallet-vwala-sell-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(37, 255, 138, 0.24);
+}
+
+.wallet-vwala-sell-btn:active {
+  transform: translateY(0);
+}
+
+.wallet-vwala-sell-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }

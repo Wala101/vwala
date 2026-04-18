@@ -1747,9 +1747,9 @@ app.innerHTML = `
             <div class="wallet-token-balance">
               <strong>${formatAmount(walletState.vwalaBalance, 'vWALA')}</strong>
               <small>Token da plataforma</small>
-              <button id="walletSellVWalaBtn" class="wallet-token-modal-action primary" type="button">
-                Vender
-              </button>
+              <button id="walletSellVWalaBtn" class="wallet-vwala-sell-btn" type="button">
+  Vender
+</button>
             </div>
           </div>
 
