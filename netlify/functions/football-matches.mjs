@@ -189,8 +189,8 @@ export default async () => {
     const dateFrom = formatDateYMD(now)
 
     const limitDate = new Date(now)
-    limitDate.setDate(limitDate.getDate() + 2)
-    const dateTo = formatDateYMD(limitDate)
+limitDate.setDate(limitDate.getDate() + 5)
+const dateTo = formatDateYMD(limitDate)
 
     const teamRecentMatchesCache = new Map()
     const matches = []
