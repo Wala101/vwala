@@ -1,19 +1,7 @@
-const COIN_SPECS = [
-  {
-    id: 'bitcoin',
-    assetSymbol: 'BTC',
-    fallbackPrice: 94500
-  },
-  {
-    id: 'ethereum',
-    assetSymbol: 'ETH',
-    fallbackPrice: 3100
-  },
-  {
-    id: 'solana',
-    assetSymbol: 'SOL',
-    fallbackPrice: 182
-  }
+const COINS = [
+  { id: 'bitcoin', assetSymbol: 'BTC', fallbackPrice: 94500 },
+  { id: 'ethereum', assetSymbol: 'ETH', fallbackPrice: 3100 },
+  { id: 'solana', assetSymbol: 'SOL', fallbackPrice: 182 }
 ]
 
 function getNextFourHourCloseTimestamp(fromDate = new Date()) {
@@ -47,7 +35,7 @@ function buildBinaryMarketId(symbol, closeAt) {
 function buildFallbackMarkets() {
   const closeAt = getNextFourHourCloseTimestamp()
 
-  return COIN_SPECS.map((coin) => ({
+  return COINS.map((coin) => ({
     marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
     assetSymbol: coin.assetSymbol,
     imageUrl: '/logo.png',
@@ -60,48 +48,38 @@ function buildFallbackMarkets() {
   }))
 }
 
-function getCoinGeckoConfig() {
-  const proKey = String(process.env.COINGECKO_PRO_API_KEY || '').trim()
-  const demoKey = String(process.env.COINGECKO_DEMO_API_KEY || '').trim()
-
-  if (proKey) {
-    return {
-      baseUrl: 'https://pro-api.coingecko.com/api/v3',
-      headers: {
-        'x-cg-pro-api-key': proKey
-      }
-    }
-  }
-
-  if (demoKey) {
-    return {
-      baseUrl: 'https://api.coingecko.com/api/v3',
-      headers: {
-        'x-cg-demo-api-key': demoKey
-      }
-    }
-  }
-
-  return {
-    baseUrl: 'https://api.coingecko.com/api/v3',
-    headers: {}
-  }
-}
-
 export async function handler() {
   try {
+    const apiKey = String(process.env.COINGECKO_DEMO_API_KEY || '').trim()
     const closeAt = getNextFourHourCloseTimestamp()
-    const { baseUrl, headers } = getCoinGeckoConfig()
 
-    const url = new URL(`${baseUrl}/coins/markets`)
+    if (!apiKey) {
+      return {
+        statusCode: 200,
+        headers: {
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'public, max-age=30'
+        },
+        body: JSON.stringify({
+          markets: buildFallbackMarkets()
+        })
+      }
+    }
+
+    const ids = COINS.map((coin) => coin.id).join(',')
+
+    const url = new URL('https://api.coingecko.com/api/v3/coins/markets')
     url.searchParams.set('vs_currency', 'usd')
-    url.searchParams.set('ids', COIN_SPECS.map((coin) => coin.id).join(','))
+    url.searchParams.set('ids', ids)
     url.searchParams.set('sparkline', 'false')
     url.searchParams.set('price_change_percentage', '24h')
+    url.searchParams.set('x_cg_demo_api_key', apiKey)
 
     const response = await fetch(url, {
       method: 'GET',
-      headers
+      headers: {
+        accept: 'application/json'
+      }
     })
 
     if (!response.ok) {
@@ -112,7 +90,7 @@ export async function handler() {
     const rows = Array.isArray(payload) ? payload : []
     const byId = new Map(rows.map((row) => [row.id, row]))
 
-    const markets = COIN_SPECS.map((coin) => {
+    const markets = COINS.map((coin) => {
       const row = byId.get(coin.id)
 
       const currentPriceUsd = Number(row?.current_price || coin.fallbackPrice)
