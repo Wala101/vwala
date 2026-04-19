@@ -1474,11 +1474,21 @@ async function handleSellVWala() {
     const amountUnits = parseUnits(normalizedAmount, swapState.tokenDecimals)
 
     const [tokenBalance, liveRedeemable] = await Promise.all([
-      tokenContract.balanceOf(signer.address),
-      poolContract.maxRedeemable(signer.address)
-    ])
+  tokenContract.balanceOf(signer.address),
+  poolContract.maxRedeemable(signer.address)
+])
 
-    if (tokenBalance < amountUnits) {
+console.log('[SWAP_SELL_GATE]', {
+  signerAddress: signer.address,
+  tokenBalanceRaw: tokenBalance.toString(),
+  tokenBalanceFormatted: formatUnits(tokenBalance, swapState.tokenDecimals),
+  liveRedeemableRaw: liveRedeemable.toString(),
+  liveRedeemableFormatted: formatUnits(liveRedeemable, swapState.tokenDecimals),
+  requestedAmount: normalizedAmount,
+  requestedAmountRaw: amountUnits.toString()
+})
+
+if (tokenBalance < amountUnits) {
       hideLoadingModal()
 
       await showMessageModal(
@@ -1557,6 +1567,15 @@ if (allowance < amountUnits) {
 const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
 const sellFeeWei = sellGasEstimate * gasPrice
 
+console.log('[SWAP_SELL_ESTIMATE]', {
+  signerAddress: signer.address,
+  sellGasEstimate: sellGasEstimate.toString(),
+  gasPrice: gasPrice.toString(),
+  sellFeeWei: sellFeeWei.toString(),
+  amountUnits: amountUnits.toString(),
+  amountFormatted: formatUnits(amountUnits, swapState.tokenDecimals)
+})
+
 if (liveBalanceWei < sellFeeWei + gasReserveWei) {
   hideLoadingModal()
 
@@ -1587,7 +1606,20 @@ const tx = await poolContract.sell(amountUnits)
     )
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro ao executar venda:', error)
+    console.error('Erro ao executar venda:', {
+  shortMessage: error?.shortMessage || '',
+  message: error?.message || '',
+  code: error?.code || '',
+  reason: error?.reason || '',
+  data: error?.data || error?.error?.data || error?.info?.error?.data || '',
+  currentWalletAddress,
+  swapState: {
+    polBalance: swapState.polBalance,
+    vwalaBalance: swapState.vwalaBalance,
+    redeemableNow: swapState.redeemableNow,
+    tokenDecimals: swapState.tokenDecimals
+  }
+})
 
     await showMessageModal(
       'Erro na venda',
