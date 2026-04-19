@@ -848,8 +848,16 @@ function buildFallbackMarkets() {
 
 async function fetchMarkets() {
   try {
+    const response = await fetch(`${API_BASE}/crypto-markets`, {
+      method: 'GET',
+      headers: {
+        accept: 'application/json'
+      }
+    })
 
-    if (!response.ok) throw new Error('Falha ao carregar mercados.')
+    if (!response.ok) {
+      throw new Error(`Falha ao carregar mercados: ${response.status}`)
+    }
 
     const payload = await response.json()
     const source = Array.isArray(payload.markets) ? payload.markets : []
