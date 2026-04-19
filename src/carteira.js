@@ -2287,22 +2287,41 @@ async function ensureUserWalletProfile(user) {
   if (userSnap.exists()) {
     const userData = userSnap.data()
 
-    currentWalletAddress = String(userData.walletAddress || '').trim()
+    let resolvedWalletAddress = String(userData.walletAddress || '').trim()
+
+    if (userData.walletKeystoreCloud) {
+      try {
+        const unlockedWallet = await Wallet.fromEncryptedJson(
+          userData.walletKeystoreCloud,
+          buildCloudPassword(user)
+        )
+
+        resolvedWalletAddress = String(unlockedWallet.address || '').trim()
+      } catch (error) {
+        console.error('Erro ao resolver endereço pelo keystore cloud:', error)
+      }
+    }
+
+    currentWalletAddress = resolvedWalletAddress
     updateWalletAddressUI(currentWalletAddress)
 
-    localStorage.setItem(
-      'vwala_wallet_profile',
-      JSON.stringify({
-        uid: user.uid,
-        walletAddress: currentWalletAddress,
-        chainId: userData.chainId || POLYGON_CHAIN_ID,
-        network: userData.network || 'polygon'
-      })
-    )
+    if (
+      resolvedWalletAddress &&
+      resolvedWalletAddress.toLowerCase() !== String(userData.walletAddress || '').trim().toLowerCase()
+    ) {
+      await setDoc(
+        doc(db, 'users', user.uid),
+        {
+          walletAddress: resolvedWalletAddress,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      )
+    }
 
     return {
       ...userData,
-      walletAddress: currentWalletAddress
+      walletAddress: resolvedWalletAddress
     }
   }
 
