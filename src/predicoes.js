@@ -515,8 +515,10 @@ function generateCouponId(market) {
   return couponId === 0n ? 1n : couponId
 }
 
+const MARKET_RULE_VERSION = 'UP3V1'
+
 function buildBinaryMarketId(symbol, closeAt) {
-  const seed = String(symbol || 'CRYPTO')
+  const seed = `${String(symbol || 'CRYPTO')}_${MARKET_RULE_VERSION}`
     .split('')
     .reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 100000, 17)
 
@@ -1175,12 +1177,12 @@ function createCard(market) {
 
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
-        <span class="stat-label">Preço base</span>
+        <span class="stat-label">Meta +3%</span>
         <strong class="stat-value">${formatUsd(market.referencePriceUsd)}</strong>
       </div>
 
       <div class="stat-box">
-        <span class="stat-label">Atual</span>
+        <span class="stat-label">Preço atual</span>
         <strong class="stat-value">${formatUsd(market.currentPriceUsd)}</strong>
       </div>
 

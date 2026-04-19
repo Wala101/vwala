@@ -4,6 +4,19 @@ const COINS = [
   { id: 'solana', assetSymbol: 'SOL', fallbackPrice: 182 }
 ]
 
+const MARKET_RULE_VERSION = 'UP3V1'
+const TARGET_PCT = 0.03
+
+function getTargetPriceUsd(currentPrice) {
+  const price = Number(currentPrice || 0)
+
+  if (!Number.isFinite(price) || price <= 0) {
+    return 0
+  }
+
+  return Number((price * (1 + TARGET_PCT)).toFixed(2))
+}
+
 function getNextFourHourCloseTimestamp(fromDate = new Date()) {
   const base = new Date(fromDate)
   const utcHour = base.getUTCHours()
@@ -25,7 +38,7 @@ function getNextFourHourCloseTimestamp(fromDate = new Date()) {
 }
 
 function buildBinaryMarketId(symbol, closeAt) {
-  const seed = String(symbol || 'CRYPTO')
+  const seed = `${String(symbol || 'CRYPTO')}_${MARKET_RULE_VERSION}`
     .split('')
     .reduce((acc, char) => (acc * 31 + char.charCodeAt(0)) % 100000, 17)
 
@@ -39,9 +52,9 @@ function buildFallbackMarkets() {
     marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
     assetSymbol: coin.assetSymbol,
     imageUrl: '/logo.png',
-    question: `${coin.assetSymbol} fechará acima do preço de referência em 4 horas?`,
-    referencePriceUsd: coin.fallbackPrice,
-    currentPriceUsd: coin.fallbackPrice,
+  question: `${coin.assetSymbol} subirá 3% ou mais nas próximas 4 horas?`,
+referencePriceUsd: getTargetPriceUsd(coin.fallbackPrice),
+currentPriceUsd: coin.fallbackPrice,
     closeAt,
     probYesBps: 5000,
     probNoBps: 5000
@@ -94,13 +107,13 @@ export async function handler() {
       const row = byId.get(coin.id)
 
       const currentPriceUsd = Number(row?.current_price || coin.fallbackPrice)
-      const referencePriceUsd = currentPriceUsd
+const referencePriceUsd = getTargetPriceUsd(currentPriceUsd)
 
       return {
         marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
         assetSymbol: coin.assetSymbol,
         imageUrl: String(row?.image || '/logo.png'),
-        question: `${coin.assetSymbol} fechará acima do preço de referência em 4 horas?`,
+        question: `${coin.assetSymbol} subirá 3% ou mais nas próximas 4 horas?`,
         referencePriceUsd,
         currentPriceUsd,
         closeAt,
