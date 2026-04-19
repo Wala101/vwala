@@ -16,6 +16,8 @@ if (!app) {
   throw new Error('Elemento #app não encontrado.')
 }
 
+console.log('[CARTEIRA BUILD]', CARTEIRA_BUILD_TAG)
+
 const walletState = {
   polBalance: '12.85',
   vwalaBalance: '0.00',
@@ -41,6 +43,7 @@ const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const VWALA_SWAP_ADDRESS = '0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35'
 const VWALA_SELL_ADDRESS = '0x7EA586C8f94F352b277A1C9006A05A5EA5600668'
 const POL_GAS_RESERVE = '0.05'
+const CARTEIRA_BUILD_TAG = 'carteira-debug-2026-04-18-01'
 
 const VWALA_SWAP_ABI = [
   'function buy() payable returns (uint256)',
@@ -111,6 +114,11 @@ function updatePolygonBalanceUI(value = '0') {
 function updateVWalaBalanceUI(value = '0') {
   walletState.vwalaBalance = value
 
+  console.log('[vWALA UI UPDATE]', {
+    build: CARTEIRA_BUILD_TAG,
+    value
+  })
+
   const vwalaChip = document.querySelector('.wallet-vwala-chip')
   if (vwalaChip) {
     vwalaChip.textContent = formatAmount(value, 'vWALA')
@@ -161,6 +169,15 @@ async function loadVWalaBalance(walletAddress) {
 
     const balance = await tokenContract.balanceOf(walletAddress)
     const balanceFormatted = formatUnits(balance, decimals)
+
+    console.log('[vWALA BALANCE READ]', {
+      build: CARTEIRA_BUILD_TAG,
+      walletAddress,
+      tokenAddress: VWALA_TOKEN_ADDRESS,
+      decimals,
+      balanceRaw: balance.toString(),
+      balanceFormatted
+    })
 
     updateVWalaBalanceUI(balanceFormatted)
   } catch (error) {
@@ -2434,6 +2451,13 @@ async function initFirebaseAuthGate() {
           if (walletProfile?.walletAddress) {
             currentWalletAddress = String(walletProfile.walletAddress || '').trim()
             updateWalletAddressUI(currentWalletAddress)
+
+            console.log('[CARTEIRA LOAD ADDRESS]', {
+              build: CARTEIRA_BUILD_TAG,
+              currentWalletAddress,
+              firestoreWalletAddress: walletProfile.walletAddress
+            })
+
             await loadPolygonBalance(currentWalletAddress)
             await loadVWalaBalance(currentWalletAddress)
           }
