@@ -99,7 +99,15 @@ function createRpcProbeUrl(label) {
   return url.toString()
 }
 
-async function readBalanceViaEthers(walletAddress, label) {
+function compareRawBalanceAsc(a, b) {
+  const aValue = BigInt(String(a || '0'))
+  const bValue = BigInt(String(b || '0'))
+
+  if (aValue === bValue) return 0
+  return aValue < bValue ? -1 : 1
+}
+
+async function readSingleBalanceProbe(walletAddress, label) {
   const rpcUrl = createRpcProbeUrl(label)
   const provider = new JsonRpcProvider(rpcUrl)
   const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_ABI, provider)
@@ -118,6 +126,104 @@ async function readBalanceViaEthers(walletAddress, label) {
     decimals: Number(decimals),
     formattedBalance: Number(formatUnits(rawBalance, decimals)),
     rpcUrl
+  }
+}
+
+function selectStableBalanceProbe(probes = []) {
+  const groupedMap = new Map()
+
+  probes.forEach((probe) => {
+    const key = String(probe.rawBalance || '0')
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        rawBalance: key,
+        count: 0,
+        maxBlock: 0,
+        probes: []
+      })
+    }
+
+    const group = groupedMap.get(key)
+    group.count += 1
+    group.maxBlock = Math.max(group.maxBlock, Number(probe.blockNumber || 0))
+    group.probes.push(probe)
+  })
+
+  const groups = [...groupedMap.values()].sort((a, b) => {
+    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
+    if (balanceCompare !== 0) {
+      return balanceCompare
+    }
+
+    if (b.count !== a.count) {
+      return b.count - a.count
+    }
+
+    return b.maxBlock - a.maxBlock
+  })
+
+  const selectedGroup = groups[0]
+  const selectedProbe = [...selectedGroup.probes].sort((a, b) => {
+    const blockDiff = Number(b.blockNumber || 0) - Number(a.blockNumber || 0)
+
+    if (blockDiff !== 0) {
+      return blockDiff
+    }
+
+    return String(a.source || '').localeCompare(String(b.source || ''))
+  })[0]
+
+  const selectionReason = groups.length === 1
+    ? 'unanimous'
+    : 'lowest_balance_wins'
+
+  return {
+    selectedProbe,
+    selectionReason,
+    groups
+  }
+}
+
+async function readBalanceViaEthers(walletAddress, label) {
+  const settled = await Promise.allSettled([
+    readSingleBalanceProbe(walletAddress, `${label}_a`),
+    readSingleBalanceProbe(walletAddress, `${label}_b`),
+    readSingleBalanceProbe(walletAddress, `${label}_c`)
+  ])
+
+  const probes = settled
+    .filter((item) => item.status === 'fulfilled')
+    .map((item) => item.value)
+
+  const failures = settled
+    .filter((item) => item.status === 'rejected')
+    .map((item) => item.reason)
+
+  if (!probes.length) {
+    throw failures[0] || new Error('Nenhuma leitura de saldo foi concluída.')
+  }
+
+  const { selectedProbe, selectionReason, groups } = selectStableBalanceProbe(probes)
+
+  console.groupCollapsed(`[VWALA_RPC_PROBES] ${label}`)
+  console.log('all_probes', probes)
+  console.log('grouped_probes', groups)
+  console.log('selected_probe', selectedProbe)
+  console.log('selection_reason', selectionReason)
+
+  if (failures.length) {
+    console.warn('probe_failures', failures)
+  }
+
+  console.groupEnd()
+
+  return {
+    ...selectedProbe,
+    selectedFrom: selectedProbe.source,
+    selectionReason,
+    allProbes: probes,
+    failedProbeCount: failures.length
   }
 }
 
@@ -224,7 +330,7 @@ async function loadUserTokenBalance() {
 
     setConnectButtonText('Carregando saldo...')
 
-    const selectedRead = await readBalanceViaEthers(walletAddress, `ethers_provider_${readId}`)
+    const selectedRead = await readBalanceViaEthers(walletAddress, `vwala_balance_main_${readId}`)
 
     setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
     console.log('selected_balance_read', selectedRead)
