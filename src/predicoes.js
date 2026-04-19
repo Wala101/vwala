@@ -842,38 +842,34 @@ async function refreshWalletBalance() {
 function buildFallbackMarkets() {
   const closeAt = getDailyMarketCloseTimestamp()
 
-  return [
-    {
-      marketId: buildBinaryMarketId('BTC', closeAt),
-      assetSymbol: 'BTC',
-      imageUrl: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
-      question: 'BTC fechará 3% acima da referência do dia até 23:00?',
-      referencePriceUsd: 94500,
-      currentPriceUsd: 94500,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    },
-    {
-      marketId: buildBinaryMarketId('ETH', closeAt),
-      assetSymbol: 'ETH',
-      imageUrl: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
-      question: 'ETH fechará 3% acima da referência do dia até 23:00?',
-      referencePriceUsd: 3100,
-      currentPriceUsd: 3100,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    },
-    {
-      marketId: buildBinaryMarketId('SOL', closeAt),
-      assetSymbol: 'SOL',
-      imageUrl: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
-      question: 'SOL fechará 3% acima da referência do dia até 23:00?',
-      referencePriceUsd: 182,
-      currentPriceUsd: 182,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    }
+  const fallbackAssets = [
+    { assetSymbol: 'BTC', imageUrl: '/logo.png', referencePriceUsd: 94500, currentPriceUsd: 94500 },
+    { assetSymbol: 'ETH', imageUrl: '/logo.png', referencePriceUsd: 3100, currentPriceUsd: 3100 },
+    { assetSymbol: 'SOL', imageUrl: '/logo.png', referencePriceUsd: 182, currentPriceUsd: 182 },
+    { assetSymbol: 'BNB', imageUrl: '/logo.png', referencePriceUsd: 610, currentPriceUsd: 610 },
+    { assetSymbol: 'XRP', imageUrl: '/logo.png', referencePriceUsd: 2.15, currentPriceUsd: 2.15 },
+    { assetSymbol: 'ADA', imageUrl: '/logo.png', referencePriceUsd: 0.72, currentPriceUsd: 0.72 },
+    { assetSymbol: 'DOGE', imageUrl: '/logo.png', referencePriceUsd: 0.18, currentPriceUsd: 0.18 },
+    { assetSymbol: 'TRX', imageUrl: '/logo.png', referencePriceUsd: 0.12, currentPriceUsd: 0.12 },
+    { assetSymbol: 'LINK', imageUrl: '/logo.png', referencePriceUsd: 14.5, currentPriceUsd: 14.5 },
+    { assetSymbol: 'AVAX', imageUrl: '/logo.png', referencePriceUsd: 27, currentPriceUsd: 27 },
+    { assetSymbol: 'DOT', imageUrl: '/logo.png', referencePriceUsd: 6.8, currentPriceUsd: 6.8 },
+    { assetSymbol: 'MATIC', imageUrl: '/logo.png', referencePriceUsd: 0.95, currentPriceUsd: 0.95 },
+    { assetSymbol: 'LTC', imageUrl: '/logo.png', referencePriceUsd: 84, currentPriceUsd: 84 },
+    { assetSymbol: 'BCH', imageUrl: '/logo.png', referencePriceUsd: 460, currentPriceUsd: 460 },
+    { assetSymbol: 'SHIB', imageUrl: '/logo.png', referencePriceUsd: 0.000025, currentPriceUsd: 0.000025 }
   ]
+
+  return fallbackAssets.map((asset) => ({
+    marketId: buildBinaryMarketId(asset.assetSymbol, closeAt),
+    assetSymbol: asset.assetSymbol,
+    imageUrl: asset.imageUrl,
+    question: `${asset.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
+    referencePriceUsd: asset.referencePriceUsd,
+    currentPriceUsd: asset.currentPriceUsd,
+    closeAt,
+    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+  }))
 }
 
 async function fetchMarkets() {
@@ -892,7 +888,7 @@ async function fetchMarkets() {
     const payload = await response.json()
     const source = Array.isArray(payload.markets) ? payload.markets : []
 
-    return source.map((market) => {
+return source.slice(0, 15).map((market) => {
   const assetSymbol = String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase()
   const closeAt = getDailyMarketCloseTimestamp()
 
