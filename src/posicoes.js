@@ -492,19 +492,46 @@ async function getSavedCouponEntriesFromFirebase() {
 }
 
 async function getSavedCouponEntries() {
-  const localEntries = getSavedCouponEntriesFromLocal()
+  if (currentGoogleUser?.uid) {
+    const firebaseEntries = await getSavedCouponEntriesFromFirebase()
 
-  if (localEntries.length) {
-    return localEntries
+    if (firebaseEntries.length) {
+      restoreCouponsToLocalStorage(firebaseEntries)
+    }
+
+    return firebaseEntries
   }
 
-  const firebaseEntries = await getSavedCouponEntriesFromFirebase()
+  return getSavedCouponEntriesFromLocal()
+}
 
-  if (firebaseEntries.length) {
-    restoreCouponsToLocalStorage(firebaseEntries)
+function removeCouponFromLocalStorage(fixtureId, couponId) {
+  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+
+  if (!walletAddress) {
+    return
   }
 
-  return firebaseEntries
+  try {
+    const key = `wala_coupons_${walletAddress}`
+    const saved = JSON.parse(localStorage.getItem(key) || '{}')
+    const fixtureKey = String(fixtureId).trim()
+    const couponKey = String(couponId).trim()
+
+    if (!Array.isArray(saved[fixtureKey])) {
+      return
+    }
+
+    saved[fixtureKey] = saved[fixtureKey].filter((item) => String(item) !== couponKey)
+
+    if (!saved[fixtureKey].length) {
+      delete saved[fixtureKey]
+    }
+
+    localStorage.setItem(key, JSON.stringify(saved))
+  } catch (error) {
+    console.error('Erro ao remover cupom do localStorage:', error)
+  }
 }
 
 async function markPositionClaimedInFirebase(item) {
@@ -855,6 +882,16 @@ async function loadHistory() {
           continue
         }
 
+        if (position[6] === true) {
+          await markPositionClaimedInFirebase({
+            fixtureId: String(entry.fixtureId),
+            couponId: String(entry.couponId)
+          })
+
+          removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
+          continue
+        }
+
         const teamA = cleanTeamName(marketNames[1] || 'Time A')
         const teamB = cleanTeamName(marketNames[2] || 'Time B')
 
@@ -873,8 +910,7 @@ async function loadHistory() {
           amount: formatUnits(position[5], state.decimals),
           claimed: position[6],
           claimedAmount: formatUnits(position[7], state.decimals)
-        })
-      } catch (error) {
+        })      } catch (error) {
         console.error(`Erro ao carregar cupom ${entry.fixtureId}:${entry.couponId}`, error)
       }
     }
@@ -977,7 +1013,8 @@ async function claimItem(item) {
     )
 
     await tx.wait()
-    await markPositionClaimedInFirebase(item)
+    await markPositionClaimedInFirebase(freshItem)
+    removeCouponFromLocalStorage(freshItem.fixtureId, freshItem.couponId)
 
     hideLoadingModal()
     showAlert('Sucesso', 'Resgate concluído com sucesso.')
