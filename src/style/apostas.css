@@ -245,3 +245,120 @@
   }
 }
 
+ /* CARD PAI DA LISTA DE APOSTAS */
+.app-content > .card:has(#marketGrid){
+  width:100% !important;
+  max-width:none !important;
+  padding:6px !important;
+  margin-left:0 !important;
+  margin-right:0 !important;
+  background:linear-gradient(180deg, rgba(20,24,34,0.88) 0%, rgba(11,15,24,0.92) 100%) !important;
+  border:1px solid rgba(255,255,255,0.07) !important;
+  box-shadow:
+    0 20px 50px rgba(0,0,0,0.34),
+    0 0 0 1px rgba(255,255,255,0.02) inset,
+    0 0 40px rgba(37,255,138,0.04) !important;
+}
+
+/* GRID DOS MERCADOS */
+.app-content #marketGrid{
+  width:100% !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:12px !important;
+  margin:0 !important;
+}
+
+/* CARD DA APOSTA */
+.app-content #marketGrid .inline-market-card{
+  width:100% !important;
+  max-width:100% !important;
+  margin:0 !important;
+  padding:16px !important;
+  border-radius:18px !important;
+  background:linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%) !important;
+  border:1px solid rgba(255,255,255,0.07) !important;
+  box-shadow:
+    0 16px 34px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(255,255,255,0.02) inset !important;
+}
+
+/* BLOCO DO JOGO */
+.app-content #marketGrid .inline-market-card .inline-match-box{
+  width:100% !important;
+  margin-bottom:12px !important;
+}
+
+/* PROBABILIDADES */
+.app-content #marketGrid .inline-market-card .inline-stats-grid{
+  width:100% !important;
+  display:grid !important;
+  grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+  gap:8px !important;
+  margin-bottom:12px !important;
+}
+
+.app-content #marketGrid .inline-market-card .inline-stats-grid .stat-box{
+  width:100% !important;
+  min-width:0 !important;
+  padding:10px 8px !important;
+}
+
+/* PAINEL DE APOSTA */
+.app-content #marketGrid .inline-market-card .bet-panel{
+  width:100% !important;
+  margin-top:12px !important;
+  padding:12px !important;
+  border-radius:14px !important;
+  background:#0f131d !important;
+  border:1px solid rgba(255,255,255,0.05) !important;
+}
+
+/* BOTÕES */
+.app-content #marketGrid .inline-market-card .inline-modal-footer{
+  width:100% !important;
+  display:flex !important;
+  gap:8px !important;
+  margin-top:12px !important;
+}
+
+.app-content #marketGrid .inline-market-card .inline-modal-footer > *{
+  flex:1 1 0 !important;
+  min-width:0 !important;
+}
+
+.app-content #marketGrid .inline-market-card .js-confirm-bet-btn{
+  width:100% !important;
+  margin-top:12px !important;
+}
+
+@media (max-width:480px){
+  .app-content > .card:has(#marketGrid){
+    padding:4px !important;
+  }
+
+  .app-content #marketGrid{
+    gap:10px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card{
+    padding:14px !important;
+    border-radius:16px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-stats-grid{
+    gap:6px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-stats-grid .stat-box{
+    padding:8px 6px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .bet-panel{
+    padding:10px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-modal-footer{
+    gap:6px !important;
+  }
+}
