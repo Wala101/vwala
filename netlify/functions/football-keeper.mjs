@@ -83,7 +83,18 @@ function getDeployBlock() {
   const num = Number(raw)
 
   if (!Number.isFinite(num) || num < 0) {
-    throw new Error('WALA_BETTING_DEPLOY_BLOCK não configurado corretamente.')
+    return 85715815
+  }
+
+  return num
+}
+
+function getLogStep() {
+  const raw = String(process.env.FOOTBALL_KEEPER_LOG_STEP || '10').trim()
+  const num = Number(raw)
+
+  if (!Number.isFinite(num) || num <= 0) {
+    return 10
   }
 
   return num
@@ -150,7 +161,7 @@ async function getTrackedFixtureIds(contract, fromBlock) {
   }
 
   const latestBlock = await provider.getBlockNumber()
-  const step = 10
+  const step = getLogStep()
   const unique = new Set()
 
   for (let start = Number(fromBlock); start <= latestBlock; start += step) {
@@ -170,7 +181,7 @@ async function getTrackedFixtureIds(contract, fromBlock) {
     }
   }
 
-  return [...unique]
+  return [...unique].sort((a, b) => Number(b) - Number(a))
 }
 
 async function maybeCloseMarket(contract, fixtureId, summary) {
@@ -236,6 +247,7 @@ export default async (request) => {
       keeper: 'polygon-football-keeper',
       operator: signer.address,
       bettingAddress,
+      discoveredFixtures: fixtureIds.length,
       scanned: 0,
       marketNotFoundOnChain: 0,
       skippedResolved: 0,
