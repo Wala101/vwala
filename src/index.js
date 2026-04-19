@@ -161,7 +161,7 @@ app.innerHTML = `
         <section class="cards-list">
           <article
             class="feature-card clickable-card"
-            data-href="/futebol"
+            data-href="/apostas,html"
             role="button"
             tabindex="0"
             aria-label="Abrir página Futebol"
@@ -237,7 +237,7 @@ app.innerHTML = `
         </section>
 
         <section class="shortcut-grid">
-          <a class="shortcut-card" href="/apostas">
+          <a class="shortcut-card" href="/apostas.html">
             <span class="shortcut-icon">⚽</span>
             <strong>Futebol</strong>
             <small>Mercado esportivo</small>
