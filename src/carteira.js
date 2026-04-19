@@ -342,6 +342,28 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
 }
 
 async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
+  const localVault = getLocalDeviceWallet()
+
+  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
+    return String(localVault.walletAddress).trim()
+  }
+
+  try {
+    const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
+    if (rawWalletProfile) {
+      const parsedWalletProfile = JSON.parse(rawWalletProfile)
+
+      if (
+        parsedWalletProfile?.uid === user?.uid &&
+        parsedWalletProfile?.walletAddress
+      ) {
+        return String(parsedWalletProfile.walletAddress).trim()
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao ler vwala_wallet_profile local:', error)
+  }
+
   if (walletProfile?.walletKeystoreCloud) {
     try {
       const unlockedWallet = await Wallet.fromEncryptedJson(
@@ -353,12 +375,6 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
     } catch (error) {
       console.error('Erro ao resolver wallet pelo keystore cloud:', error)
     }
-  }
-
-  const localVault = getLocalDeviceWallet()
-
-  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
-    return String(localVault.walletAddress).trim()
   }
 
   return String(walletProfile?.walletAddress || '').trim()
@@ -748,6 +764,8 @@ async function handleSendPolygon() {
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
+    currentWalletAddress = signer.address
+    updateWalletAddressUI(currentWalletAddress)
 
     const liveBalanceWei = await provider.getBalance(signer.address)
     const feeData = await provider.getFeeData()
@@ -1024,6 +1042,27 @@ async function handleBuyVWala() {
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
+    currentWalletAddress = signer.address
+    updateWalletAddressUI(currentWalletAddress)
+
+    localStorage.setItem(
+      'vwala_wallet_profile',
+      JSON.stringify({
+        uid: currentGoogleUser.uid,
+        walletAddress: signer.address,
+        chainId: POLYGON_CHAIN_ID,
+        network: 'polygon'
+      })
+    )
+
+    await setDoc(
+      doc(db, 'users', currentGoogleUser.uid),
+      {
+        walletAddress: signer.address,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
 
     const swapContract = new Contract(
       VWALA_SWAP_ADDRESS,
@@ -1232,6 +1271,27 @@ async function handleSellVWala() {
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
+    currentWalletAddress = signer.address
+    updateWalletAddressUI(currentWalletAddress)
+
+    localStorage.setItem(
+      'vwala_wallet_profile',
+      JSON.stringify({
+        uid: currentGoogleUser.uid,
+        walletAddress: signer.address,
+        chainId: POLYGON_CHAIN_ID,
+        network: 'polygon'
+      })
+    )
+
+    await setDoc(
+      doc(db, 'users', currentGoogleUser.uid),
+      {
+        walletAddress: signer.address,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
 
     const tokenContract = new Contract(
       VWALA_TOKEN_ADDRESS,
@@ -2340,8 +2400,10 @@ async function initFirebaseAuthGate() {
           const walletProfile = await ensureUserWalletProfile(user)
 
           if (walletProfile?.walletAddress) {
-            await loadPolygonBalance(walletProfile.walletAddress)
-            await loadVWalaBalance(walletProfile.walletAddress)
+            currentWalletAddress = String(walletProfile.walletAddress || '').trim()
+            updateWalletAddressUI(currentWalletAddress)
+            await loadPolygonBalance(currentWalletAddress)
+            await loadVWalaBalance(currentWalletAddress)
           }
 
           await refreshUserCreatedTokens(user.uid)
