@@ -480,8 +480,8 @@ function syncSwapUI() {
   const amountHint = document.getElementById('swapAmountHint')
   if (amountHint) {
     amountHint.textContent = isBuy
-      ? `Máximo disponível: ${formatAmount(getMaxBuyAmount(), 'POL')}`
-      : `Máximo disponível: ${formatAmount(getMaxSellAmount(), 'vWALA')}`
+  ? `Máximo disponível: ${formatAmount(getMaxBuyAmount(), 'POL')}`
+  : `Máximo liberado pelo contrato: ${formatAmount(getMaxSellAmount(), 'vWALA')}`
   }
 
   const payValue = document.getElementById('swapPayValue')
@@ -713,7 +713,7 @@ function renderPage() {
             <div class="swap-subtext">
               Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
               <br />
-              Limite de venda agora: <strong id="swapRedeemableNow">${formatAmount('0', 'vWALA')}</strong>
+              Limite liberado pelo contrato: <strong id="swapRedeemableNow">${formatAmount('0', 'vWALA')}</strong>
             </div>
           </div>
         </section>
@@ -1488,7 +1488,14 @@ async function handleSellVWala() {
       return
     }
 
-    if (liveRedeemable < amountUnits) {
+    console.log('[SWAP_SELL_GATE]', {
+  signerAddress: signer.address,
+  tokenBalance: formatUnits(tokenBalance, swapState.tokenDecimals),
+  liveRedeemable: formatUnits(liveRedeemable, swapState.tokenDecimals),
+  requestedAmount: normalizedAmount
+})
+
+if (liveRedeemable < amountUnits) {
       hideLoadingModal()
       await loadSwapData(signer.address)
 
