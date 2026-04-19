@@ -17,7 +17,7 @@ const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const BINARY_PREDICTIONS_ADDRESS =
   import.meta.env.VITE_BINARY_PREDICTIONS_ADDRESS || '0x798474EC1C9f32ca2537bCD4f88d7b422baEE23d'
-const response = await fetch(`${API_BASE}/crypto-markets`)
+const API_BASE = '/.netlify/functions'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 const ERC20_ABI = [
@@ -848,7 +848,7 @@ function buildFallbackMarkets() {
 
 async function fetchMarkets() {
   try {
-    const response = await fetch(`${API_BASE}/crypto-markets`)
+
     if (!response.ok) throw new Error('Falha ao carregar mercados.')
 
     const payload = await response.json()
