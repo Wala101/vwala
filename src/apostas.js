@@ -455,13 +455,11 @@ function generateCouponId(match) {
 
 function readWalletProfile() {
   try {
-
+    const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
+    if (rawDeviceWallet) return JSON.parse(rawDeviceWallet)
 
     const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    if (rawProfile) return JSON.parse(rawProfile)
-
-    const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
-    return rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+    return rawProfile ? JSON.parse(rawProfile) : null
   } catch (error) {
     console.error('Erro ao ler carteira local:', error)
     return null
@@ -554,33 +552,7 @@ async function syncWalletProfileFromFirebase() {
   }
 
   const userData = userSnap.data()
-  const existingDeviceWallet = getLocalDeviceWalletForBetting()
-
-  let walletAddress = ''
-
-  try {
-    const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    if (rawProfile) {
-      const parsedProfile = JSON.parse(rawProfile)
-
-      if (
-        parsedProfile?.uid === currentGoogleUser.uid &&
-        parsedProfile?.walletAddress
-      ) {
-        walletAddress = String(parsedProfile.walletAddress).trim()
-      }
-    }
-  } catch (error) {
-    console.error('Erro ao ler vwala_wallet_profile local:', error)
-  }
-
-  if (!walletAddress) {
-    walletAddress = String(userData.walletAddress || '').trim()
-  }
-
-  if (!walletAddress && existingDeviceWallet?.uid === currentGoogleUser.uid) {
-    walletAddress = String(existingDeviceWallet.walletAddress || '').trim()
-  }
+  const walletAddress = String(userData.walletAddress || '').trim()
 
   if (!walletAddress) {
     state.userAddress = ''
@@ -588,13 +560,13 @@ async function syncWalletProfileFromFirebase() {
     return
   }
 
-
+  const existingDeviceWallet = getLocalDeviceWalletForBetting()
 
   if (existingDeviceWallet?.walletAddress) {
     const localAddress = String(existingDeviceWallet.walletAddress).trim().toLowerCase()
-    const resolvedAddress = walletAddress.toLowerCase()
+    const firebaseAddress = walletAddress.toLowerCase()
 
-    if (localAddress !== resolvedAddress) {
+    if (localAddress !== firebaseAddress) {
       localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
       state.signer = null
     }
