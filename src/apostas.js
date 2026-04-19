@@ -1150,17 +1150,17 @@ function createCard(match) {
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
   <span class="stat-label">${match.teamA}</span>
-  <strong class="stat-value">${bpsToPercentText(match.probHomeBps)}</strong>
+  <strong class="stat-value">${bpsToPercentText(displayProbabilities.probHomeBps)}</strong>
 </div>
 
 <div class="stat-box">
   <span class="stat-label">Empate</span>
-  <strong class="stat-value">${bpsToPercentText(match.probDrawBps)}</strong>
+  <strong class="stat-value">${bpsToPercentText(displayProbabilities.probDrawBps)}</strong>
 </div>
 
 <div class="stat-box">
   <span class="stat-label">${match.teamB}</span>
-  <strong class="stat-value">${bpsToPercentText(match.probAwayBps)}</strong>
+  <strong class="stat-value">${bpsToPercentText(displayProbabilities.probAwayBps)}</strong>
 </div>
     </div>
 
