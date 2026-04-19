@@ -65,6 +65,105 @@ function getRpcProvider(label = 'carteira_runtime') {
   return new JsonRpcProvider(createRpcProbeUrl(label))
 }
 
+function compareRawBalanceAsc(a, b) {
+  const aValue = BigInt(String(a || '0'))
+  const bValue = BigInt(String(b || '0'))
+
+  if (aValue === bValue) return 0
+  return aValue < bValue ? -1 : 1
+}
+
+async function readSingleVWalaBalanceProbe(walletAddress, label) {
+  const provider = getRpcProvider(label)
+  const network = await provider.getNetwork()
+  const chainId = Number(network.chainId)
+
+  if (chainId !== 137) {
+    throw new Error(`RPC fora da Polygon Mainnet. chainId atual: ${chainId}`)
+  }
+
+  const tokenContract = new Contract(
+    VWALA_TOKEN_ADDRESS,
+    ERC20_TOKEN_ABI,
+    provider
+  )
+
+  const [blockNumber, decimalsRaw, balanceRaw] = await Promise.all([
+    provider.getBlockNumber(),
+    tokenContract.decimals().catch(() => 18),
+    tokenContract.balanceOf(walletAddress)
+  ])
+
+  const decimals = Number(decimalsRaw || 18)
+  const balanceFormatted = formatUnits(balanceRaw, decimals)
+
+  return {
+    source: label,
+    walletAddress,
+    chainId,
+    blockNumber: Number(blockNumber),
+    decimals,
+    rawBalance: balanceRaw.toString(),
+    balanceFormatted
+  }
+}
+
+function selectStableVWalaProbe(probes = []) {
+  const groupedMap = new Map()
+
+  probes.forEach((probe) => {
+    const key = String(probe.rawBalance || '0')
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        rawBalance: key,
+        count: 0,
+        maxBlock: 0,
+        probes: []
+      })
+    }
+
+    const group = groupedMap.get(key)
+    group.count += 1
+    group.maxBlock = Math.max(group.maxBlock, Number(probe.blockNumber || 0))
+    group.probes.push(probe)
+  })
+
+  const groups = [...groupedMap.values()].sort((a, b) => {
+    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
+    if (balanceCompare !== 0) {
+      return balanceCompare
+    }
+
+    if (b.count !== a.count) {
+      return b.count - a.count
+    }
+
+    return b.maxBlock - a.maxBlock
+  })
+
+  const selectedGroup = groups[0]
+  const selectedProbe = [...selectedGroup.probes].sort((a, b) => {
+    const blockDiff = Number(b.blockNumber || 0) - Number(a.blockNumber || 0)
+
+    if (blockDiff !== 0) {
+      return blockDiff
+    }
+
+    return String(a.source || '').localeCompare(String(b.source || ''))
+  })[0]
+
+  const selectionReason = groups.length === 1
+    ? 'unanimous'
+    : 'lowest_balance_wins'
+
+  return {
+    selectedProbe,
+    selectionReason,
+    groups
+  }
+}
+
 const VWALA_POOL_ABI = [
   
   'function buy() payable returns (uint256)',
@@ -190,48 +289,58 @@ async function loadVWalaBalance(walletAddress) {
   try {
     if (!walletAddress) return
 
-    const provider = getRpcProvider(`carteira_vwala_balance_${requestId}`)
-    const network = await provider.getNetwork()
-    const chainId = Number(network.chainId)
-
-    if (chainId !== 137) {
-      throw new Error(`RPC fora da Polygon Mainnet. chainId atual: ${chainId}`)
-    }
-
-    const tokenContract = new Contract(
-      VWALA_TOKEN_ADDRESS,
-      ERC20_TOKEN_ABI,
-      provider
-    )
-
-    const [blockNumber, decimalsRaw, balanceRaw] = await Promise.all([
-      provider.getBlockNumber(),
-      tokenContract.decimals().catch(() => 18),
-      tokenContract.balanceOf(walletAddress)
+    const settled = await Promise.allSettled([
+      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_a`),
+      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_b`),
+      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_c`)
     ])
 
+    const probes = settled
+      .filter((item) => item.status === 'fulfilled')
+      .map((item) => item.value)
+
+    const failures = settled
+      .filter((item) => item.status === 'rejected')
+      .map((item) => item.reason)
+
+    if (!probes.length) {
+      throw failures[0] || new Error('Nenhuma leitura de saldo vWALA foi concluída.')
+    }
+
+    const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
+
+    console.log('all_probes', probes)
+    console.log('grouped_probes', groups)
+    console.log('selected_probe', selectedProbe)
+    console.log('selection_reason', selectionReason)
+
+    if (failures.length) {
+      console.warn('probe_failures', failures)
+    }
+
     if (requestId !== vwalaBalanceLoadCounter) {
-      console.warn('Leitura antiga descartada.', { requestId, activeRequestId: vwalaBalanceLoadCounter })
+      console.warn('Leitura antiga descartada.', {
+        requestId,
+        activeRequestId: vwalaBalanceLoadCounter
+      })
       return
     }
 
-    const decimals = Number(decimalsRaw || 18)
-    const balanceFormatted = formatUnits(balanceRaw, decimals)
-
     console.log('selected_balance_read', {
       build: CARTEIRA_BUILD_TAG,
-      source: `ethers_provider_${requestId}`,
-      rpcUrl: maskRpcUrl(createRpcProbeUrl(`carteira_vwala_balance_${requestId}`)),
-      chainId,
-      blockNumber: Number(blockNumber),
+      source: selectedProbe.source,
+      rpcUrl: maskRpcUrl(createRpcProbeUrl(selectedProbe.source)),
+      chainId: selectedProbe.chainId,
+      blockNumber: Number(selectedProbe.blockNumber),
       walletAddress,
       tokenAddress: VWALA_TOKEN_ADDRESS,
-      decimals,
-      balanceRaw: balanceRaw.toString(),
-      balanceFormatted
+      decimals: selectedProbe.decimals,
+      balanceRaw: selectedProbe.rawBalance,
+      balanceFormatted: selectedProbe.balanceFormatted,
+      selectionReason
     })
 
-    updateVWalaBalanceUI(balanceFormatted)
+    updateVWalaBalanceUI(selectedProbe.balanceFormatted)
   } catch (error) {
     console.error('Erro ao carregar saldo vWALA:', error)
 
