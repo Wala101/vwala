@@ -31,8 +31,7 @@ const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
 const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
-const VWALA_SWAP_ADDRESS = '0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35'
-const VWALA_SELL_ADDRESS = '0x7EA586C8f94F352b277A1C9006A05A5EA5600668'
+const VWALA_POOL_ADDRESS = '0x5c950A2FA20A48DDcb4952910e550Ac59fd21AF7'
 const POL_GAS_RESERVE = '0.05'
 
 const swapState = {
@@ -54,14 +53,12 @@ const modalState = {
   mode: 'message'
 }
 
-const VWALA_SWAP_ABI = [
-  'function buy() payable returns (uint256)',
-  'function quote(uint256 polAmountWei) view returns (uint256)'
-]
-
-const VWALA_SELL_ABI = [
-  'function sell(uint256 vwalaAmount) returns (uint256)',
-  'function quoteSell(uint256 vwalaAmount) view returns (uint256)'
+const VWALA_POOL_ABI = [
+  'function buy() payable',
+  'function sell(uint256 amount)',
+  'function reservePOL() view returns (uint256)',
+  'function tokenInventory() view returns (uint256)',
+  'function maxRedeemable(address account) view returns (uint256)'
 ]
 
 const ERC20_TOKEN_ABI = [
@@ -119,21 +116,14 @@ function getProvider() {
   return new JsonRpcProvider(POLYGON_RPC_URL)
 }
 
-function getBuyContract(providerOrSigner) {
+function getPoolContract(providerOrSigner) {
   return new Contract(
-    VWALA_SWAP_ADDRESS,
-    VWALA_SWAP_ABI,
+    VWALA_POOL_ADDRESS,
+    VWALA_POOL_ABI,
     providerOrSigner
   )
 }
 
-function getSellContract(providerOrSigner) {
-  return new Contract(
-    VWALA_SELL_ADDRESS,
-    VWALA_SELL_ABI,
-    providerOrSigner
-  )
-}
 
 function getTokenContract(providerOrSigner) {
   return new Contract(
@@ -141,20 +131,6 @@ function getTokenContract(providerOrSigner) {
     ERC20_TOKEN_ABI,
     providerOrSigner
   )
-}
-
-function getRedeemableFromPolReserve(polReserveWei, tokenDecimals = 18) {
-  const decimals = Number(tokenDecimals || 18)
-
-  if (decimals === 18) {
-    return polReserveWei
-  }
-
-  if (decimals > 18) {
-    return polReserveWei * (10n ** BigInt(decimals - 18))
-  }
-
-  return polReserveWei / (10n ** BigInt(18 - decimals))
 }
 
 function getLocalDeviceWallet() {
@@ -382,31 +358,25 @@ function updateDashboardUI() {
 async function loadSwapData(walletAddress = '') {
   try {
     const provider = getProvider()
-    const buyContract = getBuyContract(provider)
-    const sellContract = getSellContract(provider)
+    const poolContract = getPoolContract(provider)
     const tokenContract = getTokenContract(provider)
 
     const [decimalsRaw, reserveRaw, inventoryRaw] = await Promise.all([
-      tokenContract.decimals(),
-      provider.getBalance(VWALA_SELL_ADDRESS),
-      tokenContract.balanceOf(VWALA_SWAP_ADDRESS)
-    ])
+  tokenContract.decimals(),
+  poolContract.reservePOL(),
+  poolContract.tokenInventory()
+])
 
-    swapState.tokenDecimals = Number(decimalsRaw)
-    swapState.poolReserve = formatEther(reserveRaw)
-    swapState.poolInventory = formatUnits(inventoryRaw, Number(decimalsRaw))
+swapState.tokenDecimals = Number(decimalsRaw)
+swapState.poolReserve = formatEther(reserveRaw)
+swapState.poolInventory = formatUnits(inventoryRaw, Number(decimalsRaw))
 
     if (walletAddress) {
-      const [polBalanceRaw, vwalaBalanceRaw, sellPolReserveRaw] = await Promise.all([
+      const [polBalanceRaw, vwalaBalanceRaw, redeemableRaw] = await Promise.all([
         provider.getBalance(walletAddress),
         tokenContract.balanceOf(walletAddress),
-        provider.getBalance(VWALA_SELL_ADDRESS)
+        poolContract.maxRedeemable(walletAddress)
       ])
-
-      const redeemableRaw = getRedeemableFromPolReserve(
-        sellPolReserveRaw,
-        swapState.tokenDecimals
-      )
 
       swapState.polBalance = formatEther(polBalanceRaw)
       swapState.vwalaBalance = formatUnits(vwalaBalanceRaw, swapState.tokenDecimals)
@@ -1129,11 +1099,11 @@ async function handleBuyVWala() {
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
-    const buyContract = getBuyContract(signer)
+    const poolContract = getPoolContract(signer)
 
     const liveBalanceWei = await provider.getBalance(signer.address)
     const feeData = await provider.getFeeData()
-    const gasEstimate = await buyContract.buy.estimateGas({ value: amountWei })
+    const gasEstimate = await poolContract.buy.estimateGas({ value: amountWei })
     const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
     const estimatedFeeWei = gasEstimate * gasPrice
     const gasReserveWei = parseEther(POL_GAS_RESERVE)
@@ -1148,7 +1118,7 @@ async function handleBuyVWala() {
       return
     }
 
-    const tx = await buyContract.buy({ value: amountWei })
+    const tx = await poolContract.buy({ value: amountWei })
 
     showLoadingModal(
       'Confirmando na rede',
@@ -1258,7 +1228,7 @@ async function handleSellVWala() {
       pin.trim()
     )
     const signer = unlockedWallet.connect(provider)
-    const sellContract = getSellContract(signer)
+    const poolContract = getPoolContract(signer)
     const tokenContract = getTokenContract(signer)
 
     const signerAddress = String(signer.address || '').toLowerCase()
@@ -1270,15 +1240,10 @@ async function handleSellVWala() {
 
     const amountUnits = parseUnits(normalizedAmount, swapState.tokenDecimals)
 
-    const [tokenBalance, sellPolReserveRaw] = await Promise.all([
+    const [tokenBalance, liveRedeemable] = await Promise.all([
       tokenContract.balanceOf(signer.address),
-      provider.getBalance(VWALA_SELL_ADDRESS)
+      poolContract.maxRedeemable(signer.address)
     ])
-
-    const liveRedeemable = getRedeemableFromPolReserve(
-      sellPolReserveRaw,
-      swapState.tokenDecimals
-    )
 
     if (tokenBalance < amountUnits) {
       hideLoadingModal()
@@ -1303,71 +1268,71 @@ async function handleSellVWala() {
 
     const allowance = await tokenContract.allowance(
       signer.address,
-      VWALA_SELL_ADDRESS
+      VWALA_POOL_ADDRESS
     )
 
-    const feeData = await provider.getFeeData()
-    const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
-    const gasReserveWei = parseEther(POL_GAS_RESERVE)
+const feeData = await provider.getFeeData()
+const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
+const gasReserveWei = parseEther(POL_GAS_RESERVE)
 
-    let approveGasEstimate = 0n
+let approveGasEstimate = 0n
 
-    if (allowance < amountUnits) {
-      approveGasEstimate = await tokenContract.approve.estimateGas(
-        VWALA_SELL_ADDRESS,
-        amountUnits
-      )
-    }
+if (allowance < amountUnits) {
+  approveGasEstimate = await tokenContract.approve.estimateGas(
+    VWALA_POOL_ADDRESS,
+    amountUnits
+  )
+}
 
-    let liveBalanceWei = await provider.getBalance(signer.address)
+let liveBalanceWei = await provider.getBalance(signer.address)
 
-    if (allowance < amountUnits) {
-      const approveFeeWei = approveGasEstimate * gasPrice
+if (allowance < amountUnits) {
+  const approveFeeWei = approveGasEstimate * gasPrice
 
-      if (liveBalanceWei < approveFeeWei + gasReserveWei) {
-        hideLoadingModal()
+  if (liveBalanceWei < approveFeeWei + gasReserveWei) {
+    hideLoadingModal()
 
-        await showMessageModal(
-          'POL insuficiente',
-          `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para pagar a aprovação e a venda.`
-        )
-        return
-      }
-
-      showLoadingModal(
-        'Aprovando vWALA',
-        'Aguarde a aprovação do token.'
-      )
-
-      const approveTx = await tokenContract.approve(
-        VWALA_SELL_ADDRESS,
-        amountUnits
-      )
-
-      await approveTx.wait()
-
-      liveBalanceWei = await provider.getBalance(signer.address)
-    }
-
-    const sellGasEstimate = await sellContract.sell.estimateGas(amountUnits)
-    const sellFeeWei = sellGasEstimate * gasPrice
-
-    if (liveBalanceWei < sellFeeWei + gasReserveWei) {
-      hideLoadingModal()
-
-      await showMessageModal(
-        'POL insuficiente',
-        `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para concluir a venda.`
-      )
-      return
-    }
-
-    showLoadingModal(
-      'Vendendo vWALA',
-      'Aguarde a confirmação da venda.'
+    await showMessageModal(
+      'POL insuficiente',
+      `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para pagar a aprovação e a venda.`
     )
+    return
+  }
 
-    const tx = await sellContract.sell(amountUnits)
+  showLoadingModal(
+    'Aprovando vWALA',
+    'Aguarde a aprovação do token.'
+  )
+
+  const approveTx = await tokenContract.approve(
+    VWALA_POOL_ADDRESS,
+    amountUnits
+  )
+
+  await approveTx.wait()
+
+  liveBalanceWei = await provider.getBalance(signer.address)
+}
+
+const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
+const sellFeeWei = sellGasEstimate * gasPrice
+
+if (liveBalanceWei < sellFeeWei + gasReserveWei) {
+  hideLoadingModal()
+
+  await showMessageModal(
+    'POL insuficiente',
+    `Você precisa manter pelo menos ${POL_GAS_RESERVE} POL na carteira para concluir a venda.`
+  )
+  return
+}
+
+showLoadingModal(
+  'Vendendo vWALA',
+  'Aguarde a confirmação da venda.'
+)
+
+const tx = await poolContract.sell(amountUnits)
     await tx.wait()
 
     hideLoadingModal()
