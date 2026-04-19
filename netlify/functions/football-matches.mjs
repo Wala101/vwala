@@ -2,12 +2,12 @@ const COMPETITIONS = [
   {
     code: 'BSA',
     fallbackName: 'Campeonato Brasileiro Série A',
-    maxMatches: 2
+    maxMatches: 10
   },
   {
     code: 'PL',
     fallbackName: 'Premier League',
-    maxMatches: 2
+    maxMatches: 10
   }
 ]
 
