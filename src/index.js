@@ -121,7 +121,7 @@ app.innerHTML = `
         <a href="/apostas">Futebol</a>
         <a href="/predicoes.html">Predições</a>
         <a href="/posicoes">H/Futebol</a>
-<a href="/historico">H/Futures</a>
+        <a href="/historico">H/Futures</a>
       </aside>
 
       <main class="app-content">

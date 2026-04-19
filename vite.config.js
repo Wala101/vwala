@@ -10,6 +10,7 @@ export default defineConfig({
         apostas: 'apostas.html',
         posicoes: 'posicoes.html',
         predicoes: 'predicoes.html',
+        historico: 'historico.html',
         token: 'token.html',
       },
     },
