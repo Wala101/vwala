@@ -31,10 +31,9 @@ const modalState = {
   addressText: ''
 }
 
-const POLYGON_RPC_URL = new URL(
-  `/api/rpc?ts=${Date.now()}`,
-  window.location.origin
-).toString()
+const POLYGON_RPC_URL =
+  String(import.meta.env.VITE_POLYGON_RPC_URL || '').trim() ||
+  new URL(`/api/rpc?ts=${Date.now()}`, window.location.origin).toString()
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
