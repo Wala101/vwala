@@ -16,8 +16,6 @@ if (!app) {
   throw new Error('Elemento #app não encontrado.')
 }
 
-console.log('[CARTEIRA BUILD]', CARTEIRA_BUILD_TAG)
-
 const walletState = {
   polBalance: '12.85',
   vwalaBalance: '0.00',
@@ -44,6 +42,8 @@ const VWALA_SWAP_ADDRESS = '0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35'
 const VWALA_SELL_ADDRESS = '0x7EA586C8f94F352b277A1C9006A05A5EA5600668'
 const POL_GAS_RESERVE = '0.05'
 const CARTEIRA_BUILD_TAG = 'carteira-debug-2026-04-18-01'
+
+console.log('[CARTEIRA BUILD]', CARTEIRA_BUILD_TAG)
 
 const VWALA_SWAP_ABI = [
   'function buy() payable returns (uint256)',
