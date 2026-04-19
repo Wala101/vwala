@@ -455,11 +455,11 @@ function generateCouponId(match) {
 
 function readWalletProfile() {
   try {
-    const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    if (rawProfile) return JSON.parse(rawProfile)
-
     const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
-    return rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+    if (rawDeviceWallet) return JSON.parse(rawDeviceWallet)
+
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+    return rawProfile ? JSON.parse(rawProfile) : null
   } catch (error) {
     console.error('Erro ao ler carteira local:', error)
     return null
@@ -467,6 +467,12 @@ function readWalletProfile() {
 }
 
 function getCurrentWalletAddress() {
+  const deviceWallet = getLocalDeviceWalletForBetting()
+
+  if (deviceWallet?.walletAddress) {
+    return String(deviceWallet.walletAddress).trim()
+  }
+
   const wallet = readWalletProfile()
 
   return String(
@@ -534,6 +540,12 @@ async function loadUserTokenBalance() {
 
 async function syncWalletProfileFromFirebase() {
   if (!currentGoogleUser?.uid) return
+
+  const existingDeviceWallet = getLocalDeviceWalletForBetting()
+  if (existingDeviceWallet?.walletAddress) {
+    state.userAddress = String(existingDeviceWallet.walletAddress).trim()
+    return
+  }
 
   const userRef = doc(db, 'users', currentGoogleUser.uid)
   const userSnap = await getDoc(userRef)
