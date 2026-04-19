@@ -517,18 +517,49 @@ function generateCouponId(match) {
 
 function readWalletProfile() {
   try {
-    const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
-    if (rawDeviceWallet) return JSON.parse(rawDeviceWallet)
+    const currentUid = String(currentGoogleUser?.uid || '').trim()
+    const deviceWallet = getLocalDeviceWalletForBetting()
+
+    if (deviceWallet?.walletAddress) {
+      const deviceUid = String(deviceWallet?.uid || '').trim()
+
+      if (!currentUid || !deviceUid || deviceUid === currentUid) {
+        return deviceWallet
+      }
+    }
 
     const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    return rawProfile ? JSON.parse(rawProfile) : null
+    if (!rawProfile) return null
+
+    const parsedProfile = JSON.parse(rawProfile)
+    const profileUid = String(parsedProfile?.uid || '').trim()
+
+    if (
+      parsedProfile?.walletAddress &&
+      (!currentUid || !profileUid || profileUid === currentUid)
+    ) {
+      return parsedProfile
+    }
+
+    return null
   } catch (error) {
     console.error('Erro ao ler carteira local:', error)
     return null
   }
 }
 
-function getCurrentWalletAddress() {
+function resolveActiveWalletAddress() {
+  const currentUid = String(currentGoogleUser?.uid || '').trim()
+  const deviceWallet = getLocalDeviceWalletForBetting()
+
+  if (deviceWallet?.walletAddress) {
+    const deviceUid = String(deviceWallet?.uid || '').trim()
+
+    if (!currentUid || !deviceUid || deviceUid === currentUid) {
+      return String(deviceWallet.walletAddress).trim()
+    }
+  }
+
   if (state.userAddress) {
     return String(state.userAddress).trim()
   }
@@ -541,6 +572,10 @@ function getCurrentWalletAddress() {
     wallet?.wallet_address ||
     ''
   ).trim()
+}
+
+function getCurrentWalletAddress() {
+  return resolveActiveWalletAddress()
 }
 
 function getDeviceWalletPrivateKey(walletData) {
@@ -573,7 +608,8 @@ function setConnectButtonText(text) {
 
 async function loadUserTokenBalance() {
   try {
-    const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim()
+    const walletAddress = resolveActiveWalletAddress()
+    state.userAddress = walletAddress
 
     if (!walletAddress) {
       setConnectButtonText('Sem carteira')
@@ -604,6 +640,7 @@ async function syncWalletProfileFromFirebase() {
     return
   }
 
+  const currentUid = String(currentGoogleUser.uid).trim()
   const userRef = doc(db, 'users', currentGoogleUser.uid)
   const userSnap = await getDoc(userRef)
 
@@ -614,13 +651,22 @@ async function syncWalletProfileFromFirebase() {
   }
 
   const userData = userSnap.data()
+  const existingDeviceWallet = getLocalDeviceWalletForBetting()
+  const localDeviceUid = String(existingDeviceWallet?.uid || '').trim()
   let walletAddress = ''
 
-  if (userData?.walletKeystoreCloud) {
+  if (
+    existingDeviceWallet?.walletAddress &&
+    (!localDeviceUid || localDeviceUid === currentUid)
+  ) {
+    walletAddress = String(existingDeviceWallet.walletAddress).trim()
+  }
+
+  if (!walletAddress && userData?.walletKeystoreCloud) {
     try {
       const unlockedWallet = await Wallet.fromEncryptedJson(
         userData.walletKeystoreCloud,
-        `vwala_google_device_pin_v1:${currentGoogleUser.uid}`
+        `vwala_google_device_pin_v1:${currentUid}`
       )
 
       walletAddress = String(unlockedWallet.address || '').trim()
@@ -639,10 +685,11 @@ async function syncWalletProfileFromFirebase() {
 
       if (rawProfile) {
         const parsedProfile = JSON.parse(rawProfile)
+        const profileUid = String(parsedProfile?.uid || '').trim()
 
         if (
-          parsedProfile?.uid === currentGoogleUser.uid &&
-          parsedProfile?.walletAddress
+          parsedProfile?.walletAddress &&
+          (!profileUid || profileUid === currentUid)
         ) {
           walletAddress = String(parsedProfile.walletAddress).trim()
         }
@@ -653,38 +700,24 @@ async function syncWalletProfileFromFirebase() {
   }
 
   if (!walletAddress) {
-    const existingDeviceWallet = getLocalDeviceWalletForBetting()
-
-    if (
-      existingDeviceWallet?.uid === currentGoogleUser.uid &&
-      existingDeviceWallet?.walletAddress
-    ) {
-      walletAddress = String(existingDeviceWallet.walletAddress).trim()
-    }
-  }
-
-  if (!walletAddress) {
     state.userAddress = ''
     localStorage.removeItem('vwala_wallet_profile')
     return
   }
 
-  const existingDeviceWallet = getLocalDeviceWalletForBetting()
-
-  if (existingDeviceWallet?.walletAddress) {
-    const localAddress = String(existingDeviceWallet.walletAddress).trim().toLowerCase()
-    const resolvedAddress = walletAddress.toLowerCase()
-
-    if (localAddress !== resolvedAddress) {
-      localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
-      state.signer = null
-    }
+  if (
+    existingDeviceWallet?.walletAddress &&
+    localDeviceUid &&
+    localDeviceUid !== currentUid
+  ) {
+    localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
+    state.signer = null
   }
 
   localStorage.setItem(
     'vwala_wallet_profile',
     JSON.stringify({
-      uid: currentGoogleUser.uid,
+      uid: currentUid,
       walletAddress,
       chainId: userData.chainId || POLYGON_CHAIN_ID,
       network: userData.network || 'polygon'
