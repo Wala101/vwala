@@ -555,19 +555,41 @@ function readWalletProfile() {
 }
 
 function resolveActiveWalletAddress() {
+  if (state.userAddress) {
+    return String(state.userAddress).trim()
+  }
+
   const currentUid = String(currentGoogleUser?.uid || '').trim()
+
+  try {
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+
+    if (rawProfile) {
+      const parsedProfile = JSON.parse(rawProfile)
+      const profileUid = String(parsedProfile?.uid || '').trim()
+
+      if (
+        parsedProfile?.walletAddress &&
+        ((!currentUid && !profileUid) || (currentUid && profileUid === currentUid))
+      ) {
+        return String(parsedProfile.walletAddress).trim()
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao ler vwala_wallet_profile na resolução ativa:', error)
+  }
+
   const deviceWallet = getLocalDeviceWalletForBetting()
 
   if (deviceWallet?.walletAddress) {
     const deviceUid = String(deviceWallet?.uid || '').trim()
 
-    if (!currentUid || !deviceUid || deviceUid === currentUid) {
+    if (
+      (!currentUid && !deviceUid) ||
+      (currentUid && deviceUid === currentUid)
+    ) {
       return String(deviceWallet.walletAddress).trim()
     }
-  }
-
-  if (state.userAddress) {
-    return String(state.userAddress).trim()
   }
 
   const wallet = readWalletProfile()
@@ -801,14 +823,7 @@ async function syncWalletProfileFromFirebase() {
   const localDeviceUid = String(existingDeviceWallet?.uid || '').trim()
   let walletAddress = ''
 
-  if (
-    existingDeviceWallet?.walletAddress &&
-    (!localDeviceUid || localDeviceUid === currentUid)
-  ) {
-    walletAddress = String(existingDeviceWallet.walletAddress).trim()
-  }
-
-  if (!walletAddress && userData?.walletKeystoreCloud) {
+  if (userData?.walletKeystoreCloud) {
     try {
       const unlockedWallet = await Wallet.fromEncryptedJson(
         userData.walletKeystoreCloud,
@@ -835,7 +850,7 @@ async function syncWalletProfileFromFirebase() {
 
         if (
           parsedProfile?.walletAddress &&
-          (!profileUid || profileUid === currentUid)
+          ((!profileUid && !currentUid) || (currentUid && profileUid === currentUid))
         ) {
           walletAddress = String(parsedProfile.walletAddress).trim()
         }
@@ -845,19 +860,26 @@ async function syncWalletProfileFromFirebase() {
     }
   }
 
+  if (!walletAddress && existingDeviceWallet?.walletAddress) {
+    if (!localDeviceUid || localDeviceUid === currentUid) {
+      walletAddress = String(existingDeviceWallet.walletAddress).trim()
+    }
+  }
+
   if (!walletAddress) {
     state.userAddress = ''
     localStorage.removeItem('vwala_wallet_profile')
     return
   }
 
-  if (
-    existingDeviceWallet?.walletAddress &&
-    localDeviceUid &&
-    localDeviceUid !== currentUid
-  ) {
-    localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
-    state.signer = null
+  if (existingDeviceWallet?.walletAddress) {
+    const localAddress = String(existingDeviceWallet.walletAddress).trim().toLowerCase()
+    const resolvedAddress = walletAddress.toLowerCase()
+
+    if (localAddress !== resolvedAddress) {
+      localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
+      state.signer = null
+    }
   }
 
   localStorage.setItem(
@@ -871,6 +893,13 @@ async function syncWalletProfileFromFirebase() {
   )
 
   state.userAddress = walletAddress
+
+  console.log('[APOSTAS_WALLET_RESOLUTION]', {
+    currentUid,
+    walletAddress,
+    deviceWalletAddress: String(existingDeviceWallet?.walletAddress || '').trim(),
+    firestoreWalletAddress: String(userData?.walletAddress || '').trim()
+  })
 }
 
 async function initFirebaseSession() {
