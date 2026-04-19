@@ -1,8 +1,6 @@
 import { Contract, JsonRpcProvider, Wallet } from 'ethers'
 
-export const config = {
-  schedule: '*/5 * * * *',
-}
+// sem cron: resolução sob demanda no clique do usuário
 
 const DEFAULT_BETTING_ADDRESS = '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
 
@@ -78,26 +76,15 @@ function getDeployerKey() {
   return String(process.env.DEPLOYER_PRIVATE_KEY || '').trim()
 }
 
-function getDeployBlock() {
-  const raw = String(process.env.WALA_BETTING_DEPLOY_BLOCK || '').trim()
-  const num = Number(raw)
+function getRequestedFixtureId(request) {
+  const url = new URL(request.url)
+  const fixtureIdFromQuery = normalizeFixtureId(url.searchParams.get('fixtureId') || '')
 
-  if (!Number.isFinite(num) || num < 0) {
-    return 85715815
+  if (fixtureIdFromQuery) {
+    return fixtureIdFromQuery
   }
 
-  return num
-}
-
-function getLogStep() {
-  const raw = String(process.env.FOOTBALL_KEEPER_LOG_STEP || '10').trim()
-  const num = Number(raw)
-
-  if (!Number.isFinite(num) || num <= 0) {
-    return 10
-  }
-
-  return num
+  return ''
 }
 
 function normalizeFixtureId(value) {
@@ -153,35 +140,93 @@ async function footballDataGetMatch(fixtureId, footballToken) {
   return JSON.parse(rawText)
 }
 
-async function getTrackedFixtureIds(contract, fromBlock) {
-  const provider = contract.runner?.provider
+async function syncSingleFixture(contract, fixtureId, footballToken) {
+  const marketState = await contract.getMarketState(BigInt(fixtureId))
+  const exists = Boolean(marketState[0])
 
-  if (!provider) {
-    throw new Error('Provider não encontrado no contrato.')
-  }
-
-  const latestBlock = await provider.getBlockNumber()
-  const step = getLogStep()
-  const unique = new Set()
-
-  for (let start = Number(fromBlock); start <= latestBlock; start += step) {
-    const end = Math.min(start + step - 1, latestBlock)
-
-    const events = await contract.queryFilter(
-      contract.filters.MarketCreated(),
-      start,
-      end
-    )
-
-    for (const event of events) {
-      const fixtureId = normalizeFixtureId(event?.args?.fixtureId?.toString?.() || '')
-      if (fixtureId) {
-        unique.add(fixtureId)
-      }
+  if (!exists) {
+    return {
+      ok: false,
+      fixtureId,
+      error: 'Mercado não existe no contrato.'
     }
   }
 
-  return [...unique].sort((a, b) => Number(b) - Number(a))
+  const marketStatus = Number(marketState[3])
+
+  if (marketStatus === MARKET_STATUS.RESOLVED) {
+    return {
+      ok: true,
+      fixtureId,
+      alreadyResolved: true,
+      action: 'none'
+    }
+  }
+
+  const matchData = await footballDataGetMatch(fixtureId, footballToken)
+  const matchStatus = String(matchData?.status || '').trim()
+
+  if (MATCH_OPEN_STATUSES.has(matchStatus)) {
+    return {
+      ok: true,
+      fixtureId,
+      matchStatus,
+      action: 'waiting'
+    }
+  }
+
+  if (MATCH_LIVE_STATUSES.has(matchStatus)) {
+    if (marketStatus === MARKET_STATUS.OPEN) {
+      const tx = await contract.closeMarket(BigInt(fixtureId))
+      await tx.wait()
+
+      return {
+        ok: true,
+        fixtureId,
+        matchStatus,
+        action: 'closed',
+        hash: tx.hash
+      }
+    }
+
+    return {
+      ok: true,
+      fixtureId,
+      matchStatus,
+      action: 'waiting'
+    }
+  }
+
+  if (!MATCH_FINISHED_STATUSES.has(matchStatus)) {
+    return {
+      ok: true,
+      fixtureId,
+      matchStatus,
+      action: 'waiting'
+    }
+  }
+
+  const winningOutcome = getWinningOutcomeFromMatch(matchData)
+
+  if (winningOutcome === null) {
+    return {
+      ok: false,
+      fixtureId,
+      error: 'Não foi possível determinar o vencedor na football-data.'
+    }
+  }
+
+  const tx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
+  await tx.wait()
+
+  return {
+    ok: true,
+    fixtureId,
+    matchStatus,
+    action: 'resolved',
+    winningOutcome,
+    hash: tx.hash
+  }
 }
 
 async function maybeCloseMarket(contract, fixtureId, summary) {
@@ -213,10 +258,14 @@ export default async (request) => {
       status: 204,
       headers: {
         'access-control-allow-origin': '*',
-        'access-control-allow-methods': 'GET, POST, OPTIONS',
+        'access-control-allow-methods': 'GET, OPTIONS',
         'access-control-allow-headers': 'content-type',
       },
     })
+  }
+
+  if (request.method !== 'GET') {
+    return json({ ok: false, error: 'Método não permitido.' }, 405)
   }
 
   try {
@@ -224,111 +273,26 @@ export default async (request) => {
     const footballToken = getFootballToken()
     const deployerKey = getDeployerKey()
     const bettingAddress = getBettingAddress()
-    const deployBlock = getDeployBlock()
+    const fixtureId = getRequestedFixtureId(request)
 
     if (!rpcUrl) throw new Error('POLYGON_RPC_URL não configurado.')
     if (!footballToken) throw new Error('FOOTBALL_DATA_TOKEN não configurado.')
     if (!deployerKey) throw new Error('DEPLOYER_PRIVATE_KEY não configurado.')
     if (!bettingAddress) throw new Error('WALA_BETTING_ADDRESS não configurado.')
+    if (!fixtureId) throw new Error('fixtureId não informado.')
 
     const provider = new JsonRpcProvider(rpcUrl)
     const signer = new Wallet(deployerKey, provider)
     const betting = new Contract(bettingAddress, BETTING_ABI, signer)
 
-    const url = new URL(request.url)
-    const manualFixtureId = normalizeFixtureId(url.searchParams.get('fixtureId') || '')
+    const result = await syncSingleFixture(betting, fixtureId, footballToken)
 
-    const fixtureIds = manualFixtureId
-      ? [manualFixtureId]
-      : await getTrackedFixtureIds(betting, deployBlock)
-
-    const summary = {
-      ok: true,
+    return json({
       keeper: 'polygon-football-keeper',
       operator: signer.address,
       bettingAddress,
-      discoveredFixtures: fixtureIds.length,
-      scanned: 0,
-      marketNotFoundOnChain: 0,
-      skippedResolved: 0,
-      waitingMatch: 0,
-      closed: 0,
-      resolved: 0,
-      noWinnerInfo: 0,
-      rateLimited: false,
-      actions: [],
-      errors: [],
-    }
-
-    for (const fixtureId of fixtureIds) {
-      summary.scanned += 1
-
-      try {
-        const marketState = await betting.getMarketState(BigInt(fixtureId))
-        const exists = Boolean(marketState[0])
-
-        if (!exists) {
-          summary.marketNotFoundOnChain += 1
-          summary.errors.push(`fixture ${fixtureId}: mercado não existe no contrato`)
-          continue
-        }
-
-        const marketStatus = Number(marketState[3])
-
-        if (marketStatus === MARKET_STATUS.RESOLVED) {
-          summary.skippedResolved += 1
-          continue
-        }
-
-        let matchData
-
-        try {
-          matchData = await footballDataGetMatch(fixtureId, footballToken)
-        } catch (error) {
-          if (error?.code === 'RATE_LIMIT') {
-            summary.rateLimited = true
-            summary.errors.push(`fixture ${fixtureId}: rate limit do football-data`)
-            break
-          }
-
-          summary.errors.push(`fixture ${fixtureId}: erro football-data - ${error?.message || error}`)
-          continue
-        }
-
-        const matchStatus = String(matchData?.status || '').trim()
-
-        if (MATCH_OPEN_STATUSES.has(matchStatus)) {
-          summary.waitingMatch += 1
-          continue
-        }
-
-        if (MATCH_LIVE_STATUSES.has(matchStatus)) {
-          if (marketStatus === MARKET_STATUS.OPEN) {
-            await maybeCloseMarket(betting, fixtureId, summary)
-          }
-          continue
-        }
-
-        if (MATCH_FINISHED_STATUSES.has(matchStatus)) {
-          const winningOutcome = getWinningOutcomeFromMatch(matchData)
-
-          if (winningOutcome === null) {
-            summary.noWinnerInfo += 1
-            summary.errors.push(`fixture ${fixtureId}: sem winner claro na resposta`)
-            continue
-          }
-
-          await maybeResolveMarket(betting, fixtureId, winningOutcome, summary)
-          continue
-        }
-
-        summary.waitingMatch += 1
-      } catch (error) {
-        summary.errors.push(`fixture ${fixtureId}: ${error?.message || error}`)
-      }
-    }
-
-    return json(summary)
+      ...result
+    })
   } catch (error) {
     return json(
       {

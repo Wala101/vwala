@@ -15,6 +15,7 @@ const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const BETTING_ADDRESS = '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
+const FOOTBALL_KEEPER_URL = '/.netlify/functions/football-keeper'
 
 const ERC20_ABI = [
   'function balanceOf(address account) external view returns (uint256)',
@@ -499,25 +500,36 @@ function isClaimable(item) {
   )
 }
 
+function isLosingResolved(item) {
+  return (
+    Number(item.status) === MarketStatus.RESOLVED &&
+    item.hasWinner &&
+    !item.claimed &&
+    Number(item.outcome) !== Number(item.winningOutcome)
+  )
+}
+
 function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
+  if (isLosingResolved(item)) return 'NÃO VENCEU'
+  if (isClaimable(item)) return 'PRONTA PARA RESGATE'
   if (Number(item.status) === MarketStatus.OPEN) return 'APOSTA ABERTA'
   if (Number(item.status) === MarketStatus.CLOSED) return 'APOSTA FECHADA'
-  if (isClaimable(item)) return 'PRONTA PARA RESGATE'
-  if (Number(item.status) === MarketStatus.RESOLVED && Number(item.outcome) !== Number(item.winningOutcome)) {
-    return 'NÃO VENCEU'
-  }
-
   return '---'
 }
 
 function getClaimButtonText(item) {
   if (item.claimed) return 'Resgatado'
+  if (isLosingResolved(item)) return 'Perdido'
   if (isClaimable(item)) return 'Resgatar'
-  if (Number(item.status) === MarketStatus.OPEN) return 'Mercado aberto'
-  if (Number(item.status) === MarketStatus.CLOSED) return 'Mercado fechado'
-  if (Number(item.status) === MarketStatus.RESOLVED) return 'Sem resgate'
-  return 'Indisponível'
+  return 'Verificar resultado'
+}
+
+function getPositionSortWeight(item) {
+  if (item.claimed) return 3
+  if (isLosingResolved(item)) return 2
+  if (isClaimable(item)) return 0
+  return 1
 }
 
 async function loadUserTokenBalance() {
@@ -754,11 +766,10 @@ async function loadHistory() {
     }
 
     state.positions = nextPositions.sort((a, b) => {
-      const aResolved = Number(a.status) === MarketStatus.RESOLVED ? 1 : 0
-      const bResolved = Number(b.status) === MarketStatus.RESOLVED ? 1 : 0
+      const weightDiff = getPositionSortWeight(a) - getPositionSortWeight(b)
 
-      if (aResolved !== bResolved) {
-        return bResolved - aResolved
+      if (weightDiff !== 0) {
+        return weightDiff
       }
 
       return Number(b.fixtureId) - Number(a.fixtureId)
@@ -771,10 +782,68 @@ async function loadHistory() {
   }
 }
 
+async function syncFixtureBeforeClaim(fixtureId) {
+  const response = await fetch(
+    `${FOOTBALL_KEEPER_URL}?fixtureId=${encodeURIComponent(String(fixtureId || '').trim())}`
+  )
+
+  let result = {}
+
+  try {
+    result = await response.json()
+  } catch {
+    result = {}
+  }
+
+  if (!response.ok || result?.ok === false) {
+    throw new Error(result?.error || 'Não foi possível verificar o resultado do mercado.')
+  }
+
+  return result
+}
+
 async function claimItem(item) {
   try {
-    if (!isClaimable(item)) {
-      showAlert('Resgate indisponível', 'Essa aposta ainda não pode ser resgatada.')
+    if (item.claimed) {
+      showAlert('Resgate', 'Essa posição já foi resgatada.')
+      return
+    }
+
+    if (isLosingResolved(item)) {
+      showAlert('Resultado', 'Essa posição não venceu.')
+      return
+    }
+
+    showLoadingModal('Verificando resultado', 'Consultando API e sincronizando o mercado on-chain.')
+
+    await syncFixtureBeforeClaim(item.fixtureId)
+    await loadHistory()
+
+    const freshItem = state.positions.find(
+      (position) =>
+        String(position.fixtureId) === String(item.fixtureId) &&
+        String(position.couponId) === String(item.couponId)
+    )
+
+    hideLoadingModal()
+
+    if (!freshItem) {
+      showAlert('Posição', 'Não foi possível recarregar essa posição.')
+      return
+    }
+
+    if (freshItem.claimed) {
+      showAlert('Resgate', 'Essa posição já foi resgatada.')
+      return
+    }
+
+    if (isLosingResolved(freshItem)) {
+      showAlert('Resultado confirmado', 'Sua posição não venceu.')
+      return
+    }
+
+    if (!isClaimable(freshItem)) {
+      showAlert('Mercado ainda não resolvido', 'O jogo ainda não terminou ou o resultado ainda não foi confirmado on-chain.')
       return
     }
 
@@ -789,8 +858,8 @@ async function claimItem(item) {
 
     const bettingWithSigner = state.betting.connect(signer)
     const tx = await bettingWithSigner.claimPosition(
-      BigInt(item.fixtureId),
-      BigInt(item.couponId)
+      BigInt(freshItem.fixtureId),
+      BigInt(freshItem.couponId)
     )
 
     await tx.wait()
@@ -895,7 +964,7 @@ function createHistoryCard(item) {
       </div>
     </div>
 
-    <button class="launch confirm-bet-btn js-claim-btn" type="button" ${canClaim ? '' : 'disabled'}>
+    <button class="launch confirm-bet-btn js-claim-btn" type="button" ${item.claimed || isLosingResolved(item) ? 'disabled' : ''}>
       ${buttonText}
     </button>
   `
