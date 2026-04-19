@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-2e7afaee345c86634c25631966be4c8c3fd42933",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.4.0"
+  },
+  "userSourceNameMap": {
+    "contracts/VWalaFixedSwap.sol": "project/contracts/VWalaFixedSwap.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/VWalaFixedSwap.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ninterface IERC20Minimal {\r\n    function balanceOf(address account) external view returns (uint256);\r\n    function transfer(address to, uint256 value) external returns (bool);\r\n    function decimals() external view returns (uint8);\r\n}\r\n\r\ncontract VWalaFixedSwap {\r\n    error ZeroValue();\r\n    error InvalidTreasury();\r\n    error ReentrancyBlocked();\r\n    error InsufficientTokenLiquidity();\r\n    error TokenTransferFailed();\r\n    error TreasuryTransferFailed();\r\n\r\n    address public immutable treasury;\r\n\r\n    address public constant VWALA_TOKEN =\r\n        0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83;\r\n\r\n    IERC20Minimal public immutable token;\r\n    uint8 public immutable tokenDecimals;\r\n\r\n    bool private locked;\r\n\r\n    event SwapExecuted(\r\n        address indexed buyer,\r\n        uint256 polInWei,\r\n        uint256 vwalaOut\r\n    );\r\n\r\n    constructor(address treasuryAddress) {\r\n        if (treasuryAddress == address(0)) revert InvalidTreasury();\r\n\r\n        treasury = treasuryAddress;\r\n        token = IERC20Minimal(VWALA_TOKEN);\r\n        tokenDecimals = token.decimals();\r\n    }\r\n\r\n    modifier nonReentrant() {\r\n        if (locked) revert ReentrancyBlocked();\r\n        locked = true;\r\n        _;\r\n        locked = false;\r\n    }\r\n\r\n    function quote(uint256 polAmountWei) public view returns (uint256) {\r\n        if (tokenDecimals == 18) {\r\n            return polAmountWei;\r\n        }\r\n\r\n        if (tokenDecimals > 18) {\r\n            return polAmountWei * (10 ** (tokenDecimals - 18));\r\n        }\r\n\r\n        return polAmountWei / (10 ** (18 - tokenDecimals));\r\n    }\r\n\r\n    function buy() public payable nonReentrant returns (uint256 vwalaOut) {\r\n        if (msg.value == 0) revert ZeroValue();\r\n\r\n        vwalaOut = quote(msg.value);\r\n\r\n        if (token.balanceOf(address(this)) < vwalaOut) {\r\n            revert InsufficientTokenLiquidity();\r\n        }\r\n\r\n        bool ok = token.transfer(msg.sender, vwalaOut);\r\n        if (!ok) revert TokenTransferFailed();\r\n\r\n        (bool sent, ) = payable(treasury).call{value: msg.value}(\"\");\r\n        if (!sent) revert TreasuryTransferFailed();\r\n\r\n        emit SwapExecuted(msg.sender, msg.value, vwalaOut);\r\n    }\r\n\r\n    receive() external payable {\r\n        buy();\r\n    }\r\n}"
+      }
+    }
+  }
+}

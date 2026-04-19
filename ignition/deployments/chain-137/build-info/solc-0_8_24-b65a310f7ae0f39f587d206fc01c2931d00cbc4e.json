@@ -1,0 +1,49 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_24-b65a310f7ae0f39f587d206fc01c2931d00cbc4e",
+  "solcVersion": "0.8.24",
+  "solcLongVersion": "0.8.24+commit.e11b9ed9",
+  "compilerType": "solc",
+  "toolVersions": {
+    "hardhat": "3.4.0"
+  },
+  "userSourceNameMap": {
+    "contracts/VWalaReserveVault.sol": "project/contracts/VWalaReserveVault.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "shanghai",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode.linkReferences",
+            "evm.bytecode.object",
+            "evm.bytecode.opcodes",
+            "evm.bytecode.sourceMap",
+            "evm.deployedBytecode.immutableReferences",
+            "evm.deployedBytecode.linkReferences",
+            "evm.deployedBytecode.object",
+            "evm.deployedBytecode.opcodes",
+            "evm.deployedBytecode.sourceMap",
+            "evm.methodIdentifiers"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/VWalaReserveVault.sol": {
+        "content": "// SPDX-License-Identifier: MIT\r\npragma solidity ^0.8.24;\r\n\r\ninterface IERC20BalanceOnly {\r\n    function balanceOf(address account) external view returns (uint256);\r\n}\r\n\r\ncontract VWalaReserveVault {\r\n    event NativeDeposited(address indexed from, uint256 amount);\r\n\r\n    receive() external payable {\r\n        emit NativeDeposited(msg.sender, msg.value);\r\n    }\r\n\r\n    fallback() external payable {\r\n        emit NativeDeposited(msg.sender, msg.value);\r\n    }\r\n\r\n    function nativeBalance() external view returns (uint256) {\r\n        return address(this).balance;\r\n    }\r\n\r\n    function tokenBalance(address token) external view returns (uint256) {\r\n        return IERC20BalanceOnly(token).balanceOf(address(this));\r\n    }\r\n}"
+      }
+    }
+  }
+}
