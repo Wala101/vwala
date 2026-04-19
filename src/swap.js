@@ -274,12 +274,17 @@ function updateDashboardUI() {
 
   const vwalaBalanceText = document.getElementById('swapVWalaBalance')
   if (vwalaBalanceText) {
-    vwalaBalanceText.textContent = formatAmount(swapState.redeemableNow, 'vWALA')
+    vwalaBalanceText.textContent = formatAmount(swapState.vwalaBalance, 'vWALA')
   }
 
   const reserveText = document.getElementById('swapPoolReserve')
   if (reserveText) {
     reserveText.textContent = formatAmount(swapState.poolReserve, 'POL')
+  }
+
+  const redeemableText = document.getElementById('swapRedeemableNow')
+  if (redeemableText) {
+    redeemableText.textContent = formatAmount(swapState.redeemableNow, 'vWALA')
   }
 
   syncSwapUI()
@@ -356,7 +361,7 @@ function renderPage() {
             </div>
 
             <div class="swap-balance-box">
-              <span>Seu limite de venda em vWALA</span>
+              <span>Seu saldo em vWALA</span>
               <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
             </div>
           </div>
@@ -409,6 +414,8 @@ function renderPage() {
 
             <div class="swap-subtext">
               Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
+              <br />
+              Limite de venda agora: <strong id="swapRedeemableNow">${formatAmount('0', 'vWALA')}</strong>
             </div>
           </div>
         </section>
