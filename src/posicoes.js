@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -380,7 +380,11 @@ function getLocalDeviceWalletForBetting() {
   }
 }
 
-function getSavedCouponEntries() {
+function getFootballPositionDocId(fixtureId, couponId) {
+  return `${String(fixtureId).trim()}_${String(couponId).trim()}`
+}
+
+function getSavedCouponEntriesFromLocal() {
   const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
 
   if (!walletAddress) {
@@ -414,6 +418,116 @@ function getSavedCouponEntries() {
     console.error('Erro ao ler cupons salvos:', error)
     return []
   }
+}
+
+function restoreCouponsToLocalStorage(entries = []) {
+  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+
+  if (!walletAddress || !entries.length) {
+    return
+  }
+
+  const next = {}
+
+  for (const entry of entries) {
+    const fixtureId = String(entry?.fixtureId || '').trim()
+    const couponId = String(entry?.couponId || '').trim()
+
+    if (!fixtureId || !couponId) continue
+
+    if (!Array.isArray(next[fixtureId])) {
+      next[fixtureId] = []
+    }
+
+    if (!next[fixtureId].includes(couponId)) {
+      next[fixtureId].push(couponId)
+    }
+  }
+
+  localStorage.setItem(`wala_coupons_${walletAddress}`, JSON.stringify(next))
+}
+
+async function getSavedCouponEntriesFromFirebase() {
+  if (!currentGoogleUser?.uid) {
+    return []
+  }
+
+  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+
+  if (!walletAddress) {
+    return []
+  }
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, 'users', currentGoogleUser.uid, 'football_positions')
+    )
+
+    const dedupe = new Set()
+    const entries = []
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {}
+
+      if (data.claimed === true) return
+      if (String(data.walletAddress || '').trim().toLowerCase() !== walletAddress) return
+
+      const fixtureId = String(data.fixtureId || '').trim()
+      const couponId = String(data.couponId || '').trim()
+      const uniqueKey = `${fixtureId}:${couponId}`
+
+      if (!fixtureId || !couponId || dedupe.has(uniqueKey)) {
+        return
+      }
+
+      dedupe.add(uniqueKey)
+      entries.push({ fixtureId, couponId })
+    })
+
+    return entries.sort((a, b) => Number(b.fixtureId) - Number(a.fixtureId))
+  } catch (error) {
+    console.error('Erro ao ler posições do Firebase:', error)
+    return []
+  }
+}
+
+async function getSavedCouponEntries() {
+  const localEntries = getSavedCouponEntriesFromLocal()
+
+  if (localEntries.length) {
+    return localEntries
+  }
+
+  const firebaseEntries = await getSavedCouponEntriesFromFirebase()
+
+  if (firebaseEntries.length) {
+    restoreCouponsToLocalStorage(firebaseEntries)
+  }
+
+  return firebaseEntries
+}
+
+async function markPositionClaimedInFirebase(item) {
+  if (!currentGoogleUser?.uid) {
+    return
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'football_positions',
+      getFootballPositionDocId(item.fixtureId, item.couponId)
+    ),
+    {
+      claimed: true,
+      statusCache: 'claimed',
+      claimedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  )
 }
 
 function getBettingErrorName(error) {
@@ -702,7 +816,7 @@ async function loadHistory() {
       return
     }
 
-    const entries = getSavedCouponEntries()
+    const entries = await getSavedCouponEntries()
 
     if (!entries.length) {
       state.positions = []
@@ -863,6 +977,7 @@ async function claimItem(item) {
     )
 
     await tx.wait()
+    await markPositionClaimedInFirebase(item)
 
     hideLoadingModal()
     showAlert('Sucesso', 'Resgate concluído com sucesso.')

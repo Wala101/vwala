@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -890,6 +890,49 @@ function saveCouponId(fixtureId, couponId) {
   localStorage.setItem(key, JSON.stringify(current))
 }
 
+function getFootballPositionDocId(fixtureId, couponId) {
+  return `${String(fixtureId).trim()}_${String(couponId).trim()}`
+}
+
+async function saveFootballPositionToFirebase(match, payload) {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const fixtureId = String(match?.fixtureId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!fixtureId || !couponId) {
+    return
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'football_positions',
+      getFootballPositionDocId(fixtureId, couponId)
+    ),
+    {
+      fixtureId,
+      couponId,
+      walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+      league: String(match?.league || 'Futebol'),
+      teamA: String(match?.teamA || ''),
+      teamB: String(match?.teamB || ''),
+      outcome: Number(payload?.outcome),
+      amount: String(payload?.amountUi || '0'),
+      txHash: String(payload?.txHash || ''),
+      claimed: false,
+      statusCache: 'open',
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+}
+
 function loadCouponsForMatches(matches) {
   if (!state.userAddress) {
     return matches.map((match) => ({ ...match, userCoupons: [] }))
@@ -1005,6 +1048,11 @@ async function buyPosition(match, outcome, amountUi, signer) {
 
   await tx.wait()
   saveCouponId(match.fixtureId, couponId.toString())
+
+  return {
+    couponId: couponId.toString(),
+    txHash: String(tx.hash || '')
+  }
 }
 
 function createPositionBlock() {
@@ -1202,7 +1250,14 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
 
       showLoadingModal('Abrindo posição', 'Aguarde enquanto sua aposta é enviada para a Polygon.')
 
-      await buyPosition(match, selectedOutcome, amountUi, signer)
+      const positionResult = await buyPosition(match, selectedOutcome, amountUi, signer)
+
+      await saveFootballPositionToFirebase(match, {
+        couponId: positionResult.couponId,
+        outcome: selectedOutcome,
+        amountUi,
+        txHash: positionResult.txHash
+      })
 
       hideLoadingModal()
 
