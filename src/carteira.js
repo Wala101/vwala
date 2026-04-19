@@ -2317,43 +2317,7 @@ async function ensureUserWalletProfile(user) {
 
   if (userSnap.exists()) {
     const userData = userSnap.data()
-
-    let resolvedWalletAddress = String(userData.walletAddress || '').trim()
-
-    if (userData.walletKeystoreCloud) {
-      try {
-        const unlockedWallet = await Wallet.fromEncryptedJson(
-          userData.walletKeystoreCloud,
-          buildCloudPassword(user)
-        )
-
-        resolvedWalletAddress = String(unlockedWallet.address || '').trim()
-      } catch (error) {
-        console.error('Erro ao resolver endereço pelo keystore cloud:', error)
-      }
-    }
-
-    currentWalletAddress = resolvedWalletAddress
-    updateWalletAddressUI(currentWalletAddress)
-
-    if (
-      resolvedWalletAddress &&
-      resolvedWalletAddress.toLowerCase() !== String(userData.walletAddress || '').trim().toLowerCase()
-    ) {
-      await setDoc(
-        doc(db, 'users', user.uid),
-        {
-          walletAddress: resolvedWalletAddress,
-          updatedAt: serverTimestamp()
-        },
-        { merge: true }
-      )
-    }
-
-    return {
-      ...userData,
-      walletAddress: resolvedWalletAddress
-    }
+    return await syncResolvedWalletAddress(user, userData)
   }
 
   const pin = await promptCreateDevicePin()
@@ -2462,14 +2426,20 @@ async function initFirebaseAuthGate() {
         try {
           const walletProfile = await ensureUserWalletProfile(user)
 
-          if (walletProfile?.walletAddress) {
-            currentWalletAddress = String(walletProfile.walletAddress || '').trim()
+          const walletAddressToLoad = String(
+            currentWalletAddress ||
+            walletProfile?.walletAddress ||
+            ''
+          ).trim()
+
+          if (walletAddressToLoad) {
+            currentWalletAddress = walletAddressToLoad
             updateWalletAddressUI(currentWalletAddress)
 
             console.log('[CARTEIRA LOAD ADDRESS]', {
               build: CARTEIRA_BUILD_TAG,
               currentWalletAddress,
-              firestoreWalletAddress: walletProfile.walletAddress
+              firestoreWalletAddress: walletProfile?.walletAddress || ''
             })
 
             await loadPolygonBalance(currentWalletAddress)
