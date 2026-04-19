@@ -158,9 +158,9 @@ app.innerHTML = `
           </div>
         </div>
 
-        <button id="connectBtn" class="connect" type="button">
-          Carregando saldo...
-        </button>
+        <div id="connectBtn" class="connect" aria-live="polite">
+  Carregando saldo...
+</div>
       </header>
 
 
@@ -387,9 +387,7 @@ menuBtn?.addEventListener('click', openSidebar)
 sidebarOverlay?.addEventListener('click', closeSidebar)
 
 
-connectBtn?.addEventListener('click', () => {
-  loadUserTokenBalance()
-})
+// saldo somente leitura
 
 
 
