@@ -808,34 +808,37 @@ function buildFallbackMarkets() {
   const closeAt = getNextFourHourCloseTimestamp()
 
   return [
-    {
-      marketId: buildBinaryMarketId('BTC', closeAt),
-      assetSymbol: 'BTC',
-      question: 'BTC fechará acima do preço de referência em 4 horas?',
-      referencePriceUsd: 94500,
-      currentPriceUsd: 94500,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    },
-    {
-      marketId: buildBinaryMarketId('ETH', closeAt),
-      assetSymbol: 'ETH',
-      question: 'ETH fechará acima do preço de referência em 4 horas?',
-      referencePriceUsd: 3100,
-      currentPriceUsd: 3100,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    },
-    {
-      marketId: buildBinaryMarketId('SOL', closeAt),
-      assetSymbol: 'SOL',
-      question: 'SOL fechará acima do preço de referência em 4 horas?',
-      referencePriceUsd: 182,
-      currentPriceUsd: 182,
-      closeAt,
-      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-    }
-  ]
+  {
+    marketId: buildBinaryMarketId('BTC', closeAt),
+    assetSymbol: 'BTC',
+    imageUrl: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+    question: 'BTC fechará acima do preço de referência em 4 horas?',
+    referencePriceUsd: 94500,
+    currentPriceUsd: 94500,
+    closeAt,
+    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+  },
+  {
+    marketId: buildBinaryMarketId('ETH', closeAt),
+    assetSymbol: 'ETH',
+    imageUrl: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
+    question: 'ETH fechará acima do preço de referência em 4 horas?',
+    referencePriceUsd: 3100,
+    currentPriceUsd: 3100,
+    closeAt,
+    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+  },
+  {
+    marketId: buildBinaryMarketId('SOL', closeAt),
+    assetSymbol: 'SOL',
+    imageUrl: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
+    question: 'SOL fechará acima do preço de referência em 4 horas?',
+    referencePriceUsd: 182,
+    currentPriceUsd: 182,
+    closeAt,
+    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+  }
+]
 }
 
 async function fetchMarkets() {
@@ -850,17 +853,18 @@ async function fetchMarkets() {
       const closeAt = Number(market.closeAt || getNextFourHourCloseTimestamp())
 
       return {
-        marketId: String(market.marketId || buildBinaryMarketId(market.assetSymbol || market.symbol || 'CRYPTO', closeAt)),
-        assetSymbol: String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase(),
-        question: String(
-          market.question ||
-          `${String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase()} fechará acima do preço de referência em 4 horas?`
-        ),
-        referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
-        currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
-        closeAt,
-        ...normalizeBinaryProbabilities(market)
-      }
+  marketId: String(market.marketId || buildBinaryMarketId(market.assetSymbol || market.symbol || 'CRYPTO', closeAt)),
+  assetSymbol: String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase(),
+  imageUrl: String(market.imageUrl || market.logo || market.image || '/logo.png').trim(),
+  question: String(
+    market.question ||
+    `${String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase()} fechará acima do preço de referência em 4 horas?`
+  ),
+  referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
+  currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
+  closeAt,
+  ...normalizeBinaryProbabilities(market)
+}
     })
   } catch (error) {
     console.error('Erro ao carregar API de mercados cripto:', error)
@@ -901,6 +905,7 @@ async function hydrateMarket(market) {
       closeAt: Number(marketState[8] || market.closeAt),
       assetSymbol: meta[0] || market.assetSymbol,
       question: meta[1] || market.question,
+      imageUrl: market.imageUrl || '/logo.png',
       referencePriceUsd: referencePriceFromChain || market.referencePriceUsd,
       probYesBps: Number(probs[0]),
       probNoBps: Number(probs[1]),
@@ -1136,9 +1141,11 @@ function createCard(market) {
 
       <div class="match-teams">
         <div class="team-block">
-          <div class="team-badge">?</div>
-          <strong>${market.question}</strong>
-        </div>
+  <div class="team-badge crypto-badge">
+    <img src="${market.imageUrl || '/logo.png'}" alt="${market.assetSymbol}" />
+  </div>
+  <strong>${market.question}</strong>
+</div>
       </div>
 
       <div class="match-time">Fecha em ${formatCountdown(market.closeAt)}</div>

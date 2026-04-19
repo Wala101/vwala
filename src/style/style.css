@@ -1868,3 +1868,15 @@ body{
     gap:6px !important;
   }
 }
+
+.crypto-badge{
+  overflow:hidden;
+  padding:0;
+}
+
+.crypto-badge img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
