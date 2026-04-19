@@ -47,6 +47,12 @@ const CARTEIRA_BUILD_TAG = 'carteira-debug-2026-04-18-01'
 
 console.log('[CARTEIRA BUILD]', CARTEIRA_BUILD_TAG)
 
+function maskRpcUrl(url = '') {
+  return String(url || '')
+    .replace(/(\/v2\/)[^/?#]+/i, '$1***')
+    .replace(/([?&](?:api[-_]?key|key)=)[^&]+/i, '$1***')
+}
+
 const VWALA_SWAP_ABI = [
   'function buy() payable returns (uint256)',
   'function quote(uint256 polAmountWei) view returns (uint256)'
@@ -155,6 +161,13 @@ async function loadVWalaBalance(walletAddress) {
     if (!walletAddress) return
 
     const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const network = await provider.getNetwork()
+    const chainId = Number(network.chainId)
+
+    if (chainId !== 137) {
+      throw new Error(`RPC fora da Polygon Mainnet. chainId atual: ${chainId}`)
+    }
+
     const tokenContract = new Contract(
       VWALA_TOKEN_ADDRESS,
       ERC20_TOKEN_ABI,
@@ -174,6 +187,8 @@ async function loadVWalaBalance(walletAddress) {
 
     console.log('[vWALA BALANCE READ]', {
       build: CARTEIRA_BUILD_TAG,
+      rpcUrl: maskRpcUrl(POLYGON_RPC_URL),
+      chainId,
       walletAddress,
       tokenAddress: VWALA_TOKEN_ADDRESS,
       decimals,
