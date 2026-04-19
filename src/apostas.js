@@ -9,7 +9,12 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
-const POLYGON_RPC_URL = import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_URL =
+  import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
+
+const POLYGON_BALANCE_RPC_URL =
+  String(import.meta.env.VITE_POLYGON_BALANCE_RPC_URL || '').trim() ||
+  POLYGON_RPC_URL
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
@@ -608,7 +613,7 @@ function setConnectButtonText(text) {
 }
 
 function createRpcProbeUrl(label = 'apostas_runtime') {
-  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+  const url = new URL(POLYGON_BALANCE_RPC_URL, window.location.origin)
   url.searchParams.set('_ts', String(Date.now()))
   url.searchParams.set('_probe', label)
   return url.toString()
@@ -758,6 +763,7 @@ async function loadUserTokenBalance() {
     }
 
     setConnectButtonText('Carregando saldo...')
+console.log('[APOSTAS_BALANCE_RPC_URL]', POLYGON_BALANCE_RPC_URL)
 
     const selectedRead = await readBalanceViaConsensus(
       walletAddress,
