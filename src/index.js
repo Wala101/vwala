@@ -371,13 +371,13 @@ app.innerHTML = `
 
 
       <aside id="sidebar" class="side-menu">
-       <a href="/carteira">Carteira</a>
-        <a href="/token">Criar Token</a>
-        <a href="/apostas">Futebol</a>
-        <a href="/predicoes.html">Predições</a>
-        <a href="/posicoes">H/Futebol</a>
-        <a href="/historico">H/Futures</a>
-      </aside>
+  <a href="/carteira.html">Carteira</a>
+  <a href="/token.html">Criar Token</a>
+  <a href="/apostas.html">Futebol</a>
+  <a href="/predicoes.html">Predições</a>
+  <a href="/posicoes.html">H/Futebol</a>
+  <a href="/historico.html">H/Futures</a>
+</aside>
 
       <main class="app-content">
         <section class="hero-card">
