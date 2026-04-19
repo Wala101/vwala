@@ -505,9 +505,14 @@ function getReferencePriceE8(value) {
 }
 
 function generateCouponId(market) {
-  const now = Date.now()
-  const random = Math.floor(Math.random() * 100000)
-  return BigInt(`${String(market.marketId)}${String(now).slice(-6)}${random}`)
+  const marketPart = BigInt(String(market.marketId || '0'))
+  const timePart = BigInt(Date.now())
+  const randomPart = BigInt(Math.floor(Math.random() * 1000000))
+
+  const raw = (marketPart << 32n) ^ (timePart << 8n) ^ randomPart
+  const couponId = BigInt.asUintN(64, raw)
+
+  return couponId === 0n ? 1n : couponId
 }
 
 function buildBinaryMarketId(symbol, closeAt) {
@@ -945,8 +950,7 @@ async function loadMarkets() {
     }
 
     state.markets = loadCouponsForMarkets(hydrated)
-    await refreshAllPositions()
-    renderMarkets()
+renderMarkets()
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar os mercados de predição.')
