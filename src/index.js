@@ -161,7 +161,7 @@ app.innerHTML = `
         <section class="cards-list">
           <article
             class="feature-card clickable-card"
-            data-href="/apostas,html"
+            data-href="/apostas.html"
             role="button"
             tabindex="0"
             aria-label="Abrir página Futebol"
