@@ -18,18 +18,61 @@ const TOKEN_SYMBOL = 'vWALA'
 const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
 const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
+let currentFirebaseUser = null
+
 const ERC20_ABI = [
   'function balanceOf(address account) view returns (uint256)',
   'function decimals() view returns (uint8)'
 ]
 
+function getCurrentSessionUid() {
+  const runtimeUid = String(currentFirebaseUser?.uid || '').trim()
+
+  if (runtimeUid) {
+    return runtimeUid
+  }
+
+  try {
+    const rawUser = localStorage.getItem('vwala_user')
+    if (!rawUser) return ''
+    return String(JSON.parse(rawUser)?.uid || '').trim()
+  } catch (error) {
+    console.error('Erro ao ler sessão local:', error)
+    return ''
+  }
+}
+
 function readWalletProfile() {
   try {
-    const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    if (rawProfile) return JSON.parse(rawProfile)
+    const currentUid = getCurrentSessionUid()
 
     const rawDeviceWallet = localStorage.getItem('vwala_device_wallet')
-    return rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+    if (rawDeviceWallet) {
+      const parsedDeviceWallet = JSON.parse(rawDeviceWallet)
+      const deviceUid = String(parsedDeviceWallet?.uid || '').trim()
+
+      if (
+        parsedDeviceWallet?.walletAddress &&
+        (!currentUid || !deviceUid || deviceUid === currentUid)
+      ) {
+        return parsedDeviceWallet
+      }
+    }
+
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+    if (rawProfile) {
+      const parsedProfile = JSON.parse(rawProfile)
+      const profileUid = String(parsedProfile?.uid || '').trim()
+
+      if (
+        parsedProfile?.walletAddress &&
+        (!currentUid || !profileUid || profileUid === currentUid)
+      ) {
+        return parsedProfile
+      }
+    }
+
+    return null
   } catch (error) {
     console.error('Erro ao ler carteira local:', error)
     return null
@@ -37,7 +80,14 @@ function readWalletProfile() {
 }
 
 function getCurrentWalletAddress() {
-  return String(readWalletProfile()?.walletAddress || '').trim()
+  const wallet = readWalletProfile()
+
+  return String(
+    wallet?.walletAddress ||
+    wallet?.address ||
+    wallet?.wallet_address ||
+    ''
+  ).trim()
 }
 
 function formatTokenBalance(value = 0) {
@@ -299,20 +349,32 @@ async function initFirebaseSession() {
   try {
     await setPersistence(auth, browserLocalPersistence)
 
-    onAuthStateChanged(auth, (user) => {
-      if (user) {
-        localStorage.setItem(
-          'vwala_user',
-          JSON.stringify({
-            uid: user.uid,
-            name: user.displayName || '',
-            email: user.email || '',
-            photo: user.photoURL || ''
-          })
-        )
-      } else {
-        localStorage.removeItem('vwala_user')
-      }
+    await new Promise((resolve) => {
+      let finished = false
+
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        currentFirebaseUser = user || null
+
+        if (user) {
+          localStorage.setItem(
+            'vwala_user',
+            JSON.stringify({
+              uid: user.uid,
+              name: user.displayName || '',
+              email: user.email || '',
+              photo: user.photoURL || ''
+            })
+          )
+        } else {
+          localStorage.removeItem('vwala_user')
+        }
+
+        if (!finished) {
+          finished = true
+          unsubscribe()
+          resolve()
+        }
+      })
     })
   } catch (error) {
     console.error('Erro ao iniciar sessão Firebase:', error)
