@@ -966,19 +966,19 @@ function createCard(match) {
 
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
-        <span class="stat-label">Prob. ${match.teamA}</span>
-        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probHomeBps)}</strong>
-      </div>
+  <span class="stat-label">${match.teamA}</span>
+  <strong class="stat-value">${bpsToPercentText(match.probHomeBps)}</strong>
+</div>
 
-      <div class="stat-box">
-        <span class="stat-label">Empate</span>
-        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probDrawBps)}</strong>
-      </div>
+<div class="stat-box">
+  <span class="stat-label">Empate</span>
+  <strong class="stat-value">${bpsToPercentText(match.probDrawBps)}</strong>
+</div>
 
-      <div class="stat-box">
-        <span class="stat-label">Prob. ${match.teamB}</span>
-        <strong class="stat-value">${bpsToPercentText(displayProbabilities.probAwayBps)}</strong>
-      </div>
+<div class="stat-box">
+  <span class="stat-label">${match.teamB}</span>
+  <strong class="stat-value">${bpsToPercentText(match.probAwayBps)}</strong>
+</div>
     </div>
 
     <div class="market-question inline-market-question force-show">
