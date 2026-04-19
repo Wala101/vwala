@@ -481,7 +481,7 @@ async function loadSwapData(walletAddress = '') {
       const [polBalanceRaw, redeemableRaw, vwalaRead] = await Promise.all([
         provider.getBalance(walletAddress),
         poolContract.maxRedeemable(walletAddress),
-        readVWalaBalanceViaEthers(walletAddress, `swap_vwala_balance_${readId}`)
+        readVWalaBalanceViaEthers(walletAddress, `swap_vwala_balance_main_${readId}`)
       ])
 
       if (requestId !== swapDataLoadCounter) {
