@@ -341,6 +341,71 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
   return localVault
 }
 
+async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
+  if (walletProfile?.walletKeystoreCloud) {
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        walletProfile.walletKeystoreCloud,
+        buildCloudPassword(user)
+      )
+
+      return String(unlockedWallet.address || '').trim()
+    } catch (error) {
+      console.error('Erro ao resolver wallet pelo keystore cloud:', error)
+    }
+  }
+
+  const localVault = getLocalDeviceWallet()
+
+  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
+    return String(localVault.walletAddress).trim()
+  }
+
+  return String(walletProfile?.walletAddress || '').trim()
+}
+
+async function syncResolvedWalletAddress(user, walletProfile = {}) {
+  const resolvedWalletAddress = await resolveAuthoritativeWalletAddress(user, walletProfile)
+
+  if (!resolvedWalletAddress) {
+    return walletProfile
+  }
+
+  const storedWalletAddress = String(walletProfile?.walletAddress || '').trim()
+
+  if (
+    !storedWalletAddress ||
+    storedWalletAddress.toLowerCase() !== resolvedWalletAddress.toLowerCase()
+  ) {
+    await setDoc(
+      doc(db, 'users', user.uid),
+      {
+        walletAddress: resolvedWalletAddress,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  }
+
+  currentWalletAddress = resolvedWalletAddress
+  updateWalletAddressUI(currentWalletAddress)
+
+  localStorage.setItem(
+    'vwala_wallet_profile',
+    JSON.stringify({
+      uid: user.uid,
+      walletAddress: resolvedWalletAddress,
+      chainId: walletProfile.chainId || POLYGON_CHAIN_ID,
+      network: walletProfile.network || 'polygon'
+    })
+  )
+
+  return {
+    ...walletProfile,
+    walletAddress: resolvedWalletAddress
+  }
+}
+
 async function promptCreateDevicePin() {
   const pin = await showPinModal(
     'Criar PIN neste aparelho',
@@ -998,8 +1063,10 @@ async function handleBuyVWala() {
 
     hideLoadingModal()
 
-    await loadPolygonBalance(currentWalletAddress)
-    await loadVWalaBalance(currentWalletAddress)
+    currentWalletAddress = signer.address
+    updateWalletAddressUI(currentWalletAddress)
+    await loadPolygonBalance(signer.address)
+    await loadVWalaBalance(signer.address)
 
     await showMessageModal(
       'Compra concluída',
@@ -1246,8 +1313,10 @@ async function handleSellVWala() {
 
     hideLoadingModal()
 
-    await loadPolygonBalance(currentWalletAddress)
-    await loadVWalaBalance(currentWalletAddress)
+    currentWalletAddress = signer.address
+    updateWalletAddressUI(currentWalletAddress)
+    await loadPolygonBalance(signer.address)
+    await loadVWalaBalance(signer.address)
 
     await showMessageModal(
       'Venda concluída',
@@ -2157,23 +2226,11 @@ async function ensureUserWalletProfile(user) {
 
   if (userSnap.exists()) {
     const userData = userSnap.data()
+    const normalizedUserData = await syncResolvedWalletAddress(user, userData)
 
-    currentWalletAddress = userData.walletAddress || ''
-    updateWalletAddressUI(currentWalletAddress)
+    await ensureDeviceWalletAccess(user, normalizedUserData)
 
-    localStorage.setItem(
-      'vwala_wallet_profile',
-      JSON.stringify({
-        uid: user.uid,
-        walletAddress: currentWalletAddress,
-        chainId: userData.chainId || POLYGON_CHAIN_ID,
-        network: userData.network || 'polygon'
-      })
-    )
-
-    await ensureDeviceWalletAccess(user, userData)
-
-    return userData
+    return normalizedUserData
   }
 
   const pin = await promptCreateDevicePin()
