@@ -119,6 +119,7 @@ app.innerHTML = `
        <a href="/carteira">Carteira</a>
         <a href="/token">Criar Token</a>
         <a href="/apostas">Futebol</a>
+        <a href="/predicoes.html">Predições</a>
         <a href="/posicoes">H/Futebol</a>
 <a href="/historico">H/Futures</a>
       </aside>
@@ -136,7 +137,7 @@ app.innerHTML = `
           <div class="hero-stats">
             <div class="stat-box">
               <span>Mercado</span>
-              <strong>Futebol e Futuros</strong>
+              <strong>Futebol e Predições</strong>
             </div>
 
             <div class="stat-box">
@@ -184,24 +185,24 @@ app.innerHTML = `
 
           <article
             class="feature-card clickable-card"
-            data-href="/futuros"
+            data-href="/predicoes.html"
             role="button"
             tabindex="0"
-            aria-label="Abrir página Futures"
+            aria-label="Abrir página Predições"
           >
             <div class="feature-card-top">
               <span class="feature-badge">📈</span>
               <span class="feature-chip">Novo</span>
             </div>
 
-            <h3>Futures</h3>
+            <h3>Predições</h3>
             <p>
-              Área de previsões futuras com acesso dedicado em uma página separada.
+              Área de mercado binário para cripto com posições de sim ou não.
             </p>
 
             <div class="feature-card-footer">
               <span>Abrir</span>
-              <strong style="display: none;">futuros.html</strong>
+              <strong style="display: none;">predicoes.html</strong>
             </div>
           </article>
 
@@ -243,10 +244,10 @@ app.innerHTML = `
             <small>Mercado esportivo</small>
           </a>
 
-          <a class="shortcut-card" href="/futuros">
+          <a class="shortcut-card" href="/predicoes.html">
             <span class="shortcut-icon">📈</span>
-            <strong>Futures</strong>
-            <small>Previsões futuras</small>
+            <strong>Predições</strong>
+            <small>Mercado binário cripto</small>
           </a>
 
          <a class="shortcut-card" href="/token.html">

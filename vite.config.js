@@ -9,6 +9,7 @@ export default defineConfig({
         swap: 'swap.html',
         apostas: 'apostas.html',
         posicoes: 'posicoes.html',
+        predicoes: 'predicoes.html',
         token: 'token.html',
       },
     },
