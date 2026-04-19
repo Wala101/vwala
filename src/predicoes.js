@@ -1175,7 +1175,7 @@ function createCard(market) {
 
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
-        <span class="stat-label">Referência</span>
+        <span class="stat-label">Preço base</span>
         <strong class="stat-value">${formatUsd(market.referencePriceUsd)}</strong>
       </div>
 
@@ -1231,7 +1231,7 @@ function createCard(market) {
       type="button"
       ${(market.exists && Number(market.status) !== MarketStatus.OPEN) || marketIsClosedByTime(market) ? 'disabled' : ''}
     >
-      ${market.exists ? 'Abrir posição' : 'Criar mercado e apostar'}
+      ${market.exists ? 'Abrir posição' : 'Mercado pendente'}
     </button>
   `
 
@@ -1342,12 +1342,11 @@ function createCard(market) {
       let createdNow = false
 
       if (!market.exists) {
-        showLoadingModal('Criando mercado', 'Aguarde enquanto o mercado binário é criado na Polygon.')
-        await ensureMarketExists(market, signer)
-        createdNow = true
-      }
+  showAlert('Mercado pendente', 'Esse mercado ainda não foi publicado pelo operador.')
+  return
+}
 
-      showLoadingModal('Abrindo posição', 'Aguarde enquanto sua posição é enviada para a Polygon.')
+showLoadingModal('Abrindo posição', 'Aguarde enquanto sua posição é enviada para a Polygon.')
 
       await buyPosition(market, selectedSide, amountUi, signer)
 
