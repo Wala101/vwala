@@ -125,7 +125,15 @@ function getProvider(label = 'swap_runtime') {
   return new JsonRpcProvider(createRpcProbeUrl(label))
 }
 
-async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_balance') {
+function compareRawBalanceAsc(a, b) {
+  const aValue = BigInt(String(a || '0'))
+  const bValue = BigInt(String(b || '0'))
+
+  if (aValue === bValue) return 0
+  return aValue < bValue ? -1 : 1
+}
+
+async function readSingleVWalaBalanceProbe(walletAddress, label) {
   const provider = getProvider(label)
   const tokenContract = getTokenContract(provider)
 
@@ -146,6 +154,106 @@ async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_bala
     decimals: decimalsNumber,
     formattedBalance: Number(formattedBalanceText),
     formattedBalanceText
+  }
+}
+
+function selectStableVWalaProbe(probes = []) {
+  const groupedMap = new Map()
+
+  probes.forEach((probe) => {
+    const key = String(probe.rawBalance || '0')
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        rawBalance: key,
+        count: 0,
+        maxBlock: 0,
+        probes: []
+      })
+    }
+
+    const group = groupedMap.get(key)
+    group.count += 1
+    group.maxBlock = Math.max(group.maxBlock, Number(probe.blockNumber || 0))
+    group.probes.push(probe)
+  })
+
+  const groups = [...groupedMap.values()].sort((a, b) => {
+    if (b.count !== a.count) {
+      return b.count - a.count
+    }
+
+    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
+    if (balanceCompare !== 0) {
+      return balanceCompare
+    }
+
+    return b.maxBlock - a.maxBlock
+  })
+
+  const selectedGroup = groups[0]
+  const selectedProbe = [...selectedGroup.probes].sort((a, b) => {
+    const blockDiff = Number(b.blockNumber || 0) - Number(a.blockNumber || 0)
+
+    if (blockDiff !== 0) {
+      return blockDiff
+    }
+
+    return String(a.source || '').localeCompare(String(b.source || ''))
+  })[0]
+
+  let selectionReason = 'majority'
+
+  if (selectedGroup.count === 1 && groups.length > 1) {
+    selectionReason = 'lowest_balance_tiebreak'
+  }
+
+  return {
+    selectedProbe,
+    selectionReason,
+    groups
+  }
+}
+
+async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_balance') {
+  const settled = await Promise.allSettled([
+    readSingleVWalaBalanceProbe(walletAddress, `${label}_a`),
+    readSingleVWalaBalanceProbe(walletAddress, `${label}_b`),
+    readSingleVWalaBalanceProbe(walletAddress, `${label}_c`)
+  ])
+
+  const probes = settled
+    .filter((item) => item.status === 'fulfilled')
+    .map((item) => item.value)
+
+  const failures = settled
+    .filter((item) => item.status === 'rejected')
+    .map((item) => item.reason)
+
+  if (!probes.length) {
+    throw failures[0] || new Error('Nenhuma leitura de saldo vWALA foi concluída.')
+  }
+
+  const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
+
+  console.groupCollapsed(`[SWAP_VWALA_RPC_PROBES] ${label}`)
+  console.log('all_probes', probes)
+  console.log('grouped_probes', groups)
+  console.log('selected_probe', selectedProbe)
+  console.log('selection_reason', selectionReason)
+
+  if (failures.length) {
+    console.warn('probe_failures', failures)
+  }
+
+  console.groupEnd()
+
+  return {
+    ...selectedProbe,
+    selectedFrom: selectedProbe.source,
+    selectionReason,
+    allProbes: probes,
+    failedProbeCount: failures.length
   }
 }
 
