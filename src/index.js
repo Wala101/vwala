@@ -178,7 +178,7 @@ app.innerHTML = `
 
             <div class="feature-card-footer">
               <span>Abrir</span>
-              <strong style="display: none;">apostas.html</strong>
+              <strong style="display: none;">futebol</strong>
             </div>
           </article>
 
@@ -237,7 +237,7 @@ app.innerHTML = `
         </section>
 
         <section class="shortcut-grid">
-          <a class="shortcut-card" href="/futebol">
+          <a class="shortcut-card" href="/apostas">
             <span class="shortcut-icon">⚽</span>
             <strong>Futebol</strong>
             <small>Mercado esportivo</small>
