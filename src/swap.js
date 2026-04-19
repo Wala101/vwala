@@ -274,7 +274,7 @@ function updateDashboardUI() {
 
   const vwalaBalanceText = document.getElementById('swapVWalaBalance')
   if (vwalaBalanceText) {
-    vwalaBalanceText.textContent = formatAmount(swapState.vwalaBalance, 'vWALA')
+    vwalaBalanceText.textContent = formatAmount(swapState.redeemableNow, 'vWALA')
   }
 
   const reserveText = document.getElementById('swapPoolReserve')
@@ -356,7 +356,7 @@ function renderPage() {
             </div>
 
             <div class="swap-balance-box">
-              <span>Seu saldo em vWALA</span>
+              <span>Seu limite de venda em vWALA</span>
               <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
             </div>
           </div>
@@ -449,7 +449,13 @@ function renderPage() {
           class="swap-modal-input hidden"
           type="password"
           placeholder=""
-          autocomplete="off"
+          autocomplete="new-password"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          data-lpignore="true"
+          data-1p-ignore="true"
+          data-form-type="other"
         />
 
         <div class="swap-modal-actions">
@@ -1163,8 +1169,19 @@ async function handleSellVWala() {
     const poolContract = getPoolContract(signer)
     const tokenContract = getTokenContract(signer)
 
+    const signerAddress = String(signer.address || '').toLowerCase()
+    const currentAddress = String(currentWalletAddress || '').toLowerCase()
+
+    if (signerAddress && signerAddress !== currentAddress) {
+      currentWalletAddress = signer.address
+    }
+
     const amountUnits = parseUnits(normalizedAmount, swapState.tokenDecimals)
-    const tokenBalance = await tokenContract.balanceOf(signer.address)
+
+    const [tokenBalance, liveRedeemable] = await Promise.all([
+      tokenContract.balanceOf(signer.address),
+      poolContract.maxRedeemable(signer.address)
+    ])
 
     if (tokenBalance < amountUnits) {
       hideLoadingModal()
@@ -1176,10 +1193,21 @@ async function handleSellVWala() {
       return
     }
 
+    if (liveRedeemable < amountUnits) {
+      hideLoadingModal()
+      await loadSwapData(signer.address)
+
+      await showMessageModal(
+        'Limite de venda',
+        `Neste momento você pode vender no máximo ${formatAmount(formatUnits(liveRedeemable, swapState.tokenDecimals), 'vWALA')}.`
+      )
+      return
+    }
+
     const allowance = await tokenContract.allowance(
-  signer.address,
-  VWALA_POOL_ADDRESS
-)
+      signer.address,
+      VWALA_POOL_ADDRESS
+    )
 
 const feeData = await provider.getFeeData()
 const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
@@ -1246,7 +1274,8 @@ const tx = await poolContract.sell(amountUnits)
     await tx.wait()
 
     hideLoadingModal()
-    await loadSwapData(currentWalletAddress)
+    currentWalletAddress = signer.address
+    await loadSwapData(signer.address)
 
     document.getElementById('swapAmountInput').value = ''
 
