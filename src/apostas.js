@@ -552,7 +552,54 @@ async function syncWalletProfileFromFirebase() {
   }
 
   const userData = userSnap.data()
-  const walletAddress = String(userData.walletAddress || '').trim()
+  let walletAddress = ''
+
+  if (userData?.walletKeystoreCloud) {
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        userData.walletKeystoreCloud,
+        `vwala_google_device_pin_v1:${currentGoogleUser.uid}`
+      )
+
+      walletAddress = String(unlockedWallet.address || '').trim()
+    } catch (error) {
+      console.error('Erro ao resolver wallet pelo keystore cloud na página de apostas:', error)
+    }
+  }
+
+  if (!walletAddress) {
+    walletAddress = String(userData.walletAddress || '').trim()
+  }
+
+  if (!walletAddress) {
+    try {
+      const rawProfile = localStorage.getItem('vwala_wallet_profile')
+
+      if (rawProfile) {
+        const parsedProfile = JSON.parse(rawProfile)
+
+        if (
+          parsedProfile?.uid === currentGoogleUser.uid &&
+          parsedProfile?.walletAddress
+        ) {
+          walletAddress = String(parsedProfile.walletAddress).trim()
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao ler vwala_wallet_profile local na página de apostas:', error)
+    }
+  }
+
+  if (!walletAddress) {
+    const existingDeviceWallet = getLocalDeviceWalletForBetting()
+
+    if (
+      existingDeviceWallet?.uid === currentGoogleUser.uid &&
+      existingDeviceWallet?.walletAddress
+    ) {
+      walletAddress = String(existingDeviceWallet.walletAddress).trim()
+    }
+  }
 
   if (!walletAddress) {
     state.userAddress = ''
@@ -564,9 +611,9 @@ async function syncWalletProfileFromFirebase() {
 
   if (existingDeviceWallet?.walletAddress) {
     const localAddress = String(existingDeviceWallet.walletAddress).trim().toLowerCase()
-    const firebaseAddress = walletAddress.toLowerCase()
+    const resolvedAddress = walletAddress.toLowerCase()
 
-    if (localAddress !== firebaseAddress) {
+    if (localAddress !== resolvedAddress) {
       localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
       state.signer = null
     }
