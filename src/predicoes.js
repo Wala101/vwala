@@ -125,8 +125,8 @@ document.querySelector('#app').innerHTML = `
             <p class="eyebrow">VWALA · POLYGON</p>
             <h1>Mercado Binário de Cripto</h1>
             <p class="hero-text">
-              Faça previsões de alta ou baixa em janelas de 4 horas no estilo polymarket.
-            </p>
+  Faça previsões diárias. Entradas das 06:00 às 18:00 e resolução às 23:00.
+</p>
           </div>
 
           <div class="hero-stats">
@@ -137,7 +137,7 @@ document.querySelector('#app').innerHTML = `
 
             <div class="stat-box">
               <span>Fechamento</span>
-              <strong>4 horas</strong>
+              <strong>23:00</strong>
             </div>
 
             <div class="stat-box">
@@ -474,24 +474,52 @@ function isPredictionsConfigured() {
   )
 }
 
-function getNextFourHourCloseTimestamp(fromDate = new Date()) {
-  const base = new Date(fromDate)
-  const utcHour = base.getUTCHours()
-  const nextWindowHour = Math.floor(utcHour / 4) * 4 + 4
+const MARKET_OPEN_HOUR = 6
+const MARKET_BET_CLOSE_HOUR = 18
+const MARKET_RESOLVE_HOUR = 23
 
-  const close = new Date(Date.UTC(
-    base.getUTCFullYear(),
-    base.getUTCMonth(),
-    base.getUTCDate(),
-    0,
+function getDailyMarketSchedule(baseDate = new Date()) {
+  const base = new Date(baseDate)
+
+  const openAt = new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate(),
+    MARKET_OPEN_HOUR,
     0,
     0,
     0
-  ))
+  )
 
-  close.setUTCHours(nextWindowHour)
+  const betCloseAt = new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate(),
+    MARKET_BET_CLOSE_HOUR,
+    0,
+    0,
+    0
+  )
 
-  return Math.floor(close.getTime() / 1000)
+  const resolveAt = new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate(),
+    MARKET_RESOLVE_HOUR,
+    0,
+    0,
+    0
+  )
+
+  return {
+    openAt,
+    betCloseAt,
+    resolveAt
+  }
+}
+
+function getDailyMarketCloseTimestamp(baseDate = new Date()) {
+  return Math.floor(getDailyMarketSchedule(baseDate).resolveAt.getTime() / 1000)
 }
 
 function getReferencePriceE8(value) {
@@ -515,7 +543,7 @@ function generateCouponId(market) {
   return couponId === 0n ? 1n : couponId
 }
 
-const MARKET_RULE_VERSION = 'UP3V1'
+const MARKET_RULE_VERSION = 'DAY23V1'
 
 function buildBinaryMarketId(symbol, closeAt) {
   const seed = `${String(symbol || 'CRYPTO')}_${MARKET_RULE_VERSION}`
@@ -812,40 +840,40 @@ async function refreshWalletBalance() {
 }
 
 function buildFallbackMarkets() {
-  const closeAt = getNextFourHourCloseTimestamp()
+  const closeAt = getDailyMarketCloseTimestamp()
 
   return [
-  {
-    marketId: buildBinaryMarketId('BTC', closeAt),
-    assetSymbol: 'BTC',
-    imageUrl: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
-    question: 'BTC fechará acima do preço de referência em 4 horas?',
-    referencePriceUsd: 94500,
-    currentPriceUsd: 94500,
-    closeAt,
-    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-  },
-  {
-    marketId: buildBinaryMarketId('ETH', closeAt),
-    assetSymbol: 'ETH',
-    imageUrl: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
-    question: 'ETH fechará acima do preço de referência em 4 horas?',
-    referencePriceUsd: 3100,
-    currentPriceUsd: 3100,
-    closeAt,
-    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-  },
-  {
-    marketId: buildBinaryMarketId('SOL', closeAt),
-    assetSymbol: 'SOL',
-    imageUrl: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
-    question: 'SOL fechará acima do preço de referência em 4 horas?',
-    referencePriceUsd: 182,
-    currentPriceUsd: 182,
-    closeAt,
-    ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
-  }
-]
+    {
+      marketId: buildBinaryMarketId('BTC', closeAt),
+      assetSymbol: 'BTC',
+      imageUrl: 'https://assets.coingecko.com/coins/images/1/large/bitcoin.png',
+      question: 'BTC fechará 3% acima da referência do dia até 23:00?',
+      referencePriceUsd: 94500,
+      currentPriceUsd: 94500,
+      closeAt,
+      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+    },
+    {
+      marketId: buildBinaryMarketId('ETH', closeAt),
+      assetSymbol: 'ETH',
+      imageUrl: 'https://assets.coingecko.com/coins/images/279/large/ethereum.png',
+      question: 'ETH fechará 3% acima da referência do dia até 23:00?',
+      referencePriceUsd: 3100,
+      currentPriceUsd: 3100,
+      closeAt,
+      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+    },
+    {
+      marketId: buildBinaryMarketId('SOL', closeAt),
+      assetSymbol: 'SOL',
+      imageUrl: 'https://assets.coingecko.com/coins/images/4128/large/solana.png',
+      question: 'SOL fechará 3% acima da referência do dia até 23:00?',
+      referencePriceUsd: 182,
+      currentPriceUsd: 182,
+      closeAt,
+      ...normalizeBinaryProbabilities({ yesProbBps: 5000, noProbBps: 5000 })
+    }
+  ]
 }
 
 async function fetchMarkets() {
@@ -865,22 +893,24 @@ async function fetchMarkets() {
     const source = Array.isArray(payload.markets) ? payload.markets : []
 
     return source.map((market) => {
-      const closeAt = Number(market.closeAt || getNextFourHourCloseTimestamp())
+  const assetSymbol = String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase()
+  const closeAt = getDailyMarketCloseTimestamp()
 
-      return {
-  marketId: String(market.marketId || buildBinaryMarketId(market.assetSymbol || market.symbol || 'CRYPTO', closeAt)),
-  assetSymbol: String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase(),
-  imageUrl: String(market.imageUrl || market.logo || market.image || '/logo.png').trim(),
-  question: String(
-    market.question ||
-    `${String(market.assetSymbol || market.symbol || 'CRYPTO').toUpperCase()} fechará acima do preço de referência em 4 horas?`
-  ),
-  referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
-  currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
-  closeAt,
-  ...normalizeBinaryProbabilities(market)
-}
-    })
+  return {
+    marketId: String(
+      market.marketId || buildBinaryMarketId(assetSymbol, closeAt)
+    ),
+    assetSymbol,
+    imageUrl: String(market.imageUrl || market.logo || market.image || '/logo.png').trim(),
+    question: String(
+      market.question || `${assetSymbol} fechará 3% acima da referência do dia até 23:00?`
+    ),
+    referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
+    currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
+    closeAt,
+    ...normalizeBinaryProbabilities(market)
+  }
+})
   } catch (error) {
     console.error('Erro ao carregar API de mercados cripto:', error)
     return buildFallbackMarkets()
@@ -1072,6 +1102,50 @@ function marketIsClosedByTime(market) {
   return Number(market.closeAt || 0) <= now
 }
 
+function canEnterMarketNow(market) {
+  const now = new Date()
+  const { openAt, betCloseAt } = getDailyMarketSchedule(now)
+
+  if (!market?.exists) return false
+  if (Number(market.status) !== MarketStatus.OPEN) return false
+  if (marketIsClosedByTime(market)) return false
+  if (now.getTime() < openAt.getTime()) return false
+  if (now.getTime() >= betCloseAt.getTime()) return false
+
+  return true
+}
+
+function getMarketEntryMessage(market) {
+  const now = new Date()
+  const { openAt, betCloseAt, resolveAt } = getDailyMarketSchedule(now)
+
+  if (!market?.exists) {
+    return 'Mercado do dia ainda não foi publicado ou o anterior ainda não foi resolvido.'
+  }
+
+  if (Number(market.status) === MarketStatus.RESOLVED) {
+    return 'Mercado já resolvido.'
+  }
+
+  if (now.getTime() < openAt.getTime()) {
+    return 'As apostas abrem às 06:00.'
+  }
+
+  if (now.getTime() >= betCloseAt.getTime() && now.getTime() < resolveAt.getTime()) {
+    return 'As apostas encerraram às 18:00. Agora o mercado aguarda resolução às 23:00.'
+  }
+
+  if (marketIsClosedByTime(market)) {
+    return 'Mercado fechado. Aguarde a resolução e o próximo ciclo.'
+  }
+
+  if (Number(market.status) !== MarketStatus.OPEN) {
+    return 'Mercado indisponível no momento.'
+  }
+
+  return 'Apostas liberadas das 06:00 às 18:00.'
+}
+
 async function ensureMarketExists(market, signer) {
   if (!state.predictions) {
     throw new Error('Contrato binário ainda não configurado.')
@@ -1219,8 +1293,8 @@ function createCard(market) {
       />
 
       <div class="bet-hint-text js-bet-hint-text">
-        Escolha SIM ou NÃO para esse fechamento de 4 horas.
-      </div>
+  Apostas abertas das 06:00 às 18:00. Mercado resolve às 23:00.
+</div>
     </div>
 
     <div class="modal-footer inline-modal-footer">
@@ -1229,12 +1303,12 @@ function createCard(market) {
     </div>
 
     <button
-      class="launch confirm-bet-btn js-confirm-bet-btn"
-      type="button"
-      ${(market.exists && Number(market.status) !== MarketStatus.OPEN) || marketIsClosedByTime(market) ? 'disabled' : ''}
-    >
-      ${market.exists ? 'Abrir posição' : 'Mercado pendente'}
-    </button>
+  class="launch confirm-bet-btn js-confirm-bet-btn"
+  type="button"
+  ${!canEnterMarketNow(market) ? 'disabled' : ''}
+>
+  ${canEnterMarketNow(market) ? 'Abrir posição' : 'Indisponível agora'}
+</button>
   `
 
   const amountInputEl = card.querySelector('.js-bet-amount-input')
@@ -1259,11 +1333,11 @@ function createCard(market) {
       return
     }
 
-    if (marketIsClosedByTime(market)) {
-      hintEl.textContent = 'Esse mercado já fechou para novas posições.'
-      confirmBtn.disabled = true
-      return
-    }
+    if (!canEnterMarketNow(market)) {
+  hintEl.textContent = getMarketEntryMessage(market)
+  confirmBtn.disabled = true
+  return
+}
 
     const amountUi = Number(String(amountInputEl.value || '').replace(',', '.'))
 
@@ -1278,9 +1352,7 @@ function createCard(market) {
 
       payoutEl.textContent = `Retorno estimado: ${formatNumber(projected.payout)} ${TOKEN_SYMBOL}`
       hintEl.textContent = `Lucro estimado: ${formatNumber(projected.profit)} ${TOKEN_SYMBOL}`
-      confirmBtn.disabled =
-        marketIsClosedByTime(market) ||
-        (market.exists && Number(market.status) !== MarketStatus.OPEN)
+      confirmBtn.disabled = !canEnterMarketNow(market)
     } catch (error) {
       payoutEl.textContent = 'Retorno estimado: --'
       hintEl.textContent = getFriendlyError(error)
@@ -1334,10 +1406,10 @@ function createCard(market) {
         return
       }
 
-      if (marketIsClosedByTime(market)) {
-        showAlert('Mercado fechado', 'Esse mercado já fechou.')
-        return
-      }
+      if (!canEnterMarketNow(market)) {
+  showAlert('Mercado indisponível', getMarketEntryMessage(market))
+  return
+}
 
       confirmBtn.disabled = true
 
