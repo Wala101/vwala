@@ -143,18 +143,30 @@ async function footballDataGetMatch(fixtureId, footballToken) {
 }
 
 async function getTrackedFixtureIds(contract, fromBlock) {
-  const events = await contract.queryFilter(
-    contract.filters.MarketCreated(),
-    fromBlock,
-    'latest'
-  )
+  const provider = contract.runner?.provider
 
+  if (!provider) {
+    throw new Error('Provider não encontrado no contrato.')
+  }
+
+  const latestBlock = await provider.getBlockNumber()
+  const step = 10
   const unique = new Set()
 
-  for (const event of events) {
-    const fixtureId = normalizeFixtureId(event?.args?.fixtureId?.toString?.() || '')
-    if (fixtureId) {
-      unique.add(fixtureId)
+  for (let start = Number(fromBlock); start <= latestBlock; start += step) {
+    const end = Math.min(start + step - 1, latestBlock)
+
+    const events = await contract.queryFilter(
+      contract.filters.MarketCreated(),
+      start,
+      end
+    )
+
+    for (const event of events) {
+      const fixtureId = normalizeFixtureId(event?.args?.fixtureId?.toString?.() || '')
+      if (fixtureId) {
+        unique.add(fixtureId)
+      }
     }
   }
 
@@ -225,6 +237,7 @@ export default async (request) => {
       operator: signer.address,
       bettingAddress,
       scanned: 0,
+      marketNotFoundOnChain: 0,
       skippedResolved: 0,
       waitingMatch: 0,
       closed: 0,
@@ -243,6 +256,8 @@ export default async (request) => {
         const exists = Boolean(marketState[0])
 
         if (!exists) {
+          summary.marketNotFoundOnChain += 1
+          summary.errors.push(`fixture ${fixtureId}: mercado não existe no contrato`)
           continue
         }
 
