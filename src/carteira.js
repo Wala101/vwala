@@ -373,10 +373,21 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
 }
 
 async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
-  const localVault = getLocalDeviceWallet()
+  if (walletProfile?.walletKeystoreCloud) {
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        walletProfile.walletKeystoreCloud,
+        buildCloudPassword(user)
+      )
 
-  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
-    return String(localVault.walletAddress).trim()
+      return String(unlockedWallet.address || '').trim()
+    } catch (error) {
+      console.error('Erro ao resolver wallet pelo keystore cloud:', error)
+    }
+  }
+
+  if (walletProfile?.walletAddress) {
+    return String(walletProfile.walletAddress).trim()
   }
 
   try {
@@ -395,20 +406,13 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
     console.error('Erro ao ler vwala_wallet_profile local:', error)
   }
 
-  if (walletProfile?.walletKeystoreCloud) {
-    try {
-      const unlockedWallet = await Wallet.fromEncryptedJson(
-        walletProfile.walletKeystoreCloud,
-        buildCloudPassword(user)
-      )
+  const localVault = getLocalDeviceWallet()
 
-      return String(unlockedWallet.address || '').trim()
-    } catch (error) {
-      console.error('Erro ao resolver wallet pelo keystore cloud:', error)
-    }
+  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
+    return String(localVault.walletAddress).trim()
   }
 
-  return String(walletProfile?.walletAddress || '').trim()
+  return ''
 }
 
 async function syncResolvedWalletAddress(user, walletProfile = {}) {
