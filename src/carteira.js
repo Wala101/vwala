@@ -40,8 +40,7 @@ const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
 
 const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
-const VWALA_SWAP_ADDRESS = '0xFc9fAE4e63810E50f3Ddc6Fc938568f3a2D63c35'
-const VWALA_SELL_ADDRESS = '0x7EA586C8f94F352b277A1C9006A05A5EA5600668'
+const VWALA_POOL_ADDRESS = '0x5c950A2FA20A48DDcb4952910e550Ac59fd21AF7'
 const POL_GAS_RESERVE = '0.05'
 const CARTEIRA_BUILD_TAG = 'carteira-debug-2026-04-18-01'
 
@@ -53,13 +52,11 @@ function maskRpcUrl(url = '') {
     .replace(/([?&](?:api[-_]?key|key)=)[^&]+/i, '$1***')
 }
 
-const VWALA_SWAP_ABI = [
+const VWALA_POOL_ABI = [
+  
   'function buy() payable returns (uint256)',
-  'function quote(uint256 polAmountWei) view returns (uint256)'
-]
-
-const VWALA_SELL_ABI = [
   'function sell(uint256 vwalaAmount) returns (uint256)',
+  'function quoteBuy(uint256 polAmountWei) view returns (uint256)',
   'function quoteSell(uint256 vwalaAmount) view returns (uint256)'
 ]
 
@@ -990,11 +987,11 @@ async function handleBuyVWala() {
     )
 
     const provider = new JsonRpcProvider(POLYGON_RPC_URL)
-    const swapContract = new Contract(
-      VWALA_SWAP_ADDRESS,
-      VWALA_SWAP_ABI,
-      provider
-    )
+    const poolContract = new Contract(
+  VWALA_POOL_ADDRESS,
+  VWALA_POOL_ABI,
+  provider
+)
 
     const tokenContract = new Contract(
       VWALA_TOKEN_ADDRESS,
@@ -1010,7 +1007,7 @@ async function handleBuyVWala() {
       decimals = 18
     }
 
-    const quotedAmount = await swapContract.quote(amountWei)
+const quotedAmount = await poolContract.quoteBuy(amountWei)
     quotedFormatted = formatUnits(quotedAmount, decimals)
 
     hideLoadingModal()
@@ -1098,17 +1095,17 @@ async function handleBuyVWala() {
       { merge: true }
     )
 
-    const swapContract = new Contract(
-      VWALA_SWAP_ADDRESS,
-      VWALA_SWAP_ABI,
-      signer
-    )
+    const poolContract = new Contract(
+  VWALA_POOL_ADDRESS,
+  VWALA_POOL_ABI,
+  signer
+)
 
     const liveBalanceWei = await provider.getBalance(signer.address)
     const feeData = await provider.getFeeData()
-    const gasEstimate = await swapContract.buy.estimateGas({
-      value: amountWei
-    })
+    const gasEstimate = await poolContract.buy.estimateGas({
+  value: amountWei
+})
     const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n
     const estimatedFeeWei = gasEstimate * gasPrice
     const gasReserveWei = parseEther(POL_GAS_RESERVE)
@@ -1123,9 +1120,9 @@ async function handleBuyVWala() {
       return
     }
 
-    const tx = await swapContract.buy({
-      value: amountWei
-    })
+    const tx = await poolContract.buy({
+  value: amountWei
+})
 
     showLoadingModal(
       'Confirmando na rede',
@@ -1225,11 +1222,11 @@ async function handleSellVWala() {
       provider
     )
 
-    const sellContract = new Contract(
-      VWALA_SELL_ADDRESS,
-      VWALA_SELL_ABI,
-      provider
-    )
+    const poolContract = new Contract(
+  VWALA_POOL_ADDRESS,
+  VWALA_POOL_ABI,
+  provider
+)
 
     try {
       decimals = Number(await tokenContract.decimals())
@@ -1239,7 +1236,7 @@ async function handleSellVWala() {
 
     amountUnits = parseUnits(normalizedAmount, decimals)
 
-    const quotedWei = await sellContract.quoteSell(amountUnits)
+const quotedWei = await poolContract.quoteSell(amountUnits)
     quotedFormatted = formatEther(quotedWei)
 
     hideLoadingModal()
@@ -1333,11 +1330,11 @@ async function handleSellVWala() {
       signer
     )
 
-    const sellContract = new Contract(
-      VWALA_SELL_ADDRESS,
-      VWALA_SELL_ABI,
-      signer
-    )
+    const poolContract = new Contract(
+  VWALA_POOL_ADDRESS,
+  VWALA_POOL_ABI,
+  signer
+)
 
     const tokenBalance = await tokenContract.balanceOf(signer.address)
 
@@ -1353,7 +1350,7 @@ async function handleSellVWala() {
 
     const allowance = await tokenContract.allowance(
       signer.address,
-      VWALA_SELL_ADDRESS
+VWALA_POOL_ADDRESS
     )
 
     const feeData = await provider.getFeeData()
@@ -1363,12 +1360,12 @@ async function handleSellVWala() {
 
     if (allowance < amountUnits) {
       approveGasEstimate = await tokenContract.approve.estimateGas(
-        VWALA_SELL_ADDRESS,
-        amountUnits
-      )
+  VWALA_POOL_ADDRESS,
+  amountUnits
+)
     }
 
-    const sellGasEstimate = await sellContract.sell.estimateGas(amountUnits)
+const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
     const estimatedFeeWei = (approveGasEstimate + sellGasEstimate) * gasPrice
     const liveBalanceWei = await provider.getBalance(signer.address)
 
@@ -1389,9 +1386,9 @@ async function handleSellVWala() {
       )
 
       const approveTx = await tokenContract.approve(
-        VWALA_SELL_ADDRESS,
-        amountUnits
-      )
+  VWALA_POOL_ADDRESS,
+  amountUnits
+)
 
       await approveTx.wait()
     }
@@ -1401,7 +1398,7 @@ async function handleSellVWala() {
       'Aguarde a confirmação da venda na Polygon.'
     )
 
-    const tx = await sellContract.sell(amountUnits)
+const tx = await poolContract.sell(amountUnits)
 
     await tx.wait()
 
