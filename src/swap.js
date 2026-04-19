@@ -167,6 +167,70 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
   return localVault
 }
 
+async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
+  if (walletProfile?.walletKeystoreCloud) {
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        walletProfile.walletKeystoreCloud,
+        buildCloudPassword(user)
+      )
+
+      return String(unlockedWallet.address || '').trim()
+    } catch (error) {
+      console.error('Erro ao resolver wallet pelo keystore cloud:', error)
+    }
+  }
+
+  const localVault = getLocalDeviceWallet()
+
+  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
+    return String(localVault.walletAddress).trim()
+  }
+
+  return String(walletProfile?.walletAddress || '').trim()
+}
+
+async function syncResolvedWalletAddress(user, walletProfile = {}) {
+  const resolvedWalletAddress = await resolveAuthoritativeWalletAddress(user, walletProfile)
+
+  if (!resolvedWalletAddress) {
+    return walletProfile
+  }
+
+  const storedWalletAddress = String(walletProfile?.walletAddress || '').trim()
+
+  if (
+    !storedWalletAddress ||
+    storedWalletAddress.toLowerCase() !== resolvedWalletAddress.toLowerCase()
+  ) {
+    await setDoc(
+      doc(db, 'users', user.uid),
+      {
+        walletAddress: resolvedWalletAddress,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  }
+
+  currentWalletAddress = resolvedWalletAddress
+
+  localStorage.setItem(
+    'vwala_wallet_profile',
+    JSON.stringify({
+      uid: user.uid,
+      walletAddress: resolvedWalletAddress,
+      chainId: walletProfile.chainId || POLYGON_CHAIN_ID,
+      network: walletProfile.network || 'polygon'
+    })
+  )
+
+  return {
+    ...walletProfile,
+    walletAddress: resolvedWalletAddress
+  }
+}
+
 function getMaxBuyAmount() {
   const userAvailable = Number(swapState.polBalance || 0) - Number(POL_GAS_RESERVE)
   const poolAvailable = Number(swapState.poolInventory || 0)
@@ -835,21 +899,10 @@ async function ensureUserWalletProfile(user) {
 
   if (userSnap.exists()) {
     const userData = userSnap.data()
+    const normalizedUserData = await syncResolvedWalletAddress(user, userData)
 
-    currentWalletAddress = userData.walletAddress || ''
-
-    localStorage.setItem(
-      'vwala_wallet_profile',
-      JSON.stringify({
-        uid: user.uid,
-        walletAddress: currentWalletAddress,
-        chainId: userData.chainId || POLYGON_CHAIN_ID,
-        network: userData.network || 'polygon'
-      })
-    )
-
-    await ensureDeviceWalletAccess(user, userData)
-    return userData
+    await ensureDeviceWalletAccess(user, normalizedUserData)
+    return normalizedUserData
   }
 
   const pin = await promptCreateDevicePin()
@@ -1074,7 +1127,8 @@ async function handleBuyVWala() {
     await tx.wait()
 
     hideLoadingModal()
-    await loadSwapData(currentWalletAddress)
+    currentWalletAddress = signer.address
+    await loadSwapData(signer.address)
 
     document.getElementById('swapAmountInput').value = ''
 
@@ -1338,8 +1392,8 @@ async function initFirebaseAuthGate() {
           const walletProfile = await ensureUserWalletProfile(user)
 
           if (walletProfile?.walletAddress) {
-            currentWalletAddress = walletProfile.walletAddress
-            await loadSwapData(walletProfile.walletAddress)
+            currentWalletAddress = String(walletProfile.walletAddress || '').trim()
+            await loadSwapData(currentWalletAddress)
           } else {
             await loadSwapData('')
           }
