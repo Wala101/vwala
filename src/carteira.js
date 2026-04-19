@@ -2286,11 +2286,24 @@ async function ensureUserWalletProfile(user) {
 
   if (userSnap.exists()) {
     const userData = userSnap.data()
-    const normalizedUserData = await syncResolvedWalletAddress(user, userData)
 
-    await ensureDeviceWalletAccess(user, normalizedUserData)
+    currentWalletAddress = String(userData.walletAddress || '').trim()
+    updateWalletAddressUI(currentWalletAddress)
 
-    return normalizedUserData
+    localStorage.setItem(
+      'vwala_wallet_profile',
+      JSON.stringify({
+        uid: user.uid,
+        walletAddress: currentWalletAddress,
+        chainId: userData.chainId || POLYGON_CHAIN_ID,
+        network: userData.network || 'polygon'
+      })
+    )
+
+    return {
+      ...userData,
+      walletAddress: currentWalletAddress
+    }
   }
 
   const pin = await promptCreateDevicePin()
