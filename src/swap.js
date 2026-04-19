@@ -182,13 +182,33 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
     }
   }
 
+  if (walletProfile?.walletAddress) {
+    return String(walletProfile.walletAddress).trim()
+  }
+
+  try {
+    const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
+    if (rawWalletProfile) {
+      const parsedWalletProfile = JSON.parse(rawWalletProfile)
+
+      if (
+        parsedWalletProfile?.uid === user?.uid &&
+        parsedWalletProfile?.walletAddress
+      ) {
+        return String(parsedWalletProfile.walletAddress).trim()
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao ler vwala_wallet_profile local:', error)
+  }
+
   const localVault = getLocalDeviceWallet()
 
   if (localVault?.uid === user?.uid && localVault?.walletAddress) {
     return String(localVault.walletAddress).trim()
   }
 
-  return String(walletProfile?.walletAddress || '').trim()
+  return ''
 }
 
 async function syncResolvedWalletAddress(user, walletProfile = {}) {
@@ -1392,8 +1412,14 @@ async function initFirebaseAuthGate() {
         try {
           const walletProfile = await ensureUserWalletProfile(user)
 
-          if (walletProfile?.walletAddress) {
-            currentWalletAddress = String(walletProfile.walletAddress || '').trim()
+          const walletAddressToLoad = String(
+            currentWalletAddress ||
+            walletProfile?.walletAddress ||
+            ''
+          ).trim()
+
+          if (walletAddressToLoad) {
+            currentWalletAddress = walletAddressToLoad
             await loadSwapData(currentWalletAddress)
           } else {
             await loadSwapData('')
