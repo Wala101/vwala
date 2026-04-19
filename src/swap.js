@@ -179,13 +179,13 @@ function selectStableVWalaProbe(probes = []) {
   })
 
   const groups = [...groupedMap.values()].sort((a, b) => {
-    if (b.count !== a.count) {
-      return b.count - a.count
-    }
-
     const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
     if (balanceCompare !== 0) {
       return balanceCompare
+    }
+
+    if (b.count !== a.count) {
+      return b.count - a.count
     }
 
     return b.maxBlock - a.maxBlock
@@ -202,11 +202,9 @@ function selectStableVWalaProbe(probes = []) {
     return String(a.source || '').localeCompare(String(b.source || ''))
   })[0]
 
-  let selectionReason = 'majority'
-
-  if (selectedGroup.count === 1 && groups.length > 1) {
-    selectionReason = 'lowest_balance_tiebreak'
-  }
+  const selectionReason = groups.length === 1
+    ? 'unanimous'
+    : 'lowest_balance_wins'
 
   return {
     selectedProbe,
