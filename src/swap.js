@@ -311,23 +311,6 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
   const userUid = String(user?.uid || '').trim()
 
   try {
-    const localVault = getLocalDeviceWallet()
-
-    if (localVault?.uid === userUid && localVault?.walletAddress) {
-      const resolvedAddress = String(localVault.walletAddress).trim()
-
-      console.log('[SWAP WALLET RESOLUTION]', {
-        source: 'vwala_device_wallet',
-        walletAddress: resolvedAddress
-      })
-
-      return resolvedAddress
-    }
-  } catch (error) {
-    console.error('Erro ao ler carteira local do aparelho:', error)
-  }
-
-  try {
     const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
 
     if (rawWalletProfile) {
@@ -380,6 +363,23 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
     })
 
     return resolvedAddress
+  }
+
+  try {
+    const localVault = getLocalDeviceWallet()
+
+    if (localVault?.uid === userUid && localVault?.walletAddress) {
+      const resolvedAddress = String(localVault.walletAddress).trim()
+
+      console.log('[SWAP WALLET RESOLUTION]', {
+        source: 'vwala_device_wallet',
+        walletAddress: resolvedAddress
+      })
+
+      return resolvedAddress
+    }
+  } catch (error) {
+    console.error('Erro ao ler carteira local do aparelho:', error)
   }
 
   console.log('[SWAP WALLET RESOLUTION]', {
@@ -595,12 +595,18 @@ async function loadSwapData(walletAddress = '') {
       }
 
       nextState.polBalance = formatEther(polBalanceRaw)
-      nextState.vwalaBalance = vwalaRead.formattedBalanceText
-      nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
+nextState.vwalaBalance = vwalaRead.formattedBalanceText
+nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
 
-      console.groupCollapsed(`[SWAP_VWALA_BALANCE_READ_${readId}]`)
-      console.log('selected_balance_read', vwalaRead)
-      console.groupEnd()
+console.groupCollapsed(`[SWAP_VWALA_BALANCE_READ_${readId}]`)
+console.log('selected_balance_read', vwalaRead)
+console.log('swap_wallet_context', {
+  currentWalletAddress,
+  walletAddress,
+  vwalaBalance: nextState.vwalaBalance,
+  redeemableNow: nextState.redeemableNow
+})
+console.groupEnd()
     }
 
     if (requestId !== swapDataLoadCounter) {
