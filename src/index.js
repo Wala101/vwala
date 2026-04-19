@@ -6,7 +6,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { Contract, JsonRpcProvider, formatUnits } from 'ethers'
+import { Contract, Interface, JsonRpcProvider, formatUnits } from 'ethers'
 
 const app = document.querySelector('#app')
 
@@ -24,6 +24,170 @@ const ERC20_ABI = [
   'function balanceOf(address account) view returns (uint256)',
   'function decimals() view returns (uint8)'
 ]
+
+const ERC20_INTERFACE = new Interface(ERC20_ABI)
+let balanceReadCounter = 0
+
+function getWalletDebugSnapshot() {
+  const currentUid = getCurrentSessionUid()
+
+  let deviceWallet = null
+  let profileWallet = null
+
+  try {
+    const rawDeviceWallet = localStorage.getItem('vwala_device_wallet')
+    deviceWallet = rawDeviceWallet ? JSON.parse(rawDeviceWallet) : null
+  } catch (error) {
+    console.error('Erro ao ler vwala_device_wallet:', error)
+  }
+
+  try {
+    const rawProfile = localStorage.getItem('vwala_wallet_profile')
+    profileWallet = rawProfile ? JSON.parse(rawProfile) : null
+  } catch (error) {
+    console.error('Erro ao ler vwala_wallet_profile:', error)
+  }
+
+  const deviceUid = String(deviceWallet?.uid || '').trim()
+  const profileUid = String(profileWallet?.uid || '').trim()
+
+  const deviceWalletAddress = String(
+    deviceWallet?.walletAddress ||
+    deviceWallet?.address ||
+    deviceWallet?.wallet_address ||
+    ''
+  ).trim()
+
+  const profileWalletAddress = String(
+    profileWallet?.walletAddress ||
+    profileWallet?.address ||
+    profileWallet?.wallet_address ||
+    ''
+  ).trim()
+
+  let resolvedSource = 'none'
+  let resolvedWalletAddress = ''
+
+  if (
+    deviceWalletAddress &&
+    (!currentUid || !deviceUid || deviceUid === currentUid)
+  ) {
+    resolvedSource = 'vwala_device_wallet'
+    resolvedWalletAddress = deviceWalletAddress
+  } else if (
+    profileWalletAddress &&
+    (!currentUid || !profileUid || profileUid === currentUid)
+  ) {
+    resolvedSource = 'vwala_wallet_profile'
+    resolvedWalletAddress = profileWalletAddress
+  }
+
+  return {
+    currentUid,
+    deviceUid,
+    deviceWalletAddress,
+    profileUid,
+    profileWalletAddress,
+    resolvedSource,
+    resolvedWalletAddress
+  }
+}
+
+function createRpcProbeUrl(label) {
+  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+  url.searchParams.set('_ts', String(Date.now()))
+  url.searchParams.set('_probe', label)
+  return url.toString()
+}
+
+async function rpcCallNoStore(rpcUrl, method, params, label) {
+  const response = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-cache, no-store, max-age=0',
+      pragma: 'no-cache',
+      expires: '0'
+    },
+    cache: 'no-store',
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: `${Date.now()}_${label}_${Math.random().toString(16).slice(2)}`,
+      method,
+      params
+    })
+  })
+
+  const payload = await response.json()
+
+  if (!response.ok || payload?.error) {
+    throw new Error(payload?.error?.message || `Falha RPC em ${method}`)
+  }
+
+  return payload.result
+}
+
+async function readBalanceViaNoStore(walletAddress, label) {
+  const rpcUrl = createRpcProbeUrl(label)
+
+  const balanceData = ERC20_INTERFACE.encodeFunctionData('balanceOf', [walletAddress])
+  const decimalsData = ERC20_INTERFACE.encodeFunctionData('decimals', [])
+
+  const [blockHex, rawBalanceHex, decimalsHex] = await Promise.all([
+    rpcCallNoStore(rpcUrl, 'eth_blockNumber', [], `${label}_block`),
+    rpcCallNoStore(
+      rpcUrl,
+      'eth_call',
+      [{ to: VWALA_TOKEN_ADDRESS, data: balanceData }, 'latest'],
+      `${label}_balance`
+    ),
+    rpcCallNoStore(
+      rpcUrl,
+      'eth_call',
+      [{ to: VWALA_TOKEN_ADDRESS, data: decimalsData }, 'latest'],
+      `${label}_decimals`
+    )
+  ])
+
+  const [rawBalance] = ERC20_INTERFACE.decodeFunctionResult('balanceOf', rawBalanceHex)
+  const [decimals] = ERC20_INTERFACE.decodeFunctionResult('decimals', decimalsHex)
+
+  const blockNumber = Number(BigInt(blockHex))
+  const decimalsNumber = Number(decimals)
+  const formattedBalance = Number(formatUnits(rawBalance, decimalsNumber))
+
+  return {
+    source: label,
+    walletAddress,
+    blockNumber,
+    rawBalance: rawBalance.toString(),
+    decimals: decimalsNumber,
+    formattedBalance,
+    rpcUrl
+  }
+}
+
+async function readBalanceViaEthers(walletAddress, label) {
+  const rpcUrl = createRpcProbeUrl(label)
+  const provider = new JsonRpcProvider(rpcUrl)
+  const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_ABI, provider)
+
+  const [blockNumber, rawBalance, decimals] = await Promise.all([
+    provider.getBlockNumber(),
+    tokenContract.balanceOf(walletAddress),
+    tokenContract.decimals()
+  ])
+
+  return {
+    source: label,
+    walletAddress,
+    blockNumber: Number(blockNumber),
+    rawBalance: rawBalance.toString(),
+    decimals: Number(decimals),
+    formattedBalance: Number(formatUnits(rawBalance, decimals)),
+    rpcUrl
+  }
+}
 
 function getCurrentSessionUid() {
   const runtimeUid = String(currentFirebaseUser?.uid || '').trim()
@@ -109,31 +273,54 @@ function setConnectButtonText(text) {
 }
 
 async function loadUserTokenBalance() {
+  const readId = ++balanceReadCounter
+  const groupLabel = `[VWALA_BALANCE_READ_${readId}]`
+
+  console.groupCollapsed(groupLabel)
+
   try {
     const walletAddress = getCurrentWalletAddress()
+    const walletDebug = getWalletDebugSnapshot()
+
+    console.log('wallet_resolution', walletDebug)
 
     if (!walletAddress) {
-      setConnectButtonText(`Sem carteira`)
+      setConnectButtonText('Sem carteira')
+      console.warn('Nenhuma carteira ativa resolvida.')
       return
     }
 
     setConnectButtonText('Carregando saldo...')
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
-    const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_ABI, provider)
+    const probeA = await readBalanceViaNoStore(walletAddress, `rpc_no_store_a_${readId}`)
+    console.log('balance_probe_a', probeA)
 
-    const [rawBalance, decimals] = await Promise.all([
-      tokenContract.balanceOf(walletAddress),
-      tokenContract.decimals()
-    ])
+    const probeB = await readBalanceViaNoStore(walletAddress, `rpc_no_store_b_${readId}`)
+    console.log('balance_probe_b', probeB)
 
-    const formattedBalance = Number(formatUnits(rawBalance, decimals))
+    const probeEthers = await readBalanceViaEthers(walletAddress, `ethers_provider_${readId}`)
+    console.log('balance_probe_ethers', probeEthers)
 
-    setConnectButtonText(formatTokenBalance(formattedBalance))
-    console.log(`Saldo ${TOKEN_SYMBOL} da carteira ${walletAddress}:`, formattedBalance)
+    const candidates = [probeA, probeB, probeEthers]
+    const distinctRawBalances = [...new Set(candidates.map((item) => item.rawBalance))]
+
+    if (distinctRawBalances.length > 1) {
+      console.warn('VWALA balance mismatch detected', candidates)
+    }
+
+    const selectedRead = [...candidates].sort((a, b) => {
+      const blockDiff = Number(b.blockNumber || 0) - Number(a.blockNumber || 0)
+      if (blockDiff !== 0) return blockDiff
+      return String(a.source).localeCompare(String(b.source))
+    })[0]
+
+    setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
+    console.log('selected_balance_read', selectedRead)
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
+  } finally {
+    console.groupEnd()
   }
 }
 
