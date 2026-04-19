@@ -24,6 +24,8 @@ const walletState = {
 
 let currentGoogleUser = null
 let currentWalletAddress = ''
+let polygonBalanceLoadCounter = 0
+let vwalaBalanceLoadCounter = 0
 
 const modalState = {
   resolve: null,
@@ -50,6 +52,17 @@ function maskRpcUrl(url = '') {
   return String(url || '')
     .replace(/(\/v2\/)[^/?#]+/i, '$1***')
     .replace(/([?&](?:api[-_]?key|key)=)[^&]+/i, '$1***')
+}
+
+function createRpcProbeUrl(label = 'carteira_runtime') {
+  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+  url.searchParams.set('_ts', String(Date.now()))
+  url.searchParams.set('_probe', label)
+  return url.toString()
+}
+
+function getRpcProvider(label = 'carteira_runtime') {
+  return new JsonRpcProvider(createRpcProbeUrl(label))
 }
 
 const VWALA_POOL_ABI = [
@@ -139,25 +152,45 @@ function updateVWalaBalanceUI(value = '0') {
 }
 
 async function loadPolygonBalance(walletAddress) {
+  const requestId = ++polygonBalanceLoadCounter
+
   try {
     if (!walletAddress) return
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider(`carteira_pol_balance_${requestId}`)
     const balanceWei = await provider.getBalance(walletAddress)
     const balanceFormatted = formatEther(balanceWei)
 
+    if (requestId !== polygonBalanceLoadCounter) {
+      return
+    }
+
     updatePolygonBalanceUI(balanceFormatted)
+
+    console.log('[POL BALANCE READ]', {
+      build: CARTEIRA_BUILD_TAG,
+      walletAddress,
+      balanceFormatted
+    })
   } catch (error) {
     console.error('Erro ao carregar saldo POL:', error)
-    updatePolygonBalanceUI('0')
+
+    if (requestId === polygonBalanceLoadCounter) {
+      updatePolygonBalanceUI('0')
+    }
   }
 }
 
 async function loadVWalaBalance(walletAddress) {
+  const requestId = ++vwalaBalanceLoadCounter
+  const groupLabel = `[CARTEIRA_VWALA_BALANCE_READ_${requestId}]`
+
+  console.groupCollapsed(groupLabel)
+
   try {
     if (!walletAddress) return
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider(`carteira_vwala_balance_${requestId}`)
     const network = await provider.getNetwork()
     const chainId = Number(network.chainId)
 
@@ -171,32 +204,42 @@ async function loadVWalaBalance(walletAddress) {
       provider
     )
 
-    let decimals = 18
+    const [blockNumber, decimalsRaw, balanceRaw] = await Promise.all([
+      provider.getBlockNumber(),
+      tokenContract.decimals().catch(() => 18),
+      tokenContract.balanceOf(walletAddress)
+    ])
 
-    try {
-      decimals = Number(await tokenContract.decimals())
-    } catch (error) {
-      decimals = 18
+    if (requestId !== vwalaBalanceLoadCounter) {
+      console.warn('Leitura antiga descartada.', { requestId, activeRequestId: vwalaBalanceLoadCounter })
+      return
     }
 
-    const balance = await tokenContract.balanceOf(walletAddress)
-    const balanceFormatted = formatUnits(balance, decimals)
+    const decimals = Number(decimalsRaw || 18)
+    const balanceFormatted = formatUnits(balanceRaw, decimals)
 
-    console.log('[vWALA BALANCE READ]', {
+    console.log('selected_balance_read', {
       build: CARTEIRA_BUILD_TAG,
-      rpcUrl: maskRpcUrl(POLYGON_RPC_URL),
+      source: `ethers_provider_${requestId}`,
+      rpcUrl: maskRpcUrl(createRpcProbeUrl(`carteira_vwala_balance_${requestId}`)),
       chainId,
+      blockNumber: Number(blockNumber),
       walletAddress,
       tokenAddress: VWALA_TOKEN_ADDRESS,
       decimals,
-      balanceRaw: balance.toString(),
+      balanceRaw: balanceRaw.toString(),
       balanceFormatted
     })
 
     updateVWalaBalanceUI(balanceFormatted)
   } catch (error) {
     console.error('Erro ao carregar saldo vWALA:', error)
-    updateVWalaBalanceUI('0')
+
+    if (requestId === vwalaBalanceLoadCounter) {
+      updateVWalaBalanceUI('0')
+    }
+  } finally {
+    console.groupEnd()
   }
 }
 
@@ -793,7 +836,7 @@ async function handleSendPolygon() {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_send_pol')
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -990,7 +1033,7 @@ async function handleBuyVWala() {
       'Consultando o contrato para calcular quanto vWALA você vai receber.'
     )
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_quote_buy')
     const poolContract = new Contract(
   VWALA_POOL_ADDRESS,
   VWALA_POOL_ABI,
@@ -1071,7 +1114,7 @@ const quotedAmount = await poolContract.quoteBuy(amountWei)
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_exec_buy')
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1219,7 +1262,7 @@ async function handleSellVWala() {
       'Consultando o contrato para calcular quanto POL você vai receber.'
     )
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_quote_sell')
     const tokenContract = new Contract(
       VWALA_TOKEN_ADDRESS,
       ERC20_TOKEN_ABI,
@@ -1300,7 +1343,7 @@ const quotedWei = await poolContract.quoteSell(amountUnits)
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_exec_sell')
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1675,7 +1718,7 @@ async function handleSendCreatedToken(token) {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
+    const provider = getRpcProvider('carteira_send_token')
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
