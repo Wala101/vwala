@@ -388,6 +388,68 @@ function normalizeMarketProbabilities(match = {}) {
   }
 }
 
+function getKickoffDate(match = {}) {
+  const rawValue =
+    match.utcDate ||
+    match.kickoffAt ||
+    match.matchDate ||
+    match.startsAt ||
+    match.date ||
+    ''
+
+  if (!rawValue) {
+    return null
+  }
+
+  const parsed = new Date(rawValue)
+
+  if (!Number.isFinite(parsed.getTime())) {
+    return null
+  }
+
+  return parsed
+}
+
+function getKickoffLabel(match = {}) {
+  const kickoffDate = getKickoffDate(match)
+
+  if (!kickoffDate) {
+    return match.time || 'Em breve'
+  }
+
+  return kickoffDate.toLocaleString('pt-BR', {
+    dateStyle: 'short',
+    timeStyle: 'short'
+  })
+}
+
+function getLeaguePriority(match = {}) {
+  const league = String(match.league || '').toLowerCase()
+
+  if (league.includes('brasileir')) return 0
+  if (league.includes('premier')) return 1
+  return 2
+}
+
+function sortMatchesForDisplay(matches = []) {
+  return [...matches].sort((a, b) => {
+    const leagueDiff = getLeaguePriority(a) - getLeaguePriority(b)
+
+    if (leagueDiff !== 0) {
+      return leagueDiff
+    }
+
+    const aKickoff = getKickoffDate(a)?.getTime() ?? Number.MAX_SAFE_INTEGER
+    const bKickoff = getKickoffDate(b)?.getTime() ?? Number.MAX_SAFE_INTEGER
+
+    if (aKickoff !== bKickoff) {
+      return aKickoff - bKickoff
+    }
+
+    return String(a.teamA || '').localeCompare(String(b.teamA || ''), 'pt-BR')
+  })
+}
+
 function getBettingErrorName(error) {
   const candidates = [
     error?.data,
@@ -820,17 +882,16 @@ async function loadMatches() {
     const baseMatches = loadCouponsForMatches(rawMatches)
 
     if (!state.betting) {
-      state.matches = baseMatches
+      state.matches = sortMatchesForDisplay(baseMatches)
       renderMatches()
       return
     }
-
     const hydrated = []
     for (const match of baseMatches) {
       hydrated.push(await hydrateMatch(match))
     }
 
-    state.matches = loadCouponsForMatches(hydrated)
+    state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
     await refreshAllPositions()
     renderMatches()
   } catch (error) {
@@ -1083,7 +1144,7 @@ function createCard(match) {
         </div>
       </div>
 
-      <div class="match-time">${match.time || 'Em breve'}</div>
+      <div class="match-time">${getKickoffLabel(match)}</div>
     </div>
 
     <div class="stats-grid inline-stats-grid">
