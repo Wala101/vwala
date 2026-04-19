@@ -202,6 +202,49 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
 }
 
 async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
+  const userUid = String(user?.uid || '').trim()
+
+  try {
+    const localVault = getLocalDeviceWallet()
+
+    if (localVault?.uid === userUid && localVault?.walletAddress) {
+      const resolvedAddress = String(localVault.walletAddress).trim()
+
+      console.log('[SWAP WALLET RESOLUTION]', {
+        source: 'vwala_device_wallet',
+        walletAddress: resolvedAddress
+      })
+
+      return resolvedAddress
+    }
+  } catch (error) {
+    console.error('Erro ao ler carteira local do aparelho:', error)
+  }
+
+  try {
+    const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
+
+    if (rawWalletProfile) {
+      const parsedWalletProfile = JSON.parse(rawWalletProfile)
+
+      if (
+        parsedWalletProfile?.uid === userUid &&
+        parsedWalletProfile?.walletAddress
+      ) {
+        const resolvedAddress = String(parsedWalletProfile.walletAddress).trim()
+
+        console.log('[SWAP WALLET RESOLUTION]', {
+          source: 'vwala_wallet_profile',
+          walletAddress: resolvedAddress
+        })
+
+        return resolvedAddress
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao ler vwala_wallet_profile local:', error)
+  }
+
   if (walletProfile?.walletKeystoreCloud) {
     try {
       const unlockedWallet = await Wallet.fromEncryptedJson(
@@ -209,37 +252,34 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
         buildCloudPassword(user)
       )
 
-      return String(unlockedWallet.address || '').trim()
+      const resolvedAddress = String(unlockedWallet.address || '').trim()
+
+      console.log('[SWAP WALLET RESOLUTION]', {
+        source: 'walletKeystoreCloud',
+        walletAddress: resolvedAddress
+      })
+
+      return resolvedAddress
     } catch (error) {
       console.error('Erro ao resolver wallet pelo keystore cloud:', error)
     }
   }
 
   if (walletProfile?.walletAddress) {
-    return String(walletProfile.walletAddress).trim()
+    const resolvedAddress = String(walletProfile.walletAddress).trim()
+
+    console.log('[SWAP WALLET RESOLUTION]', {
+      source: 'firestore_walletAddress',
+      walletAddress: resolvedAddress
+    })
+
+    return resolvedAddress
   }
 
-  try {
-    const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
-    if (rawWalletProfile) {
-      const parsedWalletProfile = JSON.parse(rawWalletProfile)
-
-      if (
-        parsedWalletProfile?.uid === user?.uid &&
-        parsedWalletProfile?.walletAddress
-      ) {
-        return String(parsedWalletProfile.walletAddress).trim()
-      }
-    }
-  } catch (error) {
-    console.error('Erro ao ler vwala_wallet_profile local:', error)
-  }
-
-  const localVault = getLocalDeviceWallet()
-
-  if (localVault?.uid === user?.uid && localVault?.walletAddress) {
-    return String(localVault.walletAddress).trim()
-  }
+  console.log('[SWAP WALLET RESOLUTION]', {
+    source: 'none',
+    walletAddress: ''
+  })
 
   return ''
 }
@@ -1474,13 +1514,19 @@ async function initFirebaseAuthGate() {
           const walletProfile = await ensureUserWalletProfile(user)
 
           const walletAddressToLoad = String(
-            currentWalletAddress ||
             walletProfile?.walletAddress ||
+            currentWalletAddress ||
             ''
           ).trim()
 
           if (walletAddressToLoad) {
             currentWalletAddress = walletAddressToLoad
+
+            console.log('[SWAP LOAD ADDRESS]', {
+              currentWalletAddress,
+              firestoreWalletAddress: walletProfile?.walletAddress || ''
+            })
+
             await loadSwapData(currentWalletAddress)
           } else {
             await loadSwapData('')
