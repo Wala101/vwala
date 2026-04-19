@@ -193,3 +193,54 @@
     transform: rotate(360deg);
   }
 }
+
+#appLoadingModal.active {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(0, 0, 0, 0.72) !important;
+}
+
+#appLoadingModal .notice-modal-card {
+  width: min(92vw, 380px) !important;
+  max-width: 380px !important;
+  margin: 0 auto !important;
+  border-radius: 18px !important;
+  background: #0f0f17 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+#appLoadingModal .app-loading-body {
+  min-height: 180px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  text-align: center !important;
+}
+
+#appLoadingModal .app-loading-spinner {
+  display: block !important;
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  margin: 0 auto 8px !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: 4px solid rgba(37, 255, 138, 0.14) !important;
+  border-top: 4px solid #25ff8a !important;
+  border-right: 4px solid #25ff8a !important;
+  box-shadow: 0 0 18px rgba(37, 255, 138, 0.12) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  animation: appLoadingSpin 0.75s linear infinite !important;
+}
+
+@keyframes appLoadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
