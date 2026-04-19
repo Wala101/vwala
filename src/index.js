@@ -158,9 +158,9 @@ app.innerHTML = `
           </div>
         </div>
 
-        <div id="connectBtn" class="connect" aria-live="polite">
+        <button id="connectBtn" class="connect" type="button">
   Carregando saldo...
-</div>
+</button>
       </header>
 
 
