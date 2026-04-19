@@ -47,6 +47,8 @@ const swapState = {
 
 let currentGoogleUser = null
 let currentWalletAddress = ''
+let swapDataLoadCounter = 0
+let vwalaBalanceReadCounter = 0
 
 const modalState = {
   resolve: null,
@@ -112,8 +114,39 @@ function buildCloudPassword(user) {
   return `${CLOUD_PASSWORD_SALT}:${user.uid}`
 }
 
-function getProvider() {
-  return new JsonRpcProvider(POLYGON_RPC_URL)
+function createRpcProbeUrl(label = 'swap_runtime') {
+  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+  url.searchParams.set('_ts', String(Date.now()))
+  url.searchParams.set('_probe', label)
+  return url.toString()
+}
+
+function getProvider(label = 'swap_runtime') {
+  return new JsonRpcProvider(createRpcProbeUrl(label))
+}
+
+async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_balance') {
+  const provider = getProvider(label)
+  const tokenContract = getTokenContract(provider)
+
+  const [blockNumber, rawBalance, decimals] = await Promise.all([
+    provider.getBlockNumber(),
+    tokenContract.balanceOf(walletAddress),
+    tokenContract.decimals()
+  ])
+
+  const decimalsNumber = Number(decimals)
+  const formattedBalanceText = formatUnits(rawBalance, decimalsNumber)
+
+  return {
+    source: label,
+    walletAddress,
+    blockNumber: Number(blockNumber),
+    rawBalance: rawBalance.toString(),
+    decimals: decimalsNumber,
+    formattedBalance: Number(formattedBalanceText),
+    formattedBalanceText
+  }
 }
 
 function getPoolContract(providerOrSigner) {
@@ -376,36 +409,64 @@ function updateDashboardUI() {
 }
 
 async function loadSwapData(walletAddress = '') {
+  const requestId = ++swapDataLoadCounter
+  const readId = ++vwalaBalanceReadCounter
+
   try {
-    const provider = getProvider()
+    const provider = getProvider(`swap_data_${requestId}`)
     const poolContract = getPoolContract(provider)
     const tokenContract = getTokenContract(provider)
 
     const [decimalsRaw, reserveRaw, inventoryRaw] = await Promise.all([
-  tokenContract.decimals(),
-  poolContract.reservePOL(),
-  poolContract.tokenInventory()
-])
+      tokenContract.decimals(),
+      poolContract.reservePOL(),
+      poolContract.tokenInventory()
+    ])
 
-swapState.tokenDecimals = Number(decimalsRaw)
-swapState.poolReserve = formatEther(reserveRaw)
-swapState.poolInventory = formatUnits(inventoryRaw, Number(decimalsRaw))
+    if (requestId !== swapDataLoadCounter) {
+      return
+    }
+
+    const tokenDecimals = Number(decimalsRaw)
+    const nextState = {
+      tokenDecimals,
+      poolReserve: formatEther(reserveRaw),
+      poolInventory: formatUnits(inventoryRaw, tokenDecimals),
+      polBalance: '0',
+      vwalaBalance: '0',
+      redeemableNow: '0'
+    }
 
     if (walletAddress) {
-      const [polBalanceRaw, vwalaBalanceRaw, redeemableRaw] = await Promise.all([
+      const [polBalanceRaw, redeemableRaw, vwalaRead] = await Promise.all([
         provider.getBalance(walletAddress),
-        tokenContract.balanceOf(walletAddress),
-        poolContract.maxRedeemable(walletAddress)
+        poolContract.maxRedeemable(walletAddress),
+        readVWalaBalanceViaEthers(walletAddress, `swap_vwala_balance_${readId}`)
       ])
 
-      swapState.polBalance = formatEther(polBalanceRaw)
-      swapState.vwalaBalance = formatUnits(vwalaBalanceRaw, swapState.tokenDecimals)
-      swapState.redeemableNow = formatUnits(redeemableRaw, swapState.tokenDecimals)
-    } else {
-      swapState.polBalance = '0'
-      swapState.vwalaBalance = '0'
-      swapState.redeemableNow = '0'
+      if (requestId !== swapDataLoadCounter) {
+        return
+      }
+
+      nextState.polBalance = formatEther(polBalanceRaw)
+      nextState.vwalaBalance = vwalaRead.formattedBalanceText
+      nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
+
+      console.groupCollapsed(`[SWAP_VWALA_BALANCE_READ_${readId}]`)
+      console.log('selected_balance_read', vwalaRead)
+      console.groupEnd()
     }
+
+    if (requestId !== swapDataLoadCounter) {
+      return
+    }
+
+    swapState.tokenDecimals = nextState.tokenDecimals
+    swapState.poolReserve = nextState.poolReserve
+    swapState.poolInventory = nextState.poolInventory
+    swapState.polBalance = nextState.polBalance
+    swapState.vwalaBalance = nextState.vwalaBalance
+    swapState.redeemableNow = nextState.redeemableNow
 
     updateDashboardUI()
   } catch (error) {
