@@ -61,8 +61,7 @@ const VWALA_SWAP_ABI = [
 
 const VWALA_SELL_ABI = [
   'function sell(uint256 vwalaAmount) returns (uint256)',
-  'function quoteSell(uint256 vwalaAmount) view returns (uint256)',
-  'function maxRedeemable(address account) view returns (uint256)'
+  'function quoteSell(uint256 vwalaAmount) view returns (uint256)'
 ]
 
 const ERC20_TOKEN_ABI = [
@@ -142,6 +141,20 @@ function getTokenContract(providerOrSigner) {
     ERC20_TOKEN_ABI,
     providerOrSigner
   )
+}
+
+function getRedeemableFromPolReserve(polReserveWei, tokenDecimals = 18) {
+  const decimals = Number(tokenDecimals || 18)
+
+  if (decimals === 18) {
+    return polReserveWei
+  }
+
+  if (decimals > 18) {
+    return polReserveWei * (10n ** BigInt(decimals - 18))
+  }
+
+  return polReserveWei / (10n ** BigInt(18 - decimals))
 }
 
 function getLocalDeviceWallet() {
@@ -384,11 +397,16 @@ async function loadSwapData(walletAddress = '') {
     swapState.poolInventory = formatUnits(inventoryRaw, Number(decimalsRaw))
 
     if (walletAddress) {
-      const [polBalanceRaw, vwalaBalanceRaw, redeemableRaw] = await Promise.all([
+      const [polBalanceRaw, vwalaBalanceRaw, sellPolReserveRaw] = await Promise.all([
         provider.getBalance(walletAddress),
         tokenContract.balanceOf(walletAddress),
-        sellContract.maxRedeemable(walletAddress)
+        provider.getBalance(VWALA_SELL_ADDRESS)
       ])
+
+      const redeemableRaw = getRedeemableFromPolReserve(
+        sellPolReserveRaw,
+        swapState.tokenDecimals
+      )
 
       swapState.polBalance = formatEther(polBalanceRaw)
       swapState.vwalaBalance = formatUnits(vwalaBalanceRaw, swapState.tokenDecimals)
@@ -1252,10 +1270,15 @@ async function handleSellVWala() {
 
     const amountUnits = parseUnits(normalizedAmount, swapState.tokenDecimals)
 
-    const [tokenBalance, liveRedeemable] = await Promise.all([
+    const [tokenBalance, sellPolReserveRaw] = await Promise.all([
       tokenContract.balanceOf(signer.address),
-      sellContract.maxRedeemable(signer.address)
+      provider.getBalance(VWALA_SELL_ADDRESS)
     ])
+
+    const liveRedeemable = getRedeemableFromPolReserve(
+      sellPolReserveRaw,
+      swapState.tokenDecimals
+    )
 
     if (tokenBalance < amountUnits) {
       hideLoadingModal()
