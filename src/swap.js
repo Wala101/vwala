@@ -478,11 +478,15 @@ function syncSwapUI() {
   }
 
   const amountHint = document.getElementById('swapAmountHint')
-  if (amountHint) {
-    amountHint.textContent = isBuy
-  ? `Máximo disponível: ${formatAmount(getMaxBuyAmount(), 'POL')}`
-  : `Máximo liberado pelo contrato: ${formatAmount(getMaxSellAmount(), 'vWALA')}`
+if (amountHint) {
+  if (isBuy) {
+    amountHint.textContent = `Máximo disponível: ${formatAmount(getMaxBuyAmount(), 'POL')}`
+    amountHint.classList.remove('hidden')
+  } else {
+    amountHint.textContent = ''
+    amountHint.classList.add('hidden')
   }
+}
 
   const payValue = document.getElementById('swapPayValue')
   const receiveValue = document.getElementById('swapReceiveValue')
@@ -711,10 +715,8 @@ function renderPage() {
             <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
             <div class="swap-subtext">
-              Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
-              <br />
-              Limite liberado pelo contrato: <strong id="swapRedeemableNow">${formatAmount('0', 'vWALA')}</strong>
-            </div>
+  Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
+</div>
           </div>
         </section>
       </div>
