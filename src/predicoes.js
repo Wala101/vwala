@@ -1128,6 +1128,12 @@ async function buyPosition(market, side, amountUi, signer) {
   )
 
   await tx.wait()
+console.log('Binary market position opened:', {
+  marketId: market.marketId,
+  couponId: couponId.toString(),
+  side: Number(side),
+  amountUi
+})
   saveCouponId(market.marketId, couponId.toString())
 }
 
@@ -1148,7 +1154,11 @@ function createCard(market) {
 </div>
       </div>
 
-      <div class="match-time">Fecha em ${formatCountdown(market.closeAt)}</div>
+      <div class="match-time">
+  Fecha em ${formatCountdown(market.closeAt)}
+  <br />
+  <small>ID ${market.marketId}</small>
+</div>
     </div>
 
     <div class="stats-grid inline-stats-grid">
@@ -1332,11 +1342,11 @@ function createCard(market) {
       hideLoadingModal()
 
       showAlert(
-        'Sucesso',
-        createdNow
-          ? 'Mercado criado e posição aberta com sucesso.'
-          : 'Posição aberta com sucesso.'
-      )
+  'Sucesso',
+  createdNow
+    ? `Mercado criado e posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
+    : `Posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
+)
 
       await refreshWalletBalance()
       state.markets = loadCouponsForMarkets(state.markets)
