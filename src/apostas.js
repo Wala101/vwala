@@ -467,10 +467,8 @@ function readWalletProfile() {
 }
 
 function getCurrentWalletAddress() {
-  const deviceWallet = getLocalDeviceWalletForBetting()
-
-  if (deviceWallet?.walletAddress) {
-    return String(deviceWallet.walletAddress).trim()
+  if (state.userAddress) {
+    return String(state.userAddress).trim()
   }
 
   const wallet = readWalletProfile()
@@ -513,7 +511,7 @@ function setConnectButtonText(text) {
 
 async function loadUserTokenBalance() {
   try {
-    const walletAddress = getCurrentWalletAddress()
+    const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim()
 
     if (!walletAddress) {
       setConnectButtonText('Sem carteira')
@@ -539,23 +537,40 @@ async function loadUserTokenBalance() {
 }
 
 async function syncWalletProfileFromFirebase() {
-  if (!currentGoogleUser?.uid) return
-
-  const existingDeviceWallet = getLocalDeviceWalletForBetting()
-  if (existingDeviceWallet?.walletAddress) {
-    state.userAddress = String(existingDeviceWallet.walletAddress).trim()
+  if (!currentGoogleUser?.uid) {
+    state.userAddress = ''
     return
   }
 
   const userRef = doc(db, 'users', currentGoogleUser.uid)
   const userSnap = await getDoc(userRef)
 
-  if (!userSnap.exists()) return
+  if (!userSnap.exists()) {
+    state.userAddress = ''
+    localStorage.removeItem('vwala_wallet_profile')
+    return
+  }
 
   const userData = userSnap.data()
   const walletAddress = String(userData.walletAddress || '').trim()
 
-  if (!walletAddress) return
+  if (!walletAddress) {
+    state.userAddress = ''
+    localStorage.removeItem('vwala_wallet_profile')
+    return
+  }
+
+  const existingDeviceWallet = getLocalDeviceWalletForBetting()
+
+  if (existingDeviceWallet?.walletAddress) {
+    const localAddress = String(existingDeviceWallet.walletAddress).trim().toLowerCase()
+    const firebaseAddress = walletAddress.toLowerCase()
+
+    if (localAddress !== firebaseAddress) {
+      localStorage.removeItem(DEVICE_WALLET_STORAGE_KEY)
+      state.signer = null
+    }
+  }
 
   localStorage.setItem(
     'vwala_wallet_profile',
