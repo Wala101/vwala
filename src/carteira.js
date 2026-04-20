@@ -1672,11 +1672,7 @@ async function handleWalletAction(action) {
 }
 }
 
-function buildLiquidityPageUrl(tokenAddress = '') {
-  const url = new URL('/liquidez.html', window.location.origin)
-  url.searchParams.set('token', tokenAddress)
-  return url.toString()
-}
+
 
 function buildSwapPageUrl() {
   return new URL('/swap.html', window.location.origin).toString()
@@ -1960,10 +1956,8 @@ async function openCreatedTokenActions(token) {
     addressText: token.tokenAddress,
     badgeHtml: getTokenModalBadgeHtml(token),
     customActionsHtml: `
-      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="receive">Receber</button>
       <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="send">Enviar</button>
-      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="copy">Copiar mint</button>
-      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="liquidity">Liquidez</button>
+      <button class="wallet-token-modal-action primary" type="button" data-token-modal-action="copy">Copiar</button>
     `
   })
 
@@ -1987,18 +1981,9 @@ async function openCreatedTokenActions(token) {
     return
   }
 
-  if (result === 'receive') {
-    await showCreatedTokenReceiveModal(token)
-    return
-  }
-
   if (result === 'send') {
     await handleSendCreatedToken(token)
     return
-  }
-
-  if (result === 'liquidity') {
-    window.location.href = buildLiquidityPageUrl(token.tokenAddress)
   }
 }
 
@@ -2278,14 +2263,21 @@ function openUiModal({
     uiModalQr.removeAttribute('src')
 
     if (addressText) {
-      uiModalAddressBox.textContent = addressText
-      uiModalAddressBox.classList.remove('hidden')
-    }
+  uiModalAddressBox.textContent = addressText
 
-    if (qrDataUrl) {
-      uiModalQr.src = qrDataUrl
-      uiModalQr.classList.remove('hidden')
-    }
+  if (mode === 'address') {
+    uiModalAddressBox.classList.add('hidden')
+    uiModalText.innerHTML = 'Envie apenas para rede Polygon.'
+    uiModalText.classList.remove('hidden')
+  } else {
+    uiModalAddressBox.classList.remove('hidden')
+  }
+}
+
+if (qrDataUrl) {
+  uiModalQr.src = qrDataUrl
+  uiModalQr.classList.remove('hidden')
+}
 
     if (mode === 'prompt') {
       uiModalInput.classList.remove('hidden')
@@ -2352,7 +2344,8 @@ async function showPromptModal({
   cancelText = 'Cancelar',
   placeholder = '',
   password = false,
-  initialValue = ''
+  initialValue = '',
+  showCancel = true
 } = {}) {
   return openUiModal({
     title,
@@ -2363,7 +2356,7 @@ async function showPromptModal({
     placeholder,
     password,
     initialValue,
-    showCancel: true
+    showCancel
   })
 }
 
@@ -2389,7 +2382,8 @@ async function showPinModal(title, text, confirmText = 'Continuar') {
     confirmText,
     cancelText: 'Cancelar',
     placeholder: 'Digite seu PIN',
-    password: true
+    password: true,
+    showCancel: false
   })
 }
 
@@ -2453,11 +2447,6 @@ uiModalConfirmBtn?.addEventListener('click', async () => {
 })
 
 uiModalCancelBtn?.addEventListener('click', () => {
-  if (modalState.mode === 'token_actions') {
-    closeUiModal('liquidity')
-    return
-  }
-
   closeUiModal(null)
 })
 
