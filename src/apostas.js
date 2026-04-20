@@ -145,7 +145,14 @@ document.querySelector('#app').innerHTML = `
           </div>
         </section>
 
-        <section class="card">
+        <section id="marketLoadingCard" class="card market-loading-card-inline">
+          <div id="marketLoading" class="market-loading-inline">
+            <div class="market-loading-spinner"></div>
+            <p class="market-loading-text">Carregando mercados...</p>
+          </div>
+        </section>
+
+        <section id="marketSearchCard" class="card">
           <div class="section-head">
             <div>
               <p class="section-kicker">BUSCA</p>
@@ -154,10 +161,6 @@ document.querySelector('#app').innerHTML = `
             <span class="section-count" id="marketCount">0</span>
           </div>
 
-          <div id="marketLoading" class="market-loading-inline">
-            <div class="market-loading-spinner"></div>
-            <p class="market-loading-text">Carregando mercados...</p>
-          </div>
 
           <input
             id="searchInput"
@@ -237,6 +240,8 @@ const marketGrid = document.getElementById('marketGrid')
 const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
 const marketLoading = document.getElementById('marketLoading')
+const marketLoadingCard = document.getElementById('marketLoadingCard')
+const marketSearchCard = document.getElementById('marketSearchCard')
 const searchInput = document.getElementById('searchInput')
 const connectBtn = document.getElementById('connectBtn')
 const sidebar = document.getElementById('sidebar')
@@ -1587,7 +1592,14 @@ function setMarketLoading(isLoading) {
     marketLoading.classList.toggle('show', state.loading)
   }
 
-  
+  if (marketLoadingCard) {
+    marketLoadingCard.style.display = state.loading ? '' : 'none'
+  }
+
+  if (marketSearchCard) {
+    marketSearchCard.style.display = state.loading ? 'none' : ''
+  }
+
   if (marketEmpty) {
     marketEmpty.classList.remove('show')
   }
@@ -1618,6 +1630,7 @@ function renderMatches() {
 }
 
 async function boot() {
+  setMarketLoading(true)
   menuBtn.addEventListener('click', openSidebar)
   sidebarOverlay.addEventListener('click', closeSidebar)
 

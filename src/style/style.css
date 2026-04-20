@@ -1881,11 +1881,18 @@ body{
   display:block;
 }
 
+.market-loading-card-inline{
+  display:none;
+}
+
 .market-loading-inline{
   display:none;
+  min-height:96px;
   align-items:center;
-  gap:10px;
-  padding:10px 0 14px;
+  justify-content:center;
+  flex-direction:column;
+  gap:12px;
+  padding:10px 0;
 }
 
 .market-loading-inline.show{
@@ -1916,4 +1923,22 @@ body{
   to{
     transform:rotate(360deg);
   }
+}
+
+.market-loading-card-inline{
+  display:none;
+}
+
+.market-loading-inline{
+  display:none;
+  min-height:96px;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:12px;
+  padding:10px 0;
+}
+
+.market-loading-inline.show{
+  display:flex;
 }
