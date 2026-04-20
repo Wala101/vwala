@@ -944,7 +944,7 @@ async function showConfirmModal(
     text,
     confirmText,
     cancelText,
-    showCancel: true
+    showCancel: false
   })
 }
 
