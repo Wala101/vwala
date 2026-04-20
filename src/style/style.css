@@ -1881,17 +1881,14 @@ body{
   display:block;
 }
 
-.market-loading-state{
+.market-loading-inline{
   display:none;
-  min-height:220px;
   align-items:center;
-  justify-content:center;
-  flex-direction:column;
-  gap:14px;
-  padding:28px 16px;
+  gap:10px;
+  padding:10px 0 14px;
 }
 
-.market-loading-state.show{
+.market-loading-inline.show{
   display:flex;
 }
 

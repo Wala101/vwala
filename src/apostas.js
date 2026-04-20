@@ -154,6 +154,11 @@ document.querySelector('#app').innerHTML = `
             <span class="section-count" id="marketCount">0</span>
           </div>
 
+          <div id="marketLoading" class="market-loading-inline">
+            <div class="market-loading-spinner"></div>
+            <p class="market-loading-text">Carregando mercados...</p>
+          </div>
+
           <input
             id="searchInput"
             class="input"
@@ -163,11 +168,6 @@ document.querySelector('#app').innerHTML = `
         </section>
 
         <section class="card">
-          <div id="marketLoading" class="market-loading-state">
-            <div class="market-loading-spinner"></div>
-            <p class="market-loading-text">Carregando mercados...</p>
-          </div>
-
           <div id="marketGrid" class="match-grid"></div>
 
           <div id="marketEmpty" class="empty-state">
@@ -1587,10 +1587,7 @@ function setMarketLoading(isLoading) {
     marketLoading.classList.toggle('show', state.loading)
   }
 
-  if (marketGrid) {
-    marketGrid.style.display = state.loading ? 'none' : ''
-  }
-
+  
   if (marketEmpty) {
     marketEmpty.classList.remove('show')
   }
