@@ -9,8 +9,8 @@ import { doc, getDoc } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
-const POLYGON_RPC_URL =
-  import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_FALLBACK_URL = new URL('/api/rpc-fallback', window.location.origin).toString()
 
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
@@ -468,8 +468,8 @@ function setConnectButtonText(text) {
   if (connectBtn) connectBtn.textContent = text
 }
 
-function createRpcProbeUrl(label = 'predicoes_runtime') {
-  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+function createRpcProbeUrl(baseUrl, label = 'predicoes_runtime') {
+  const url = new URL(baseUrl, window.location.origin)
   url.searchParams.set('_ts', String(Date.now()))
   url.searchParams.set('_probe', label)
   return url.toString()
@@ -483,8 +483,8 @@ function compareRawBalanceAsc(a, b) {
   return aValue < bValue ? -1 : 1
 }
 
-async function readSingleBalanceProbe(walletAddress, label) {
-  const rpcUrl = createRpcProbeUrl(label)
+async function readSingleBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const rpcUrl = createRpcProbeUrl(baseUrl, label)
   const provider = new JsonRpcProvider(rpcUrl)
   const tokenContract = new Contract(VWALA_TOKEN, ERC20_ABI, provider)
 
@@ -496,6 +496,7 @@ async function readSingleBalanceProbe(walletAddress, label) {
 
   return {
     source: label,
+    proxyName,
     walletAddress,
     blockNumber: Number(blockNumber),
     rawBalance: rawBalance.toString(),
@@ -527,16 +528,15 @@ function selectStableBalanceProbe(probes = []) {
   })
 
   const groups = [...groupedMap.values()].sort((a, b) => {
-    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
-    if (balanceCompare !== 0) {
-      return balanceCompare
-    }
-
     if (b.count !== a.count) {
       return b.count - a.count
     }
 
-    return b.maxBlock - a.maxBlock
+    if (b.maxBlock !== a.maxBlock) {
+      return b.maxBlock - a.maxBlock
+    }
+
+    return compareRawBalanceAsc(a.rawBalance, b.rawBalance)
   })
 
   const selectedGroup = groups[0]
@@ -552,7 +552,7 @@ function selectStableBalanceProbe(probes = []) {
 
   const selectionReason = groups.length === 1
     ? 'unanimous'
-    : 'lowest_balance_wins'
+    : 'majority_then_latest_block'
 
   return {
     selectedProbe,
@@ -561,11 +561,36 @@ function selectStableBalanceProbe(probes = []) {
   }
 }
 
-async function readBalanceViaConsensus(walletAddress, label) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runBalanceProbeRound(walletAddress, label, round) {
   const settled = await Promise.allSettled([
-    readSingleBalanceProbe(walletAddress, `${label}_a`),
-    readSingleBalanceProbe(walletAddress, `${label}_b`),
-    readSingleBalanceProbe(walletAddress, `${label}_c`)
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_a`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_b`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_a`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_b`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    )
   ])
 
   const probes = settled
@@ -582,7 +607,7 @@ async function readBalanceViaConsensus(walletAddress, label) {
 
   const { selectedProbe, selectionReason, groups } = selectStableBalanceProbe(probes)
 
-  console.groupCollapsed(`[PREDICOES_VWALA_RPC_PROBES] ${label}`)
+  console.groupCollapsed(`[PREDICOES_VWALA_RPC_PROBES] ${label} round=${round}`)
   console.log('all_probes', probes)
   console.log('grouped_probes', groups)
   console.log('selected_probe', selectedProbe)
@@ -599,7 +624,48 @@ async function readBalanceViaConsensus(walletAddress, label) {
     selectedFrom: selectedProbe.source,
     selectionReason,
     allProbes: probes,
-    failedProbeCount: failures.length
+    failedProbeCount: failures.length,
+    groups,
+    round
+  }
+}
+
+async function readBalanceViaConsensus(walletAddress, label) {
+  const attempts = []
+  let previousRawBalance = ''
+
+  for (let round = 1; round <= 4; round += 1) {
+    const result = await runBalanceProbeRound(walletAddress, label, round)
+    attempts.push(result)
+
+    const isUnanimous = result.groups.length === 1
+    const sameAsPrevious =
+      previousRawBalance &&
+      String(previousRawBalance) === String(result.rawBalance)
+
+    if (isUnanimous || sameAsPrevious) {
+      return {
+        ...result,
+        stabilizationReason: isUnanimous
+          ? 'unanimous_round'
+          : 'same_result_in_two_rounds',
+        attempts
+      }
+    }
+
+    previousRawBalance = String(result.rawBalance)
+
+    if (round < 4) {
+      await sleep(900)
+    }
+  }
+
+  const lastResult = attempts[attempts.length - 1]
+
+  return {
+    ...lastResult,
+    stabilizationReason: 'max_rounds_last_result',
+    attempts
   }
 }
 
@@ -721,18 +787,7 @@ function readWalletProfile() {
 }
 
 function getCurrentWalletAddress() {
-  if (state.userAddress) {
-    return String(state.userAddress).trim()
-  }
-
-  const wallet = readWalletProfile()
-
-  return String(
-    wallet?.walletAddress ||
-    wallet?.address ||
-    wallet?.wallet_address ||
-    ''
-  ).trim()
+  return String(state.userAddress || '').trim()
 }
 
 async function loadUserTokenBalance() {
@@ -749,15 +804,17 @@ async function loadUserTokenBalance() {
       return
     }
 
-    setConnectButtonText('Carregando saldo...')
+    setConnectButtonText('Validando saldo...')
 
-    const selectedRead = await readBalanceViaConsensus(
-      walletAddress,
-      `predicoes_vwala_balance_main_${readId}`
-    )
+const selectedRead = await readBalanceViaConsensus(
+  walletAddress,
+  `predicoes_vwala_balance_main_${readId}`
+)
 
-    setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
-    console.log('selected_balance_read', selectedRead)
+setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
+console.log('selected_balance_read', selectedRead)
+console.log('balance_stabilization_reason', selectedRead.stabilizationReason)
+console.log('balance_attempts', selectedRead.attempts)
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
@@ -809,38 +866,10 @@ async function syncWalletProfileFromFirebase() {
   }
 
   if (!walletAddress) {
-    walletAddress = String(userData.walletAddress || '').trim()
-  }
-
-  if (!walletAddress) {
-    try {
-      const rawProfile = localStorage.getItem('vwala_wallet_profile')
-
-      if (rawProfile) {
-        const parsedProfile = JSON.parse(rawProfile)
-
-        if (
-          parsedProfile?.uid === currentGoogleUser.uid &&
-          parsedProfile?.walletAddress
-        ) {
-          walletAddress = String(parsedProfile.walletAddress).trim()
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao ler vwala_wallet_profile local na página de predições:', error)
-    }
-  }
-
-  if (!walletAddress) {
-    const existingDeviceWallet = getLocalDeviceWalletForPredictions()
-
-    if (
-      existingDeviceWallet?.uid === currentGoogleUser.uid &&
-      existingDeviceWallet?.walletAddress
-    ) {
-      walletAddress = String(existingDeviceWallet.walletAddress).trim()
-    }
-  }
+  state.userAddress = ''
+  localStorage.removeItem('vwala_wallet_profile')
+  return
+}
 
   if (!walletAddress) {
     state.userAddress = ''
@@ -950,7 +979,7 @@ async function initWalletSession() {
   try {
     const walletAddress = getCurrentWalletAddress()
 
-    state.provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
+    state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
     state.userAddress = walletAddress
     state.signer = null
     state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
