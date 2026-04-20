@@ -1880,3 +1880,43 @@ body{
   object-fit:cover;
   display:block;
 }
+
+.market-loading-state{
+  display:none;
+  min-height:220px;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:14px;
+  padding:28px 16px;
+}
+
+.market-loading-state.show{
+  display:flex;
+}
+
+.market-loading-spinner{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  border:3px solid rgba(255,255,255,0.12);
+  border-top-color:#25ff8a;
+  animation:marketSpin 0.9s linear infinite;
+}
+
+.market-loading-text{
+  margin:0;
+  color:#d7dde5;
+  font-size:14px;
+  font-weight:600;
+  text-align:center;
+}
+
+@keyframes marketSpin{
+  from{
+    transform:rotate(0deg);
+  }
+  to{
+    transform:rotate(360deg);
+  }
+}
