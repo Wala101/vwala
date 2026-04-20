@@ -219,7 +219,10 @@ if (winningOutcome === null) {
 const actions = []
 
 if (marketStatus === MARKET_STATUS.OPEN) {
+  console.log('[KEEPER CLOSE]', { fixtureId, marketStatus, winningOutcome })
+
   const closeTx = await contract.closeMarket(BigInt(fixtureId))
+  console.log('[KEEPER CLOSE TX]', closeTx.hash)
   await closeTx.wait()
 
   actions.push({
@@ -228,7 +231,10 @@ if (marketStatus === MARKET_STATUS.OPEN) {
   })
 }
 
+console.log('[KEEPER RESOLVE]', { fixtureId, winningOutcome })
+
 const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
+console.log('[KEEPER RESOLVE TX]', resolveTx.hash)
 await resolveTx.wait()
 
 actions.push({
@@ -302,7 +308,15 @@ export default async (request) => {
     const signer = new Wallet(deployerKey, provider)
     const betting = new Contract(bettingAddress, BETTING_ABI, signer)
 
-    const result = await syncSingleFixture(betting, fixtureId, footballToken)
+    console.log('[KEEPER INPUT]', {
+  fixtureId,
+  bettingAddress,
+  operator: signer.address
+})
+
+const result = await syncSingleFixture(betting, fixtureId, footballToken)
+
+console.log('[KEEPER RESULT]', result)
 
     return json({
       keeper: 'polygon-football-keeper',
@@ -310,7 +324,14 @@ export default async (request) => {
       bettingAddress,
       ...result
     })
-  } catch (error) {
+    } catch (error) {
+    console.error('[KEEPER ERROR]', {
+      message: error?.message || String(error),
+      shortMessage: error?.shortMessage || '',
+      data: error?.data || error?.error?.data || error?.info?.error?.data || '',
+      stack: error?.stack || ''
+    })
+
     return json(
       {
         ok: false,
