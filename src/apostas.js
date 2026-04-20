@@ -163,6 +163,11 @@ document.querySelector('#app').innerHTML = `
         </section>
 
         <section class="card">
+          <div id="marketLoading" class="market-loading-state">
+            <div class="market-loading-spinner"></div>
+            <p class="market-loading-text">Carregando mercados...</p>
+          </div>
+
           <div id="marketGrid" class="match-grid"></div>
 
           <div id="marketEmpty" class="empty-state">
@@ -231,6 +236,7 @@ document.querySelector('#app').innerHTML = `
 const marketGrid = document.getElementById('marketGrid')
 const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
+const marketLoading = document.getElementById('marketLoading')
 const searchInput = document.getElementById('searchInput')
 const connectBtn = document.getElementById('connectBtn')
 const sidebar = document.getElementById('sidebar')
@@ -1070,6 +1076,8 @@ async function hydrateMatch(match) {
 }
 
 async function loadMatches() {
+  setMarketLoading(true)
+
   try {
     const fetchedMatches = await fetchMatches()
 
@@ -1097,6 +1105,9 @@ renderMatches()
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar os mercados.')
+  } finally {
+    setMarketLoading(false)
+    renderMatches()
   }
 }
 
@@ -1569,7 +1580,30 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
   return card
 }
 
+function setMarketLoading(isLoading) {
+  state.loading = Boolean(isLoading)
+
+  if (marketLoading) {
+    marketLoading.classList.toggle('show', state.loading)
+  }
+
+  if (marketGrid) {
+    marketGrid.style.display = state.loading ? 'none' : ''
+  }
+
+  if (marketEmpty) {
+    marketEmpty.classList.remove('show')
+  }
+}
+
 function renderMatches() {
+  if (state.loading) {
+    marketCount.textContent = '...'
+    marketGrid.innerHTML = ''
+    marketEmpty.classList.remove('show')
+    return
+  }
+
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.matches.filter((match) => {
