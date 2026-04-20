@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -1226,6 +1226,48 @@ function saveCouponId(marketId, couponId) {
   localStorage.setItem(key, JSON.stringify(current))
 }
 
+function getBinaryPositionDocId(marketId, couponId) {
+  return `${String(marketId).trim()}_${String(couponId).trim()}`
+}
+
+async function saveBinaryPositionToFirebase(market, payload) {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const marketId = String(market?.marketId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!marketId || !couponId) {
+    return
+  }
+
+  await setDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'binary_positions',
+      getBinaryPositionDocId(marketId, couponId)
+    ),
+    {
+      marketId,
+      couponId,
+      walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+      assetSymbol: String(market?.assetSymbol || 'CRYPTO'),
+      question: String(market?.question || ''),
+      side: Number(payload?.side),
+      amount: String(payload?.amountUi || '0'),
+      txHash: String(payload?.txHash || ''),
+      claimed: false,
+      statusCache: 'open',
+      updatedAt: serverTimestamp(),
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+}
+
 function loadCouponsForMarkets(markets) {
   if (!state.userAddress) {
     return markets.map((market) => ({ ...market, userCoupons: [] }))
@@ -1394,13 +1436,20 @@ async function buyPosition(market, side, amountUi, signer) {
   )
 
   await tx.wait()
-console.log('Binary market position opened:', {
-  marketId: market.marketId,
-  couponId: couponId.toString(),
-  side: Number(side),
-  amountUi
-})
+
+  console.log('Binary market position opened:', {
+    marketId: market.marketId,
+    couponId: couponId.toString(),
+    side: Number(side),
+    amountUi
+  })
+
   saveCouponId(market.marketId, couponId.toString())
+
+  return {
+    couponId: couponId.toString(),
+    txHash: String(tx.hash || '')
+  }
 }
 
 function createCard(market) {
@@ -1600,7 +1649,14 @@ function createCard(market) {
 
 showLoadingModal('Abrindo posição', 'Aguarde enquanto sua posição é enviada para a Polygon.')
 
-      await buyPosition(market, selectedSide, amountUi, signer)
+      const positionResult = await buyPosition(market, selectedSide, amountUi, signer)
+
+      await saveBinaryPositionToFirebase(market, {
+        couponId: positionResult.couponId,
+        side: selectedSide,
+        amountUi,
+        txHash: positionResult.txHash
+      })
 
       hideLoadingModal()
 
