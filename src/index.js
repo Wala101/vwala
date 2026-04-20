@@ -437,24 +437,24 @@ app.innerHTML = `
 
           <article
             class="feature-card clickable-card"
-            data-href="/whitpaper.html"
+            data-href="/whitepaper.html"
             role="button"
             tabindex="0"
-            aria-label="Abrir página Whitpaper"
+            aria-label="Abrir página Whitepaper"
           >
             <div class="feature-card-top">
               <span class="feature-badge">📘</span>
               <span class="feature-chip">Sobre</span>
             </div>
 
-            <h3>Whitpaper</h3>
+            <h3>Whitepaper</h3>
             <p>
               Conheça a proposta do projeto, visão, estrutura e objetivos do ecossistema WALA.
             </p>
 
             <div class="feature-card-footer">
               <span>Abrir</span>
-              <strong style="display: none;">whitpaper.html</strong>
+              <strong style="display: none;">whitepaper.html</strong>
             </div>
           </article>
         </section>
