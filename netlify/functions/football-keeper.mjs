@@ -198,35 +198,52 @@ async function syncSingleFixture(contract, fixtureId, footballToken) {
   }
 
   if (!MATCH_FINISHED_STATUSES.has(matchStatus)) {
-    return {
-      ok: true,
-      fixtureId,
-      matchStatus,
-      action: 'waiting'
-    }
-  }
-
-  const winningOutcome = getWinningOutcomeFromMatch(matchData)
-
-  if (winningOutcome === null) {
-    return {
-      ok: false,
-      fixtureId,
-      error: 'Não foi possível determinar o vencedor na football-data.'
-    }
-  }
-
-  const tx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
-  await tx.wait()
-
   return {
     ok: true,
     fixtureId,
     matchStatus,
-    action: 'resolved',
-    winningOutcome,
-    hash: tx.hash
+    action: 'waiting'
   }
+}
+
+const winningOutcome = getWinningOutcomeFromMatch(matchData)
+
+if (winningOutcome === null) {
+  return {
+    ok: false,
+    fixtureId,
+    error: 'Não foi possível determinar o vencedor na football-data.'
+  }
+}
+
+const actions = []
+
+if (marketStatus === MARKET_STATUS.OPEN) {
+  const closeTx = await contract.closeMarket(BigInt(fixtureId))
+  await closeTx.wait()
+
+  actions.push({
+    action: 'closed_before_resolve',
+    hash: closeTx.hash
+  })
+}
+
+const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
+await resolveTx.wait()
+
+actions.push({
+  action: 'resolved',
+  hash: resolveTx.hash
+})
+
+return {
+  ok: true,
+  fixtureId,
+  matchStatus,
+  action: 'resolved',
+  winningOutcome,
+  actions
+}
 }
 
 async function maybeCloseMarket(contract, fixtureId, summary) {
@@ -298,6 +315,8 @@ export default async (request) => {
       {
         ok: false,
         error: error?.message || String(error),
+        shortMessage: error?.shortMessage || '',
+        data: error?.data || error?.error?.data || error?.info?.error?.data || '',
       },
       500
     )
