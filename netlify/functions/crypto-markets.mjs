@@ -1,10 +1,22 @@
 const COINS = [
   { id: 'bitcoin', assetSymbol: 'BTC', fallbackPrice: 94500 },
   { id: 'ethereum', assetSymbol: 'ETH', fallbackPrice: 3100 },
-  { id: 'solana', assetSymbol: 'SOL', fallbackPrice: 182 }
+  { id: 'solana', assetSymbol: 'SOL', fallbackPrice: 182 },
+  { id: 'binancecoin', assetSymbol: 'BNB', fallbackPrice: 610 },
+  { id: 'ripple', assetSymbol: 'XRP', fallbackPrice: 2.15 },
+  { id: 'cardano', assetSymbol: 'ADA', fallbackPrice: 0.72 },
+  { id: 'dogecoin', assetSymbol: 'DOGE', fallbackPrice: 0.18 },
+  { id: 'tron', assetSymbol: 'TRX', fallbackPrice: 0.12 },
+  { id: 'chainlink', assetSymbol: 'LINK', fallbackPrice: 14.5 },
+  { id: 'avalanche-2', assetSymbol: 'AVAX', fallbackPrice: 27 },
+  { id: 'polkadot', assetSymbol: 'DOT', fallbackPrice: 6.8 },
+  { id: 'matic-network', assetSymbol: 'MATIC', fallbackPrice: 0.95 },
+  { id: 'litecoin', assetSymbol: 'LTC', fallbackPrice: 84 },
+  { id: 'bitcoin-cash', assetSymbol: 'BCH', fallbackPrice: 460 },
+  { id: 'shiba-inu', assetSymbol: 'SHIB', fallbackPrice: 0.000025 }
 ]
 
-const MARKET_RULE_VERSION = 'UP3V1'
+const MARKET_RULE_VERSION = 'DAY23V1'
 const TARGET_PCT = 0.03
 
 function getTargetPriceUsd(currentPrice) {
@@ -17,22 +29,18 @@ function getTargetPriceUsd(currentPrice) {
   return Number((price * (1 + TARGET_PCT)).toFixed(2))
 }
 
-function getNextFourHourCloseTimestamp(fromDate = new Date()) {
+function getDailyMarketCloseTimestamp(fromDate = new Date()) {
   const base = new Date(fromDate)
-  const utcHour = base.getUTCHours()
-  const nextWindowHour = Math.floor(utcHour / 4) * 4 + 4
 
-  const close = new Date(Date.UTC(
-    base.getUTCFullYear(),
-    base.getUTCMonth(),
-    base.getUTCDate(),
-    0,
+  const close = new Date(
+    base.getFullYear(),
+    base.getMonth(),
+    base.getDate(),
+    23,
     0,
     0,
     0
-  ))
-
-  close.setUTCHours(nextWindowHour)
+  )
 
   return Math.floor(close.getTime() / 1000)
 }
@@ -46,13 +54,13 @@ function buildBinaryMarketId(symbol, closeAt) {
 }
 
 function buildFallbackMarkets() {
-  const closeAt = getNextFourHourCloseTimestamp()
+  const closeAt = getDailyMarketCloseTimestamp()
 
   return COINS.map((coin) => ({
     marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
     assetSymbol: coin.assetSymbol,
     imageUrl: '/logo.png',
-  question: `${coin.assetSymbol} subirá 3% ou mais nas próximas 4 horas?`,
+  question: `${coin.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
 referencePriceUsd: getTargetPriceUsd(coin.fallbackPrice),
 currentPriceUsd: coin.fallbackPrice,
     closeAt,
@@ -64,7 +72,7 @@ currentPriceUsd: coin.fallbackPrice,
 export async function handler() {
   try {
     const apiKey = String(process.env.COINGECKO_DEMO_API_KEY || '').trim()
-    const closeAt = getNextFourHourCloseTimestamp()
+    const closeAt = getDailyMarketCloseTimestamp()
 
     if (!apiKey) {
       return {
@@ -86,12 +94,11 @@ export async function handler() {
     url.searchParams.set('ids', ids)
     url.searchParams.set('sparkline', 'false')
     url.searchParams.set('price_change_percentage', '24h')
-    url.searchParams.set('x_cg_demo_api_key', apiKey)
-
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        accept: 'application/json'
+        accept: 'application/json',
+        'x-cg-demo-api-key': apiKey
       }
     })
 
@@ -113,7 +120,7 @@ const referencePriceUsd = getTargetPriceUsd(currentPriceUsd)
         marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
         assetSymbol: coin.assetSymbol,
         imageUrl: String(row?.image || '/logo.png'),
-        question: `${coin.assetSymbol} subirá 3% ou mais nas próximas 4 horas?`,
+        question: `${coin.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
         referencePriceUsd,
         currentPriceUsd,
         closeAt,
