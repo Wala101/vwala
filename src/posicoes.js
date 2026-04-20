@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -713,26 +713,19 @@ function removeCouponFromLocalStorage(fixtureId, couponId) {
   }
 }
 
-async function markPositionClaimedInFirebase(item) {
+async function removeFootballPositionFromFirebase(item) {
   if (!currentGoogleUser?.uid) {
     return
   }
 
-  await setDoc(
+  await deleteDoc(
     doc(
       db,
       'users',
       currentGoogleUser.uid,
       'football_positions',
       getFootballPositionDocId(item.fixtureId, item.couponId)
-    ),
-    {
-      claimed: true,
-      statusCache: 'claimed',
-      claimedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
+    )
   )
 }
 
@@ -1061,10 +1054,10 @@ async function loadHistory() {
         }
 
         if (position[6] === true) {
-          await markPositionClaimedInFirebase({
-            fixtureId: String(entry.fixtureId),
-            couponId: String(entry.couponId)
-          })
+          await removeFootballPositionFromFirebase({
+  fixtureId: String(entry.fixtureId),
+  couponId: String(entry.couponId)
+})
 
           removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
           continue
