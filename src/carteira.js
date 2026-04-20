@@ -6,7 +6,7 @@ import {
   signInWithPopup,
   signInWithRedirect
 } from 'firebase/auth'
-import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, Wallet, formatEther, formatUnits, isAddress, parseEther, parseUnits } from 'ethers'
 import QRCode from 'qrcode'
 
@@ -388,14 +388,16 @@ async function readStableVWalaBalance(walletAddress, requestId) {
 
 async function loadVWalaBalance(walletAddress) {
   const requestId = ++vwalaBalanceLoadCounter
-  const groupLabel = `[CARTEIRA_VWALA_BALANCE_READ_${requestId}]`
+  const groupLabel = `[CARTEIRA_VWALA_FIREBASE_BALANCE_READ_${requestId}]`
 
   console.groupCollapsed(groupLabel)
 
   try {
     if (!walletAddress) return
 
-    const selectedRead = await readStableVWalaBalance(walletAddress, requestId)
+    const firebaseBalance = currentGoogleUser?.uid
+      ? await readFirebaseVWalaBalance(currentGoogleUser.uid, walletAddress)
+      : '0'
 
     if (requestId !== vwalaBalanceLoadCounter) {
       console.warn('Leitura antiga descartada.', {
@@ -405,26 +407,16 @@ async function loadVWalaBalance(walletAddress) {
       return
     }
 
-    console.log('selected_balance_read', {
+    console.log('firebase_balance_read', {
       build: CARTEIRA_BUILD_TAG,
-      source: selectedRead.source,
-      proxyName: selectedRead.proxyName,
-      rpcUrl: maskRpcUrl(selectedRead.rpcUrl),
-      chainId: selectedRead.chainId,
-      blockNumber: Number(selectedRead.blockNumber),
       walletAddress,
       tokenAddress: VWALA_TOKEN_ADDRESS,
-      decimals: selectedRead.decimals,
-      balanceRaw: selectedRead.rawBalance,
-      balanceFormatted: selectedRead.balanceFormatted,
-      selectionReason: selectedRead.selectionReason,
-      stabilizationReason: selectedRead.stabilizationReason,
-      attempts: selectedRead.attempts
+      balanceFormatted: firebaseBalance
     })
 
-    updateVWalaBalanceUI(selectedRead.balanceFormatted)
+    updateVWalaBalanceUI(firebaseBalance)
   } catch (error) {
-    console.error('Erro ao carregar saldo vWALA:', error)
+    console.error('Erro ao carregar saldo vWALA no Firebase:', error)
 
     if (requestId === vwalaBalanceLoadCounter) {
       updateVWalaBalanceUI('0')
@@ -450,6 +442,232 @@ function formatTxHash(hash = '') {
 
 function normalizeAmountInput(value = '') {
   return String(value || '').replace(',', '.').trim()
+}
+
+function parseVWalaUnits(value) {
+  return parseUnits(String(value || '0'), 18)
+}
+
+function formatVWalaUnits(value) {
+  return formatUnits(value, 18)
+}
+
+function sanitizeTxHashForDoc(txHash = '') {
+  return String(txHash || '').trim().toLowerCase()
+}
+
+function getSwapBalanceDocRef(userId, assetId = 'vwala') {
+  return doc(db, 'users', userId, 'swap_balances', assetId)
+}
+
+function getSwapHistoryDocRef(userId, txHash) {
+  return doc(db, 'users', userId, 'swap_history', sanitizeTxHashForDoc(txHash))
+}
+
+async function readFirebaseVWalaBalance(userId, walletAddress = '') {
+  if (!userId) return '0'
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+
+  if (balanceSnap.exists()) {
+    const data = balanceSnap.data() || {}
+
+    if (data.balanceRaw != null) {
+      return formatVWalaUnits(BigInt(String(data.balanceRaw)))
+    }
+
+    return String(data.balanceFormatted || data.balance || '0')
+  }
+
+  if (!walletAddress) {
+    return '0'
+  }
+
+  const migratedRead = await readStableVWalaBalance(walletAddress, `migration_${userId}`)
+  const migratedBalanceRaw = BigInt(String(migratedRead?.rawBalance || '0'))
+  const migratedBalance = formatVWalaUnits(migratedBalanceRaw)
+
+  if (migratedBalanceRaw > 0n) {
+    await setDoc(
+      balanceRef,
+      {
+        assetId: 'vwala',
+        token: 'vWALA',
+        tokenAddress: VWALA_TOKEN_ADDRESS,
+        walletAddress,
+        balanceRaw: migratedBalanceRaw.toString(),
+        balance: Number(migratedBalance),
+        balanceFormatted: migratedBalance,
+        lastType: 'migration',
+        lastTxHash: 'migration-initial-onchain-read',
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+
+    await setDoc(
+      getSwapHistoryDocRef(userId, `migration-${String(walletAddress).toLowerCase()}`),
+      {
+        assetId: 'vwala',
+        type: 'migration',
+        token: 'vWALA',
+        tokenAddress: VWALA_TOKEN_ADDRESS,
+        walletAddress,
+        amountRaw: migratedBalanceRaw.toString(),
+        amount: Number(migratedBalance),
+        amountFormatted: migratedBalance,
+        txHash: 'migration-initial-onchain-read',
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  }
+
+  return migratedBalance
+}
+
+async function saveConfirmedBuyVWalaToFirebase({
+  userId,
+  walletAddress,
+  amount,
+  txHash
+}) {
+  const normalizedTxHash = sanitizeTxHashForDoc(txHash)
+  const amountRaw = parseVWalaUnits(amount)
+
+  if (!userId) {
+    throw new Error('userId ausente para salvar compra.')
+  }
+
+  if (!normalizedTxHash) {
+    throw new Error('txHash ausente para salvar compra.')
+  }
+
+  if (amountRaw <= 0n) {
+    throw new Error('amount inválido para salvar compra.')
+  }
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+  const currentData = balanceSnap.exists() ? balanceSnap.data() || {} : {}
+
+  const currentBalanceRaw =
+    currentData.balanceRaw != null
+      ? BigInt(String(currentData.balanceRaw))
+      : parseVWalaUnits(currentData.balanceFormatted || currentData.balance || '0')
+
+  const nextBalanceRaw = currentBalanceRaw + amountRaw
+  const nextBalanceFormatted = formatVWalaUnits(nextBalanceRaw)
+  const amountFormatted = formatVWalaUnits(amountRaw)
+
+  await setDoc(
+    balanceRef,
+    {
+      assetId: 'vwala',
+      token: 'vWALA',
+      tokenAddress: VWALA_TOKEN_ADDRESS,
+      walletAddress,
+      balanceRaw: nextBalanceRaw.toString(),
+      balance: Number(nextBalanceFormatted),
+      balanceFormatted: nextBalanceFormatted,
+      lastType: 'buy',
+      lastTxHash: normalizedTxHash,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+
+  await setDoc(
+    getSwapHistoryDocRef(userId, normalizedTxHash),
+    {
+      assetId: 'vwala',
+      type: 'buy',
+      token: 'vWALA',
+      tokenAddress: VWALA_TOKEN_ADDRESS,
+      walletAddress,
+      amountRaw: amountRaw.toString(),
+      amount: Number(amountFormatted),
+      amountFormatted: amountFormatted,
+      txHash: normalizedTxHash,
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
+}
+
+async function saveConfirmedSellVWalaToFirebase({
+  userId,
+  walletAddress,
+  amount,
+  txHash
+}) {
+  const normalizedTxHash = sanitizeTxHashForDoc(txHash)
+  const amountRaw = parseVWalaUnits(amount)
+
+  if (!userId) {
+    throw new Error('userId ausente para salvar venda.')
+  }
+
+  if (!normalizedTxHash) {
+    throw new Error('txHash ausente para salvar venda.')
+  }
+
+  if (amountRaw <= 0n) {
+    throw new Error('amount inválido para salvar venda.')
+  }
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+  const currentData = balanceSnap.exists() ? balanceSnap.data() || {} : {}
+
+  const currentBalanceRaw =
+    currentData.balanceRaw != null
+      ? BigInt(String(currentData.balanceRaw))
+      : parseVWalaUnits(currentData.balanceFormatted || currentData.balance || '0')
+
+  const nextBalanceRaw = currentBalanceRaw - amountRaw
+  const amountFormatted = formatVWalaUnits(amountRaw)
+
+  if (nextBalanceRaw > 0n) {
+    const nextBalanceFormatted = formatVWalaUnits(nextBalanceRaw)
+
+    await setDoc(
+      balanceRef,
+      {
+        assetId: 'vwala',
+        token: 'vWALA',
+        tokenAddress: VWALA_TOKEN_ADDRESS,
+        walletAddress,
+        balanceRaw: nextBalanceRaw.toString(),
+        balance: Number(nextBalanceFormatted),
+        balanceFormatted: nextBalanceFormatted,
+        lastType: 'sell',
+        lastTxHash: normalizedTxHash,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  } else {
+    await deleteDoc(balanceRef)
+  }
+
+  await setDoc(
+    getSwapHistoryDocRef(userId, normalizedTxHash),
+    {
+      assetId: 'vwala',
+      type: 'sell',
+      token: 'vWALA',
+      tokenAddress: VWALA_TOKEN_ADDRESS,
+      walletAddress,
+      amountRaw: amountRaw.toString(),
+      amount: Number(amountFormatted),
+      amountFormatted: amountFormatted,
+      txHash: normalizedTxHash,
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
 }
 
 function buildCloudPassword(user) {
@@ -1347,19 +1565,31 @@ const quotedAmount = await poolContract.quoteBuy(amountWei)
       'Aguarde a confirmação da compra na Polygon.'
     )
 
-    await tx.wait()
+    const receipt = await tx.wait()
+const confirmedTxHash = receipt?.hash || tx?.hash || ''
 
-    hideLoadingModal()
+if (!confirmedTxHash) {
+  throw new Error('Compra confirmada sem tx hash.')
+}
 
-    currentWalletAddress = signer.address
-    updateWalletAddressUI(currentWalletAddress)
-    await loadPolygonBalance(signer.address)
-    await loadVWalaBalance(signer.address)
+await saveConfirmedBuyVWalaToFirebase({
+  userId: currentGoogleUser.uid,
+  walletAddress: signer.address,
+  amount: quotedFormatted,
+  txHash: confirmedTxHash
+})
 
-    await showMessageModal(
-      'Compra concluída',
-      `<strong>Compra confirmada com sucesso.</strong><br><br><strong>Recebido:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'vWALA'))}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
-    )
+hideLoadingModal()
+
+currentWalletAddress = signer.address
+updateWalletAddressUI(currentWalletAddress)
+await loadPolygonBalance(signer.address)
+await loadVWalaBalance(signer.address)
+
+await showMessageModal(
+  'Compra concluída',
+  `<strong>Compra confirmada com sucesso.</strong><br><br><strong>Recebido:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'vWALA'))}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(confirmedTxHash))}`
+)
   } catch (error) {
     hideLoadingModal()
     console.error('Erro ao executar compra:', error)
@@ -1554,17 +1784,21 @@ const quotedWei = await poolContract.quoteSell(amountUnits)
   signer
 )
 
-    const tokenBalance = await tokenContract.balanceOf(signer.address)
+    const firebaseVWalaBalance = currentGoogleUser?.uid
+  ? await readFirebaseVWalaBalance(currentGoogleUser.uid, signer.address)
+  : '0'
 
-    if (tokenBalance < amountUnits) {
-      hideLoadingModal()
+const firebaseBalanceNumber = Number(firebaseVWalaBalance || 0)
 
-      await showMessageModal(
-        'Saldo insuficiente',
-        'Seu saldo de vWALA não cobre a venda informada.'
-      )
-      return
-    }
+if (!Number.isFinite(firebaseBalanceNumber) || firebaseBalanceNumber < amountNumber) {
+  hideLoadingModal()
+
+  await showMessageModal(
+    'Saldo insuficiente',
+    'Seu saldo de vWALA salvo no app não cobre a venda informada.'
+  )
+  return
+}
 
     const allowance = await tokenContract.allowance(
       signer.address,
@@ -1618,19 +1852,31 @@ const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
 
 const tx = await poolContract.sell(amountUnits)
 
-    await tx.wait()
+    const receipt = await tx.wait()
+const confirmedTxHash = receipt?.hash || tx?.hash || ''
 
-    hideLoadingModal()
+if (!confirmedTxHash) {
+  throw new Error('Venda confirmada sem tx hash.')
+}
 
-    currentWalletAddress = signer.address
-    updateWalletAddressUI(currentWalletAddress)
-    await loadPolygonBalance(signer.address)
-    await loadVWalaBalance(signer.address)
+await saveConfirmedSellVWalaToFirebase({
+  userId: currentGoogleUser.uid,
+  walletAddress: signer.address,
+  amount: normalizedAmount,
+  txHash: confirmedTxHash
+})
 
-    await showMessageModal(
-      'Venda concluída',
-      `<strong>Venda confirmada com sucesso.</strong><br><br><strong>Recebido:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'POL'))}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
-    )
+hideLoadingModal()
+
+currentWalletAddress = signer.address
+updateWalletAddressUI(currentWalletAddress)
+await loadPolygonBalance(signer.address)
+await loadVWalaBalance(signer.address)
+
+await showMessageModal(
+  'Venda concluída',
+  `<strong>Venda confirmada com sucesso.</strong><br><br><strong>Recebido:</strong><br>${escapeHtml(formatAmount(quotedFormatted, 'POL'))}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(confirmedTxHash))}`
+)
   } catch (error) {
     hideLoadingModal()
     console.error('Erro ao executar venda:', error)
