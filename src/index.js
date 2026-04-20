@@ -123,11 +123,15 @@ const selectionReason = groups.length === 1
   }
 }
 
-async function readBalanceViaEthers(walletAddress, label) {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runBalanceProbeRound(walletAddress, label, round) {
   const settled = await Promise.allSettled([
-    readSingleBalanceProbe(walletAddress, `${label}_a`),
-    readSingleBalanceProbe(walletAddress, `${label}_b`),
-    readSingleBalanceProbe(walletAddress, `${label}_c`)
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_a`),
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_b`),
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_c`)
   ])
 
   const probes = settled
@@ -144,7 +148,7 @@ async function readBalanceViaEthers(walletAddress, label) {
 
   const { selectedProbe, selectionReason, groups } = selectStableBalanceProbe(probes)
 
-  console.groupCollapsed(`[VWALA_RPC_PROBES] ${label}`)
+  console.groupCollapsed(`[VWALA_RPC_PROBES] ${label} round=${round}`)
   console.log('all_probes', probes)
   console.log('grouped_probes', groups)
   console.log('selected_probe', selectedProbe)
@@ -161,7 +165,48 @@ async function readBalanceViaEthers(walletAddress, label) {
     selectedFrom: selectedProbe.source,
     selectionReason,
     allProbes: probes,
-    failedProbeCount: failures.length
+    failedProbeCount: failures.length,
+    groups,
+    round
+  }
+}
+
+async function readBalanceViaEthers(walletAddress, label) {
+  const attempts = []
+  let previousRawBalance = ''
+
+  for (let round = 1; round <= 4; round += 1) {
+    const result = await runBalanceProbeRound(walletAddress, label, round)
+    attempts.push(result)
+
+    const isUnanimous = result.groups.length === 1
+    const sameAsPrevious =
+      previousRawBalance &&
+      String(previousRawBalance) === String(result.rawBalance)
+
+    if (isUnanimous || sameAsPrevious) {
+      return {
+        ...result,
+        stabilizationReason: isUnanimous
+          ? 'unanimous_round'
+          : 'same_result_in_two_rounds',
+        attempts
+      }
+    }
+
+    previousRawBalance = String(result.rawBalance)
+
+    if (round < 4) {
+      await sleep(900)
+    }
+  }
+
+  const lastResult = attempts[attempts.length - 1]
+
+  return {
+    ...lastResult,
+    stabilizationReason: 'max_rounds_last_result',
+    attempts
   }
 }
 
@@ -232,12 +277,14 @@ console.log('wallet_resolution', {
       return
     }
 
-    setConnectButtonText('Carregando saldo...')
+    setConnectButtonText('Validando saldo...')
 
-    const selectedRead = await readBalanceViaEthers(walletAddress, `vwala_balance_main_${readId}`)
+const selectedRead = await readBalanceViaEthers(walletAddress, `vwala_balance_main_${readId}`)
 
-    setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
-    console.log('selected_balance_read', selectedRead)
+setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
+console.log('selected_balance_read', selectedRead)
+console.log('balance_stabilization_reason', selectedRead.stabilizationReason)
+console.log('balance_attempts', selectedRead.attempts)
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
