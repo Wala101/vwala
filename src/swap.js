@@ -25,7 +25,8 @@ if (!app) {
   throw new Error('Elemento #app não encontrado.')
 }
 
-const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_FALLBACK_URL = new URL('/api/rpc-fallback', window.location.origin).toString()
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CLOUD_PASSWORD_SALT = 'vwala_google_device_pin_v1'
@@ -114,15 +115,15 @@ function buildCloudPassword(user) {
   return `${CLOUD_PASSWORD_SALT}:${user.uid}`
 }
 
-function createRpcProbeUrl(label = 'swap_runtime') {
-  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+function createRpcProbeUrl(baseUrl, label = 'swap_runtime') {
+  const url = new URL(baseUrl, window.location.origin)
   url.searchParams.set('_ts', String(Date.now()))
   url.searchParams.set('_probe', label)
   return url.toString()
 }
 
-function getProvider(label = 'swap_runtime') {
-  return new JsonRpcProvider(createRpcProbeUrl(label))
+function getProvider(label = 'swap_runtime', baseUrl = POLYGON_RPC_PRIMARY_URL) {
+  return new JsonRpcProvider(createRpcProbeUrl(baseUrl, label))
 }
 
 function compareRawBalanceAsc(a, b) {
@@ -133,8 +134,8 @@ function compareRawBalanceAsc(a, b) {
   return aValue < bValue ? -1 : 1
 }
 
-async function readSingleVWalaBalanceProbe(walletAddress, label) {
-  const provider = getProvider(label)
+async function readSingleVWalaBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const provider = getProvider(label, baseUrl)
   const tokenContract = getTokenContract(provider)
 
   const [blockNumber, rawBalance, decimals] = await Promise.all([
@@ -148,12 +149,14 @@ async function readSingleVWalaBalanceProbe(walletAddress, label) {
 
   return {
     source: label,
+    proxyName,
     walletAddress,
     blockNumber: Number(blockNumber),
     rawBalance: rawBalance.toString(),
     decimals: decimalsNumber,
     formattedBalance: Number(formattedBalanceText),
-    formattedBalanceText
+    formattedBalanceText,
+    rpcUrl: createRpcProbeUrl(baseUrl, label)
   }
 }
 
@@ -212,11 +215,36 @@ function selectStableVWalaProbe(probes = []) {
   }
 }
 
-async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_balance') {
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runVWalaProbeRound(walletAddress, label, round) {
   const settled = await Promise.allSettled([
-    readSingleVWalaBalanceProbe(walletAddress, `${label}_a`),
-    readSingleVWalaBalanceProbe(walletAddress, `${label}_b`),
-    readSingleVWalaBalanceProbe(walletAddress, `${label}_c`)
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_a`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_b`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_a`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_b`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    )
   ])
 
   const probes = settled
@@ -233,7 +261,7 @@ async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_bala
 
   const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
 
-  console.groupCollapsed(`[SWAP_VWALA_RPC_PROBES] ${label}`)
+  console.groupCollapsed(`[SWAP_VWALA_RPC_PROBES] ${label} round=${round}`)
   console.log('all_probes', probes)
   console.log('grouped_probes', groups)
   console.log('selected_probe', selectedProbe)
@@ -250,7 +278,48 @@ async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_bala
     selectedFrom: selectedProbe.source,
     selectionReason,
     allProbes: probes,
-    failedProbeCount: failures.length
+    failedProbeCount: failures.length,
+    groups,
+    round
+  }
+}
+
+async function readVWalaBalanceViaEthers(walletAddress, label = 'swap_vwala_balance') {
+  const attempts = []
+  let previousRawBalance = ''
+
+  for (let round = 1; round <= 4; round += 1) {
+    const result = await runVWalaProbeRound(walletAddress, label, round)
+    attempts.push(result)
+
+    const isUnanimous = result.groups.length === 1
+    const sameAsPrevious =
+      previousRawBalance &&
+      String(previousRawBalance) === String(result.rawBalance)
+
+    if (isUnanimous || sameAsPrevious) {
+      return {
+        ...result,
+        stabilizationReason: isUnanimous
+          ? 'unanimous_round'
+          : 'same_result_in_two_rounds',
+        attempts
+      }
+    }
+
+    previousRawBalance = String(result.rawBalance)
+
+    if (round < 4) {
+      await sleep(900)
+    }
+  }
+
+  const lastResult = attempts[attempts.length - 1]
+
+  return {
+    ...lastResult,
+    stabilizationReason: 'max_rounds_last_result',
+    attempts
   }
 }
 
@@ -307,30 +376,15 @@ function getMatchingLocalDeviceWallet(uid = '', walletAddress = '') {
 }
 
 async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
-  const userUid = String(user?.uid || '').trim()
+  if (walletProfile?.walletAddress) {
+    const resolvedAddress = String(walletProfile.walletAddress).trim()
 
-  try {
-    const rawWalletProfile = localStorage.getItem('vwala_wallet_profile')
+    console.log('[SWAP WALLET RESOLUTION]', {
+      source: 'firestore_walletAddress',
+      walletAddress: resolvedAddress
+    })
 
-    if (rawWalletProfile) {
-      const parsedWalletProfile = JSON.parse(rawWalletProfile)
-
-      if (
-        parsedWalletProfile?.uid === userUid &&
-        parsedWalletProfile?.walletAddress
-      ) {
-        const resolvedAddress = String(parsedWalletProfile.walletAddress).trim()
-
-        console.log('[SWAP WALLET RESOLUTION]', {
-          source: 'vwala_wallet_profile',
-          walletAddress: resolvedAddress
-        })
-
-        return resolvedAddress
-      }
-    }
-  } catch (error) {
-    console.error('Erro ao ler vwala_wallet_profile local:', error)
+    return resolvedAddress
   }
 
   if (walletProfile?.walletKeystoreCloud) {
@@ -352,34 +406,7 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
       console.error('Erro ao resolver wallet pelo keystore cloud:', error)
     }
   }
-
-  if (walletProfile?.walletAddress) {
-    const resolvedAddress = String(walletProfile.walletAddress).trim()
-
-    console.log('[SWAP WALLET RESOLUTION]', {
-      source: 'firestore_walletAddress',
-      walletAddress: resolvedAddress
-    })
-
-    return resolvedAddress
-  }
-
-  try {
-    const localVault = getLocalDeviceWallet()
-
-    if (localVault?.uid === userUid && localVault?.walletAddress) {
-      const resolvedAddress = String(localVault.walletAddress).trim()
-
-      console.log('[SWAP WALLET RESOLUTION]', {
-        source: 'vwala_device_wallet',
-        walletAddress: resolvedAddress
-      })
-
-      return resolvedAddress
-    }
-  } catch (error) {
-    console.error('Erro ao ler carteira local do aparelho:', error)
-  }
+  
 
   console.log('[SWAP WALLET RESOLUTION]', {
     source: 'none',
@@ -562,7 +589,7 @@ async function loadSwapData(walletAddress = '') {
   const readId = ++vwalaBalanceReadCounter
 
   try {
-    const provider = getProvider(`swap_data_${requestId}`)
+    const provider = getProvider(`swap_data_${requestId}`, POLYGON_RPC_PRIMARY_URL)
     const poolContract = getPoolContract(provider)
     const tokenContract = getTokenContract(provider)
 
@@ -603,6 +630,7 @@ nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
 
 console.groupCollapsed(`[SWAP_VWALA_BALANCE_READ_${readId}]`)
 console.log('selected_balance_read', vwalaRead)
+console.log('balance_stabilization_reason', vwalaRead.stabilizationReason)
 console.log('swap_wallet_context', {
   currentWalletAddress,
   walletAddress,
@@ -1327,7 +1355,7 @@ async function handleBuyVWala() {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getProvider()
+    const provider = getProvider('swap_exec_buy', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1456,7 +1484,7 @@ async function handleSellVWala() {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getProvider()
+    const provider = getProvider('swap_exec_sell', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
