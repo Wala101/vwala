@@ -2265,9 +2265,9 @@ function openUiModal({
     if (addressText) {
   uiModalAddressBox.textContent = addressText
 
-  if (mode === 'address') {
+  if (mode === 'address' || mode === 'token_actions') {
     uiModalAddressBox.classList.add('hidden')
-    uiModalText.innerHTML = 'Envie apenas para rede Polygon.'
+    uiModalText.innerHTML = '<strong>Envie apenas para endereço da Polygon.</strong>'
     uiModalText.classList.remove('hidden')
   } else {
     uiModalAddressBox.classList.remove('hidden')
