@@ -9,8 +9,8 @@ import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'fireb
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
-const POLYGON_RPC_URL =
-  import.meta.env.VITE_POLYGON_RPC_URL || new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_FALLBACK_URL = new URL('/api/rpc-fallback', window.location.origin).toString()
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const TOKEN_SYMBOL = import.meta.env.VITE_TOKEN_SYMBOL || 'vWALA'
 const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
@@ -341,32 +341,211 @@ function setConnectButtonText(text) {
   if (connectBtn) connectBtn.textContent = text
 }
 
-function readWalletProfile() {
-  try {
-    const rawDeviceWallet = localStorage.getItem(DEVICE_WALLET_STORAGE_KEY)
-    if (rawDeviceWallet) return JSON.parse(rawDeviceWallet)
+function createRpcProbeUrl(baseUrl, label = 'posicoes_runtime') {
+  const url = new URL(baseUrl, window.location.origin)
+  url.searchParams.set('_ts', String(Date.now()))
+  url.searchParams.set('_probe', label)
+  return url.toString()
+}
 
-    const rawProfile = localStorage.getItem('vwala_wallet_profile')
-    return rawProfile ? JSON.parse(rawProfile) : null
-  } catch (error) {
-    console.error('Erro ao ler carteira local:', error)
-    return null
+function compareRawBalanceAsc(a, b) {
+  const aValue = BigInt(String(a || '0'))
+  const bValue = BigInt(String(b || '0'))
+
+  if (aValue === bValue) return 0
+  return aValue < bValue ? -1 : 1
+}
+
+async function readSingleBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const rpcUrl = createRpcProbeUrl(baseUrl, label)
+  const provider = new JsonRpcProvider(rpcUrl)
+  const tokenContract = new Contract(VWALA_TOKEN, ERC20_ABI, provider)
+
+  const [blockNumber, rawBalance, decimals] = await Promise.all([
+    provider.getBlockNumber(),
+    tokenContract.balanceOf(walletAddress),
+    tokenContract.decimals()
+  ])
+
+  return {
+    source: label,
+    proxyName,
+    walletAddress,
+    blockNumber: Number(blockNumber),
+    rawBalance: rawBalance.toString(),
+    decimals: Number(decimals),
+    formattedBalance: Number(formatUnits(rawBalance, decimals)),
+    rpcUrl
   }
 }
 
-function getCurrentWalletAddress() {
-  if (state.userAddress) {
-    return String(state.userAddress).trim()
+function selectStableBalanceProbe(probes = []) {
+  const groupedMap = new Map()
+
+  probes.forEach((probe) => {
+    const key = String(probe.rawBalance || '0')
+
+    if (!groupedMap.has(key)) {
+      groupedMap.set(key, {
+        rawBalance: key,
+        count: 0,
+        maxBlock: 0,
+        probes: []
+      })
+    }
+
+    const group = groupedMap.get(key)
+    group.count += 1
+    group.maxBlock = Math.max(group.maxBlock, Number(probe.blockNumber || 0))
+    group.probes.push(probe)
+  })
+
+  const groups = [...groupedMap.values()].sort((a, b) => {
+    if (b.count !== a.count) {
+      return b.count - a.count
+    }
+
+    if (b.maxBlock !== a.maxBlock) {
+      return b.maxBlock - a.maxBlock
+    }
+
+    return compareRawBalanceAsc(a.rawBalance, b.rawBalance)
+  })
+
+  const selectedGroup = groups[0]
+  const selectedProbe = [...selectedGroup.probes].sort((a, b) => {
+    const blockDiff = Number(b.blockNumber || 0) - Number(a.blockNumber || 0)
+
+    if (blockDiff !== 0) {
+      return blockDiff
+    }
+
+    return String(a.source || '').localeCompare(String(b.source || ''))
+  })[0]
+
+  const selectionReason = groups.length === 1
+    ? 'unanimous'
+    : 'majority_then_latest_block'
+
+  return {
+    selectedProbe,
+    selectionReason,
+    groups
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runBalanceProbeRound(walletAddress, label, round) {
+  const settled = await Promise.allSettled([
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_a`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_b`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_a`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_b`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    )
+  ])
+
+  const probes = settled
+    .filter((item) => item.status === 'fulfilled')
+    .map((item) => item.value)
+
+  const failures = settled
+    .filter((item) => item.status === 'rejected')
+    .map((item) => item.reason)
+
+  if (!probes.length) {
+    throw failures[0] || new Error('Nenhuma leitura de saldo foi concluída.')
   }
 
-  const wallet = readWalletProfile()
+  const { selectedProbe, selectionReason, groups } = selectStableBalanceProbe(probes)
 
-  return String(
-    wallet?.walletAddress ||
-    wallet?.address ||
-    wallet?.wallet_address ||
-    ''
-  ).trim()
+  console.groupCollapsed(`[POSICOES_VWALA_RPC_PROBES] ${label} round=${round}`)
+  console.log('all_probes', probes)
+  console.log('grouped_probes', groups)
+  console.log('selected_probe', selectedProbe)
+  console.log('selection_reason', selectionReason)
+
+  if (failures.length) {
+    console.warn('probe_failures', failures)
+  }
+
+  console.groupEnd()
+
+  return {
+    ...selectedProbe,
+    selectedFrom: selectedProbe.source,
+    selectionReason,
+    allProbes: probes,
+    failedProbeCount: failures.length,
+    groups,
+    round
+  }
+}
+
+async function readBalanceViaConsensus(walletAddress, label) {
+  const attempts = []
+  let previousRawBalance = ''
+
+  for (let round = 1; round <= 4; round += 1) {
+    const result = await runBalanceProbeRound(walletAddress, label, round)
+    attempts.push(result)
+
+    const isUnanimous = result.groups.length === 1
+    const sameAsPrevious =
+      previousRawBalance &&
+      String(previousRawBalance) === String(result.rawBalance)
+
+    if (isUnanimous || sameAsPrevious) {
+      return {
+        ...result,
+        stabilizationReason: isUnanimous
+          ? 'unanimous_round'
+          : 'same_result_in_two_rounds',
+        attempts
+      }
+    }
+
+    previousRawBalance = String(result.rawBalance)
+
+    if (round < 4) {
+      await sleep(900)
+    }
+  }
+
+  const lastResult = attempts[attempts.length - 1]
+
+  return {
+    ...lastResult,
+    stabilizationReason: 'max_rounds_last_result',
+    attempts
+  }
+}
+
+
+
+function getCurrentWalletAddress() {
+  return String(state.userAddress || '').trim()
 }
 
 function getLocalDeviceWalletForBetting() {
@@ -385,7 +564,7 @@ function getFootballPositionDocId(fixtureId, couponId) {
 }
 
 function getSavedCouponEntriesFromLocal() {
-  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
 
   if (!walletAddress) {
     return []
@@ -421,7 +600,7 @@ function getSavedCouponEntriesFromLocal() {
 }
 
 function restoreCouponsToLocalStorage(entries = []) {
-  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
 
   if (!walletAddress || !entries.length) {
     return
@@ -452,7 +631,7 @@ async function getSavedCouponEntriesFromFirebase() {
     return []
   }
 
-  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
 
   if (!walletAddress) {
     return []
@@ -506,7 +685,7 @@ async function getSavedCouponEntries() {
 }
 
 function removeCouponFromLocalStorage(fixtureId, couponId) {
-  const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
 
   if (!walletAddress) {
     return
@@ -682,18 +861,17 @@ async function loadUserTokenBalance() {
       return
     }
 
-    setConnectButtonText('Carregando saldo...')
+    setConnectButtonText('Validando saldo...')
 
-    const provider = new JsonRpcProvider(POLYGON_RPC_URL)
-    const tokenContract = new Contract(VWALA_TOKEN, ERC20_ABI, provider)
+    const selectedRead = await readBalanceViaConsensus(
+      walletAddress,
+      'posicoes_vwala_balance_main'
+    )
 
-    const [rawBalance, decimals] = await Promise.all([
-      tokenContract.balanceOf(walletAddress),
-      tokenContract.decimals()
-    ])
-
-    const formattedBalance = Number(formatUnits(rawBalance, decimals))
-    setConnectButtonText(formatTokenBalance(formattedBalance))
+    setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
+    console.log('selected_balance_read', selectedRead)
+    console.log('balance_stabilization_reason', selectedRead.stabilizationReason)
+    console.log('balance_attempts', selectedRead.attempts)
   } catch (error) {
     console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
@@ -821,7 +999,7 @@ async function initWalletSession() {
   try {
     const walletAddress = getCurrentWalletAddress()
 
-    state.provider = new JsonRpcProvider(POLYGON_RPC_URL, POLYGON_CHAIN_ID)
+    state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
     state.userAddress = walletAddress
     state.signer = null
     state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
