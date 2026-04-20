@@ -6,7 +6,7 @@ publish = "dist"
 directory = "netlify/functions"
 
 [[redirects]]
-from = "/api/rpc"
-to = "/.netlify/functions/rpc"
-status = 200
-force = true
+  from = "/api/rpc-fallback"
+  to = "/.netlify/functions/rpc-fallback"
+  status = 200
+  force = true
