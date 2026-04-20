@@ -406,7 +406,7 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
       console.error('Erro ao resolver wallet pelo keystore cloud:', error)
     }
   }
-  
+
 
   console.log('[SWAP WALLET RESOLUTION]', {
     source: 'none',
@@ -917,7 +917,8 @@ async function showPromptModal({
   cancelText = 'Cancelar',
   placeholder = '',
   password = false,
-  initialValue = ''
+  initialValue = '',
+  showCancel = true
 } = {}) {
   return openUiModal({
     title,
@@ -928,7 +929,7 @@ async function showPromptModal({
     placeholder,
     password,
     initialValue,
-    showCancel: true
+    showCancel
   })
 }
 
@@ -954,7 +955,8 @@ async function showPinModal(title, text, confirmText = 'Continuar') {
     confirmText,
     cancelText: 'Cancelar',
     placeholder: 'Digite seu PIN',
-    password: true
+    password: true,
+    showCancel: false
   })
 }
 
