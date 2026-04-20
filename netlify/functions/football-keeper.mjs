@@ -264,6 +264,7 @@ if (latestMarketStatus === MARKET_STATUS.RESOLVED) {
     alreadyResolved: true,
     winningOutcome: Number(latestMarketState[5]),
     action: 'none_after_refresh',
+    authority: String(latestMarketState[1] || ''),
     actions
   }
 }
@@ -282,13 +283,17 @@ if (latestMarketStatus !== MARKET_STATUS.CLOSED) {
 
 try {
   const marketStateBeforeResolve = await contract.getMarketState(BigInt(fixtureId))
+  const authorityBeforeResolve = String(marketStateBeforeResolve[1] || '')
+  const operatorAddress = String(await contract.runner.getAddress())
 
   console.log('[KEEPER RESOLVE]', {
     fixtureId,
     winningOutcome,
     marketStatus: Number(marketStateBeforeResolve[3]),
     hasWinner: Boolean(marketStateBeforeResolve[4]),
-    currentWinningOutcome: Number(marketStateBeforeResolve[5])
+    currentWinningOutcome: Number(marketStateBeforeResolve[5]),
+    authority: authorityBeforeResolve,
+    operator: operatorAddress
   })
 
   const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
@@ -301,6 +306,7 @@ try {
   })
 } catch (error) {
   const marketStateOnError = await contract.getMarketState(BigInt(fixtureId)).catch(() => null)
+  const operatorAddress = await contract.runner.getAddress().catch(() => '')
 
   return {
     ok: false,
@@ -309,9 +315,11 @@ try {
     stage: 'resolveMarket',
     winningOutcome,
     actions,
+    operator: String(operatorAddress || ''),
     marketStateOnError: marketStateOnError
       ? {
           exists: Boolean(marketStateOnError[0]),
+          authority: String(marketStateOnError[1] || ''),
           status: Number(marketStateOnError[3]),
           hasWinner: Boolean(marketStateOnError[4]),
           currentWinningOutcome: Number(marketStateOnError[5])

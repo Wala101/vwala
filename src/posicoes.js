@@ -1138,8 +1138,8 @@ async function syncFixtureBeforeClaim(fixtureId) {
     result?.shortMessage || '',
     result?.code ? `Code: ${result.code}` : '',
     result?.marketStateOnError
-      ? `status=${result.marketStateOnError.status}, hasWinner=${result.marketStateOnError.hasWinner}, winning=${result.marketStateOnError.currentWinningOutcome}`
-      : ''
+  ? `status=${result.marketStateOnError.status}, hasWinner=${result.marketStateOnError.hasWinner}, winning=${result.marketStateOnError.currentWinningOutcome}, authority=${result.marketStateOnError.authority || '-'}, operator=${result.operator || '-'}`
+  : ''
   ].filter(Boolean)
 
   throw new Error(
