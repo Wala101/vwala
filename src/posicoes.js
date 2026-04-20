@@ -1054,14 +1054,29 @@ async function loadHistory() {
         }
 
         if (position[6] === true) {
-          await removeFootballPositionFromFirebase({
-  fixtureId: String(entry.fixtureId),
-  couponId: String(entry.couponId)
-})
+  await removeFootballPositionFromFirebase({
+    fixtureId: String(entry.fixtureId),
+    couponId: String(entry.couponId)
+  })
 
-          removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
-          continue
-        }
+  removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
+  continue
+}
+
+const isResolved = Number(marketState[3]) === MarketStatus.RESOLVED
+const hasWinner = Boolean(marketState[4])
+const winningOutcome = Number(marketState[5])
+const userOutcome = Number(position[4])
+
+if (isResolved && hasWinner && userOutcome !== winningOutcome) {
+  await removeFootballPositionFromFirebase({
+    fixtureId: String(entry.fixtureId),
+    couponId: String(entry.couponId)
+  })
+
+  removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
+  continue
+}
 
         const teamA = cleanTeamName(marketNames[1] || 'Time A')
         const teamB = cleanTeamName(marketNames[2] || 'Time B')
@@ -1184,8 +1199,11 @@ async function claimItem(item) {
     )
 
     await tx.wait()
-    await markPositionClaimedInFirebase(freshItem)
-    removeCouponFromLocalStorage(freshItem.fixtureId, freshItem.couponId)
+    await removeFootballPositionFromFirebase({
+  fixtureId: String(freshItem.fixtureId),
+  couponId: String(freshItem.couponId)
+})
+removeCouponFromLocalStorage(freshItem.fixtureId, freshItem.couponId)
 
     hideLoadingModal()
     showAlert('Sucesso', 'Resgate concluído com sucesso.')
