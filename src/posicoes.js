@@ -1136,7 +1136,10 @@ async function syncFixtureBeforeClaim(fixtureId) {
     result?.stage ? `Etapa: ${result.stage}` : '',
     result?.error || '',
     result?.shortMessage || '',
-    result?.code ? `Code: ${result.code}` : ''
+    result?.code ? `Code: ${result.code}` : '',
+    result?.marketStateOnError
+      ? `status=${result.marketStateOnError.status}, hasWinner=${result.marketStateOnError.hasWinner}, winning=${result.marketStateOnError.currentWinningOutcome}`
+      : ''
   ].filter(Boolean)
 
   throw new Error(

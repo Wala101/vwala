@@ -281,7 +281,15 @@ if (latestMarketStatus !== MARKET_STATUS.CLOSED) {
 }
 
 try {
-  console.log('[KEEPER RESOLVE]', { fixtureId, winningOutcome, marketStatus: latestMarketStatus })
+  const marketStateBeforeResolve = await contract.getMarketState(BigInt(fixtureId))
+
+  console.log('[KEEPER RESOLVE]', {
+    fixtureId,
+    winningOutcome,
+    marketStatus: Number(marketStateBeforeResolve[3]),
+    hasWinner: Boolean(marketStateBeforeResolve[4]),
+    currentWinningOutcome: Number(marketStateBeforeResolve[5])
+  })
 
   const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
   console.log('[KEEPER RESOLVE TX]', resolveTx.hash)
@@ -292,6 +300,8 @@ try {
     hash: resolveTx.hash
   })
 } catch (error) {
+  const marketStateOnError = await contract.getMarketState(BigInt(fixtureId)).catch(() => null)
+
   return {
     ok: false,
     fixtureId,
@@ -299,6 +309,14 @@ try {
     stage: 'resolveMarket',
     winningOutcome,
     actions,
+    marketStateOnError: marketStateOnError
+      ? {
+          exists: Boolean(marketStateOnError[0]),
+          status: Number(marketStateOnError[3]),
+          hasWinner: Boolean(marketStateOnError[4]),
+          currentWinningOutcome: Number(marketStateOnError[5])
+        }
+      : null,
     ...extractErrorDetails(error)
   }
 }
