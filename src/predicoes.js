@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -365,6 +365,168 @@ function formatTokenBalance(value = 0) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4
   })} ${TOKEN_SYMBOL}`
+}
+
+function parseVWalaUnits(value) {
+  return parseUnits(String(value || '0'), 18)
+}
+
+function formatVWalaUnits(value) {
+  return formatUnits(value, 18)
+}
+
+function sanitizeTxHashForDoc(txHash = '') {
+  return String(txHash || '').trim().toLowerCase()
+}
+
+function getSwapBalanceDocRef(userId, assetId = 'vwala') {
+  return doc(db, 'users', userId, 'swap_balances', assetId)
+}
+
+function getSwapHistoryDocRef(userId, txHash) {
+  return doc(db, 'users', userId, 'swap_history', sanitizeTxHashForDoc(txHash))
+}
+
+async function readFirebaseVWalaBalance(userId, walletAddress = '') {
+  if (!userId) return '0'
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+
+  if (balanceSnap.exists()) {
+    const data = balanceSnap.data() || {}
+
+    if (data.balanceRaw != null) {
+      return formatVWalaUnits(BigInt(String(data.balanceRaw)))
+    }
+
+    return String(data.balanceFormatted || data.balance || '0')
+  }
+
+  if (!walletAddress) {
+    return '0'
+  }
+
+  const migratedRead = await readBalanceViaConsensus(
+    walletAddress,
+    `predicoes_vwala_migration_${userId}`
+  )
+
+  const migratedBalanceRaw = BigInt(String(migratedRead?.rawBalance || '0'))
+  const migratedBalance = formatVWalaUnits(migratedBalanceRaw)
+
+  if (migratedBalanceRaw > 0n) {
+    await setDoc(
+      balanceRef,
+      {
+        assetId: 'vwala',
+        token: TOKEN_SYMBOL,
+        tokenAddress: VWALA_TOKEN,
+        walletAddress,
+        balanceRaw: migratedBalanceRaw.toString(),
+        balance: Number(migratedBalance),
+        balanceFormatted: migratedBalance,
+        lastType: 'migration',
+        lastTxHash: 'migration-initial-onchain-read',
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+
+    await setDoc(
+      getSwapHistoryDocRef(userId, `migration-${String(walletAddress).toLowerCase()}`),
+      {
+        assetId: 'vwala',
+        type: 'migration',
+        token: TOKEN_SYMBOL,
+        tokenAddress: VWALA_TOKEN,
+        walletAddress,
+        amountRaw: migratedBalanceRaw.toString(),
+        amount: Number(migratedBalance),
+        amountFormatted: migratedBalance,
+        txHash: 'migration-initial-onchain-read',
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  }
+
+  return migratedBalance
+}
+
+async function saveConfirmedSpendVWalaToFirebase({
+  userId,
+  walletAddress,
+  amount,
+  txHash,
+  historyType = 'prediction_buy'
+}) {
+  const normalizedTxHash = sanitizeTxHashForDoc(txHash)
+  const amountRaw = parseVWalaUnits(amount)
+
+  if (!userId) {
+    throw new Error('userId ausente para salvar débito.')
+  }
+
+  if (!normalizedTxHash) {
+    throw new Error('txHash ausente para salvar débito.')
+  }
+
+  if (amountRaw <= 0n) {
+    throw new Error('amount inválido para salvar débito.')
+  }
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+  const currentData = balanceSnap.exists() ? balanceSnap.data() || {} : {}
+
+  const currentBalanceRaw =
+    currentData.balanceRaw != null
+      ? BigInt(String(currentData.balanceRaw))
+      : parseVWalaUnits(currentData.balanceFormatted || currentData.balance || '0')
+
+  const nextBalanceRaw = currentBalanceRaw - amountRaw
+  const amountFormatted = formatVWalaUnits(amountRaw)
+
+  if (nextBalanceRaw > 0n) {
+    const nextBalanceFormatted = formatVWalaUnits(nextBalanceRaw)
+
+    await setDoc(
+      balanceRef,
+      {
+        assetId: 'vwala',
+        token: TOKEN_SYMBOL,
+        tokenAddress: VWALA_TOKEN,
+        walletAddress,
+        balanceRaw: nextBalanceRaw.toString(),
+        balance: Number(nextBalanceFormatted),
+        balanceFormatted: nextBalanceFormatted,
+        lastType: historyType,
+        lastTxHash: normalizedTxHash,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  } else {
+    await deleteDoc(balanceRef)
+  }
+
+  await setDoc(
+    getSwapHistoryDocRef(userId, normalizedTxHash),
+    {
+      assetId: 'vwala',
+      type: historyType,
+      token: TOKEN_SYMBOL,
+      tokenAddress: VWALA_TOKEN,
+      walletAddress,
+      amountRaw: amountRaw.toString(),
+      amount: Number(amountFormatted),
+      amountFormatted: amountFormatted,
+      txHash: normalizedTxHash,
+      createdAt: serverTimestamp()
+    },
+    { merge: true }
+  )
 }
 
 function formatUsd(value) {
@@ -802,7 +964,7 @@ function getCurrentWalletAddress() {
 
 async function loadUserTokenBalance() {
   const readId = ++balanceReadCounter
-  const groupLabel = `[PREDICOES_VWALA_BALANCE_READ_${readId}]`
+  const groupLabel = `[PREDICOES_VWALA_FIREBASE_BALANCE_READ_${readId}]`
 
   console.groupCollapsed(groupLabel)
 
@@ -816,17 +978,17 @@ async function loadUserTokenBalance() {
 
     setConnectButtonText('Validando saldo...')
 
-const selectedRead = await readBalanceViaConsensus(
-  walletAddress,
-  `predicoes_vwala_balance_main_${readId}`
-)
+    const firebaseBalance = currentGoogleUser?.uid
+      ? await readFirebaseVWalaBalance(currentGoogleUser.uid, walletAddress)
+      : '0'
 
-setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
-console.log('selected_balance_read', selectedRead)
-console.log('balance_stabilization_reason', selectedRead.stabilizationReason)
-console.log('balance_attempts', selectedRead.attempts)
+    setConnectButtonText(formatTokenBalance(firebaseBalance))
+    console.log('firebase_balance_read', {
+      walletAddress,
+      balanceFormatted: firebaseBalance
+    })
   } catch (error) {
-    console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
+    console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL} no Firebase:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
   } finally {
     console.groupEnd()
@@ -1435,20 +1597,36 @@ async function buyPosition(market, side, amountUi, signer) {
     amount
   )
 
-  await tx.wait()
+  const receipt = await tx.wait()
+  const confirmedTxHash = String(receipt?.hash || tx?.hash || '')
+
+  if (!confirmedTxHash) {
+    throw new Error('Posição confirmada sem tx hash.')
+  }
+
+  if (currentGoogleUser?.uid) {
+    await saveConfirmedSpendVWalaToFirebase({
+      userId: currentGoogleUser.uid,
+      walletAddress: await signer.getAddress(),
+      amount: amountUi,
+      txHash: confirmedTxHash,
+      historyType: 'prediction_buy'
+    })
+  }
 
   console.log('Binary market position opened:', {
     marketId: market.marketId,
     couponId: couponId.toString(),
     side: Number(side),
-    amountUi
+    amountUi,
+    txHash: confirmedTxHash
   })
 
   saveCouponId(market.marketId, couponId.toString())
 
   return {
     couponId: couponId.toString(),
-    txHash: String(tx.hash || '')
+    txHash: confirmedTxHash
   }
 }
 
