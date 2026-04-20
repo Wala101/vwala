@@ -90,17 +90,16 @@ function selectStableBalanceProbe(probes = []) {
   })
 
   const groups = [...groupedMap.values()].sort((a, b) => {
-    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
-    if (balanceCompare !== 0) {
-      return balanceCompare
-    }
+  if (b.count !== a.count) {
+    return b.count - a.count
+  }
 
-    if (b.count !== a.count) {
-      return b.count - a.count
-    }
-
+  if (b.maxBlock !== a.maxBlock) {
     return b.maxBlock - a.maxBlock
-  })
+  }
+
+  return compareRawBalanceAsc(a.rawBalance, b.rawBalance)
+})
 
   const selectedGroup = groups[0]
   const selectedProbe = [...selectedGroup.probes].sort((a, b) => {
@@ -113,9 +112,9 @@ function selectStableBalanceProbe(probes = []) {
     return String(a.source || '').localeCompare(String(b.source || ''))
   })[0]
 
-  const selectionReason = groups.length === 1
-    ? 'unanimous'
-    : 'lowest_balance_wins'
+const selectionReason = groups.length === 1
+  ? 'unanimous'
+  : 'majority_then_latest_block'
 
   return {
     selectedProbe,
