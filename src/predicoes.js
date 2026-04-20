@@ -148,7 +148,15 @@ document.querySelector('#app').innerHTML = `
           </div>
         </section>
 
-        <section class="card">
+        <section id="marketLoadingCard" class="card market-loading-card">
+          <div class="market-loading-card-inner">
+            <div class="market-loading-spinner"></div>
+            <p class="market-loading-title">Carregando mercados</p>
+            <p class="market-loading-text">Buscando mercados de cripto e preparando as previsões para você.</p>
+          </div>
+        </section>
+
+        <section id="marketSearchCard" class="card" style="display:none;">
           <div class="section-head">
             <div>
               <p class="section-kicker">BUSCA</p>
@@ -234,6 +242,8 @@ document.querySelector('#app').innerHTML = `
 const marketGrid = document.getElementById('marketGrid')
 const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
+const marketLoadingCard = document.getElementById('marketLoadingCard')
+const marketSearchCard = document.getElementById('marketSearchCard')
 const searchInput = document.getElementById('searchInput')
 const connectBtn = document.getElementById('connectBtn')
 const sidebar = document.getElementById('sidebar')
@@ -1138,6 +1148,8 @@ async function hydrateMarket(market) {
 }
 
 async function loadMarkets() {
+  setMarketLoading(true)
+
   try {
     const fetchedMarkets = await fetchMarkets()
     const baseMarkets = loadCouponsForMarkets(fetchedMarkets)
@@ -1148,17 +1160,18 @@ async function loadMarkets() {
       return
     }
 
-    const hydrated = []
-
-    for (const market of baseMarkets) {
-      hydrated.push(await hydrateMarket(market))
-    }
+    const hydrated = await Promise.all(
+      baseMarkets.map((market) => hydrateMarket(market))
+    )
 
     state.markets = loadCouponsForMarkets(hydrated)
-renderMarkets()
+    renderMarkets()
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar os mercados de predição.')
+  } finally {
+    setMarketLoading(false)
+    renderMarkets()
   }
 }
 
@@ -1613,7 +1626,30 @@ showLoadingModal('Abrindo posição', 'Aguarde enquanto sua posição é enviada
   return card
 }
 
+function setMarketLoading(isLoading) {
+  state.loading = Boolean(isLoading)
+
+  if (marketLoadingCard) {
+    marketLoadingCard.style.display = state.loading ? 'block' : 'none'
+  }
+
+  if (marketSearchCard) {
+    marketSearchCard.style.display = state.loading ? 'none' : 'block'
+  }
+
+  if (marketEmpty) {
+    marketEmpty.classList.remove('show')
+  }
+}
+
 function renderMarkets() {
+  if (state.loading) {
+    marketCount.textContent = '...'
+    marketGrid.innerHTML = ''
+    marketEmpty.classList.remove('show')
+    return
+  }
+
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.markets.filter((market) => {
@@ -1631,6 +1667,8 @@ function renderMarkets() {
 }
 
 async function boot() {
+  setMarketLoading(true)
+  marketGrid.innerHTML = ''
   menuBtn.addEventListener('click', openSidebar)
   sidebarOverlay.addEventListener('click', closeSidebar)
 
