@@ -16,7 +16,8 @@ if (!app) {
 }
 
 const TOKEN_SYMBOL = 'vWALA'
-const POLYGON_RPC_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_FALLBACK_URL = new URL('/api/rpc-fallback', window.location.origin).toString()
 const VWALA_TOKEN_ADDRESS = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
 let currentFirebaseUser = null
@@ -31,8 +32,8 @@ let balanceReadCounter = 0
 
 
 
-function createRpcProbeUrl(label) {
-  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+function createRpcProbeUrl(baseUrl, label) {
+  const url = new URL(baseUrl, window.location.origin)
   url.searchParams.set('_ts', String(Date.now()))
   url.searchParams.set('_probe', label)
   return url.toString()
@@ -46,11 +47,10 @@ function compareRawBalanceAsc(a, b) {
   return aValue < bValue ? -1 : 1
 }
 
-async function readSingleBalanceProbe(walletAddress, label) {
-  const rpcUrl = createRpcProbeUrl(label)
+async function readSingleBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const rpcUrl = createRpcProbeUrl(baseUrl, label)
   const provider = new JsonRpcProvider(rpcUrl)
   const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_ABI, provider)
-
   const [blockNumber, rawBalance, decimals] = await Promise.all([
     provider.getBlockNumber(),
     tokenContract.balanceOf(walletAddress),
@@ -59,6 +59,7 @@ async function readSingleBalanceProbe(walletAddress, label) {
 
   return {
     source: label,
+    proxyName,
     walletAddress,
     blockNumber: Number(blockNumber),
     rawBalance: rawBalance.toString(),
@@ -129,9 +130,30 @@ function sleep(ms) {
 
 async function runBalanceProbeRound(walletAddress, label, round) {
   const settled = await Promise.allSettled([
-    readSingleBalanceProbe(walletAddress, `${label}_r${round}_a`),
-    readSingleBalanceProbe(walletAddress, `${label}_r${round}_b`),
-    readSingleBalanceProbe(walletAddress, `${label}_r${round}_c`)
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_a`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_primary_b`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_a`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    ),
+    readSingleBalanceProbe(
+      walletAddress,
+      `${label}_r${round}_fallback_b`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    )
   ])
 
   const probes = settled

@@ -1,22 +1,9 @@
-export async function handler(event) {
-  if (event.httpMethod !== 'POST') {
-    return {
-      statusCode: 405,
-      headers: {
-        'content-type': 'application/json',
-        allow: 'POST',
-        'cache-control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
-        pragma: 'no-cache',
-        expires: '0',
-        'netlify-cdn-cache-control': 'no-store',
-      },
-      body: JSON.stringify({
-        error: 'Method Not Allowed',
-      }),
-    }
-  }
+import { handleRpcProxy } from './_rpc-proxy'
 
-  const rpcUrl = String(process.env.POLYGON_RPC_URL || '').trim()
+export async function handler(event) {
+  const rpcUrl = String(process.env.POLYGON_RPC_URL_PRIMARY || '').trim()
+  return handleRpcProxy(event, rpcUrl, 'primary')
+}
 
   if (!rpcUrl) {
     return {
@@ -123,4 +110,3 @@ export async function handler(event) {
       }),
     }
   }
-}
