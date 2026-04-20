@@ -33,9 +33,8 @@ const modalState = {
   addressText: ''
 }
 
-const POLYGON_RPC_URL =
-  String(import.meta.env.VITE_POLYGON_RPC_URL || '').trim() ||
-  new URL(`/api/rpc?ts=${Date.now()}`, window.location.origin).toString()
+const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_RPC_FALLBACK_URL = new URL('/api/rpc-fallback', window.location.origin).toString()
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const DEVICE_WALLET_STORAGE_KEY = 'vwala_device_wallet'
 const CREATED_TOKENS_STORAGE_KEY = 'vwala_created_tokens'
@@ -54,15 +53,15 @@ function maskRpcUrl(url = '') {
     .replace(/([?&](?:api[-_]?key|key)=)[^&]+/i, '$1***')
 }
 
-function createRpcProbeUrl(label = 'carteira_runtime') {
-  const url = new URL(POLYGON_RPC_URL, window.location.origin)
+function createRpcProbeUrl(baseUrl, label = 'carteira_runtime') {
+  const url = new URL(baseUrl, window.location.origin)
   url.searchParams.set('_ts', String(Date.now()))
   url.searchParams.set('_probe', label)
   return url.toString()
 }
 
-function getRpcProvider(label = 'carteira_runtime') {
-  return new JsonRpcProvider(createRpcProbeUrl(label))
+function getRpcProvider(label = 'carteira_runtime', baseUrl = POLYGON_RPC_PRIMARY_URL) {
+  return new JsonRpcProvider(createRpcProbeUrl(baseUrl, label))
 }
 
 function compareRawBalanceAsc(a, b) {
@@ -73,8 +72,8 @@ function compareRawBalanceAsc(a, b) {
   return aValue < bValue ? -1 : 1
 }
 
-async function readSingleVWalaBalanceProbe(walletAddress, label) {
-  const provider = getRpcProvider(label)
+async function readSingleVWalaBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const provider = getRpcProvider(label, baseUrl)
   const network = await provider.getNetwork()
   const chainId = Number(network.chainId)
 
@@ -99,12 +98,14 @@ async function readSingleVWalaBalanceProbe(walletAddress, label) {
 
   return {
     source: label,
+    proxyName,
     walletAddress,
     chainId,
     blockNumber: Number(blockNumber),
     decimals,
     rawBalance: balanceRaw.toString(),
-    balanceFormatted
+    balanceFormatted,
+    rpcUrl: createRpcProbeUrl(baseUrl, label)
   }
 }
 
@@ -130,16 +131,15 @@ function selectStableVWalaProbe(probes = []) {
   })
 
   const groups = [...groupedMap.values()].sort((a, b) => {
-    const balanceCompare = compareRawBalanceAsc(a.rawBalance, b.rawBalance)
-    if (balanceCompare !== 0) {
-      return balanceCompare
-    }
-
     if (b.count !== a.count) {
       return b.count - a.count
     }
 
-    return b.maxBlock - a.maxBlock
+    if (b.maxBlock !== a.maxBlock) {
+      return b.maxBlock - a.maxBlock
+    }
+
+    return compareRawBalanceAsc(a.rawBalance, b.rawBalance)
   })
 
   const selectedGroup = groups[0]
@@ -155,7 +155,7 @@ function selectStableVWalaProbe(probes = []) {
 
   const selectionReason = groups.length === 1
     ? 'unanimous'
-    : 'lowest_balance_wins'
+    : 'majority_then_latest_block'
 
   return {
     selectedProbe,
@@ -256,7 +256,7 @@ async function loadPolygonBalance(walletAddress) {
   try {
     if (!walletAddress) return
 
-    const provider = getRpcProvider(`carteira_pol_balance_${requestId}`)
+    const provider = getRpcProvider(`carteira_pol_balance_${requestId}`, POLYGON_RPC_PRIMARY_URL)
     const balanceWei = await provider.getBalance(walletAddress)
     const balanceFormatted = formatEther(balanceWei)
 
@@ -280,6 +280,112 @@ async function loadPolygonBalance(walletAddress) {
   }
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function runVWalaProbeRound(walletAddress, requestId, round) {
+  const settled = await Promise.allSettled([
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `carteira_vwala_balance_${requestId}_r${round}_primary_a`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `carteira_vwala_balance_${requestId}_r${round}_primary_b`,
+      POLYGON_RPC_PRIMARY_URL,
+      'primary'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `carteira_vwala_balance_${requestId}_r${round}_fallback_a`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    ),
+    readSingleVWalaBalanceProbe(
+      walletAddress,
+      `carteira_vwala_balance_${requestId}_r${round}_fallback_b`,
+      POLYGON_RPC_FALLBACK_URL,
+      'fallback'
+    )
+  ])
+
+  const probes = settled
+    .filter((item) => item.status === 'fulfilled')
+    .map((item) => item.value)
+
+  const failures = settled
+    .filter((item) => item.status === 'rejected')
+    .map((item) => item.reason)
+
+  if (!probes.length) {
+    throw failures[0] || new Error('Nenhuma leitura de saldo vWALA foi concluída.')
+  }
+
+  const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
+
+  console.groupCollapsed(`[CARTEIRA_VWALA_RPC_PROBES] request=${requestId} round=${round}`)
+  console.log('all_probes', probes)
+  console.log('grouped_probes', groups)
+  console.log('selected_probe', selectedProbe)
+  console.log('selection_reason', selectionReason)
+
+  if (failures.length) {
+    console.warn('probe_failures', failures)
+  }
+
+  console.groupEnd()
+
+  return {
+    ...selectedProbe,
+    selectionReason,
+    groups,
+    failedProbeCount: failures.length,
+    round
+  }
+}
+
+async function readStableVWalaBalance(walletAddress, requestId) {
+  const attempts = []
+  let previousRawBalance = ''
+
+  for (let round = 1; round <= 4; round += 1) {
+    const result = await runVWalaProbeRound(walletAddress, requestId, round)
+    attempts.push(result)
+
+    const isUnanimous = result.groups.length === 1
+    const sameAsPrevious =
+      previousRawBalance &&
+      String(previousRawBalance) === String(result.rawBalance)
+
+    if (isUnanimous || sameAsPrevious) {
+      return {
+        ...result,
+        attempts,
+        stabilizationReason: isUnanimous
+          ? 'unanimous_round'
+          : 'same_result_in_two_rounds'
+      }
+    }
+
+    previousRawBalance = String(result.rawBalance)
+
+    if (round < 4) {
+      await sleep(900)
+    }
+  }
+
+  const lastResult = attempts[attempts.length - 1]
+
+  return {
+    ...lastResult,
+    attempts,
+    stabilizationReason: 'max_rounds_last_result'
+  }
+}
+
 async function loadVWalaBalance(walletAddress) {
   const requestId = ++vwalaBalanceLoadCounter
   const groupLabel = `[CARTEIRA_VWALA_BALANCE_READ_${requestId}]`
@@ -289,34 +395,7 @@ async function loadVWalaBalance(walletAddress) {
   try {
     if (!walletAddress) return
 
-    const settled = await Promise.allSettled([
-      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_a`),
-      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_b`),
-      readSingleVWalaBalanceProbe(walletAddress, `carteira_vwala_balance_${requestId}_c`)
-    ])
-
-    const probes = settled
-      .filter((item) => item.status === 'fulfilled')
-      .map((item) => item.value)
-
-    const failures = settled
-      .filter((item) => item.status === 'rejected')
-      .map((item) => item.reason)
-
-    if (!probes.length) {
-      throw failures[0] || new Error('Nenhuma leitura de saldo vWALA foi concluída.')
-    }
-
-    const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
-
-    console.log('all_probes', probes)
-    console.log('grouped_probes', groups)
-    console.log('selected_probe', selectedProbe)
-    console.log('selection_reason', selectionReason)
-
-    if (failures.length) {
-      console.warn('probe_failures', failures)
-    }
+    const selectedRead = await readStableVWalaBalance(walletAddress, requestId)
 
     if (requestId !== vwalaBalanceLoadCounter) {
       console.warn('Leitura antiga descartada.', {
@@ -328,19 +407,22 @@ async function loadVWalaBalance(walletAddress) {
 
     console.log('selected_balance_read', {
       build: CARTEIRA_BUILD_TAG,
-      source: selectedProbe.source,
-      rpcUrl: maskRpcUrl(createRpcProbeUrl(selectedProbe.source)),
-      chainId: selectedProbe.chainId,
-      blockNumber: Number(selectedProbe.blockNumber),
+      source: selectedRead.source,
+      proxyName: selectedRead.proxyName,
+      rpcUrl: maskRpcUrl(selectedRead.rpcUrl),
+      chainId: selectedRead.chainId,
+      blockNumber: Number(selectedRead.blockNumber),
       walletAddress,
       tokenAddress: VWALA_TOKEN_ADDRESS,
-      decimals: selectedProbe.decimals,
-      balanceRaw: selectedProbe.rawBalance,
-      balanceFormatted: selectedProbe.balanceFormatted,
-      selectionReason
+      decimals: selectedRead.decimals,
+      balanceRaw: selectedRead.rawBalance,
+      balanceFormatted: selectedRead.balanceFormatted,
+      selectionReason: selectedRead.selectionReason,
+      stabilizationReason: selectedRead.stabilizationReason,
+      attempts: selectedRead.attempts
     })
 
-    updateVWalaBalanceUI(selectedProbe.balanceFormatted)
+    updateVWalaBalanceUI(selectedRead.balanceFormatted)
   } catch (error) {
     console.error('Erro ao carregar saldo vWALA:', error)
 
@@ -925,7 +1007,7 @@ async function handleSendPolygon() {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getRpcProvider('carteira_send_pol')
+    const provider = getRpcProvider('carteira_send_pol', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1122,7 +1204,7 @@ async function handleBuyVWala() {
       'Consultando o contrato para calcular quanto vWALA você vai receber.'
     )
 
-    const provider = getRpcProvider('carteira_quote_buy')
+    const provider = getRpcProvider('carteira_quote_buy', POLYGON_RPC_PRIMARY_URL)
     const poolContract = new Contract(
   VWALA_POOL_ADDRESS,
   VWALA_POOL_ABI,
@@ -1203,7 +1285,7 @@ const quotedAmount = await poolContract.quoteBuy(amountWei)
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getRpcProvider('carteira_exec_buy')
+    const provider = getRpcProvider('carteira_exec_buy', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1351,7 +1433,7 @@ async function handleSellVWala() {
       'Consultando o contrato para calcular quanto POL você vai receber.'
     )
 
-    const provider = getRpcProvider('carteira_quote_sell')
+    const provider = getRpcProvider('carteira_quote_sell', POLYGON_RPC_PRIMARY_URL)
     const tokenContract = new Contract(
       VWALA_TOKEN_ADDRESS,
       ERC20_TOKEN_ABI,
@@ -1432,7 +1514,7 @@ const quotedWei = await poolContract.quoteSell(amountUnits)
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getRpcProvider('carteira_exec_sell')
+    const provider = getRpcProvider('carteira_exec_sell', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
@@ -1807,7 +1889,7 @@ async function handleSendCreatedToken(token) {
       throw new Error('PIN deste aparelho ainda não configurado.')
     }
 
-    const provider = getRpcProvider('carteira_send_token')
+    const provider = getRpcProvider('carteira_send_token', POLYGON_RPC_PRIMARY_URL)
     const unlockedWallet = await Wallet.fromEncryptedJson(
       deviceVault.walletKeystoreLocal,
       pin.trim()
