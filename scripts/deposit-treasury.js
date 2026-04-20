@@ -1,59 +1,80 @@
 import { network } from 'hardhat'
 import 'dotenv/config'
 
-const BETTING_ADDRESS = '0x3276c60b77e70C79Ac4aDA7003C0980fdCC3CfBF'
-const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
+const BETTING_ADDRESS =
+  process.env.VITE_WALA_BETTING_ADDRESS || '0x486ea8E0E7C320b0b4940bce4e8Bf09905cf917f'
 
-// ajuste aqui o valor que quer depositar
-const DEPOSIT_AMOUNT = '1000000'
+const VWALA_TOKEN_ADDRESS =
+  process.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
-const ERC20_ABI = [
-  'function approve(address spender, uint256 value) external returns (bool)',
-  'function allowance(address owner, address spender) external view returns (uint256)',
-  'function decimals() external view returns (uint8)',
-  'function balanceOf(address account) external view returns (uint256)'
-]
+const DEPOSIT_AMOUNT = '1000' // ajuste aqui
 
 async function main() {
-  const { ethers } = await network.create('polygon')
+  console.log('Conectando na rede...')
+  console.log('BETTING_ADDRESS:', BETTING_ADDRESS)
+  console.log('VWALA_TOKEN_ADDRESS:', VWALA_TOKEN_ADDRESS)
+  console.log('DEPOSIT_AMOUNT:', DEPOSIT_AMOUNT)
+
+  const { ethers } = await network.create()
   const [deployer] = await ethers.getSigners()
 
-  const token = new ethers.Contract(VWALA_TOKEN, ERC20_ABI, deployer)
-  const contract = await ethers.getContractAt('WalaBetting', BETTING_ADDRESS, deployer)
+  console.log('Wallet deployer/operator:', deployer.address)
+
+  const betting = await ethers.getContractAt('WalaBetting', BETTING_ADDRESS, deployer)
+
+  const token = await ethers.getContractAt(
+    [
+      'function decimals() view returns (uint8)',
+      'function balanceOf(address account) view returns (uint256)',
+      'function allowance(address owner, address spender) view returns (uint256)',
+      'function approve(address spender, uint256 amount) external returns (bool)'
+    ],
+    VWALA_TOKEN_ADDRESS,
+    deployer
+  )
 
   const decimals = await token.decimals()
-  const amount = ethers.parseUnits(DEPOSIT_AMOUNT, decimals)
+  const amountWei = ethers.parseUnits(DEPOSIT_AMOUNT, decimals)
 
-  const walletAddress = await deployer.getAddress()
-  const balance = await token.balanceOf(walletAddress)
+  const treasuryBefore = await betting.treasury()
+  console.log('Antes -> Treasury ativa:', treasuryBefore.active)
+  console.log('Antes -> Total deposited:', treasuryBefore.totalDeposited.toString())
+  console.log('Antes -> Tracked balance:', treasuryBefore.trackedBalance.toString())
 
-  console.log('Wallet:', walletAddress)
-  console.log('Saldo vWALA:', ethers.formatUnits(balance, decimals))
-  console.log('Depositando vWALA:', DEPOSIT_AMOUNT)
+  if (!treasuryBefore.active) {
+    throw new Error('A treasury não está ativa. Rode primeiro o init-treasury.')
+  }
 
-  const approveTx = await token.approve(BETTING_ADDRESS, amount)
-console.log('tx approve:', approveTx.hash)
-console.log('Aguardando confirmação do approve por até 120s...')
+  const walletBalance = await token.balanceOf(deployer.address)
+  console.log('Saldo vWALA wallet:', walletBalance.toString())
 
-const approveReceipt = await approveTx.wait(1, 120000)
-console.log('Approve status:', approveReceipt?.status)
-console.log('Approve block:', approveReceipt?.blockNumber)
+  if (walletBalance < amountWei) {
+    throw new Error('Saldo de vWALA insuficiente na wallet operator.')
+  }
 
-const allowance = await token.allowance(walletAddress, BETTING_ADDRESS)
-console.log('Allowance liberada:', ethers.formatUnits(allowance, decimals))
+  const allowanceBefore = await token.allowance(deployer.address, BETTING_ADDRESS)
+  console.log('Allowance antes:', allowanceBefore.toString())
 
-console.log('Enviando depositTreasury...')
-const depositTx = await contract.depositTreasury(amount)
-console.log('tx depositTreasury:', depositTx.hash)
-console.log('Aguardando confirmação do depósito por até 120s...')
+  if (allowanceBefore < amountWei) {
+    const approveTx = await token.approve(BETTING_ADDRESS, amountWei)
+    console.log('tx approve:', approveTx.hash)
+    const approveReceipt = await approveTx.wait(1, 120000)
+    console.log('Approve status:', approveReceipt?.status)
+  } else {
+    console.log('Allowance já suficiente.')
+  }
 
-const depositReceipt = await depositTx.wait(1, 120000)
-console.log('Deposit status:', depositReceipt?.status)
-console.log('Deposit block:', depositReceipt?.blockNumber)
+  const depositTx = await betting.depositTreasury(amountWei)
+  console.log('tx depositTreasury:', depositTx.hash)
 
-  const treasury = await contract.treasury()
-  console.log('Total deposited:', ethers.formatUnits(treasury.totalDeposited, decimals))
-  console.log('Tracked balance:', ethers.formatUnits(treasury.trackedBalance, decimals))
+  const depositReceipt = await depositTx.wait(1, 120000)
+  console.log('Deposit status:', depositReceipt?.status)
+  console.log('Deposit block:', depositReceipt?.blockNumber)
+
+  const treasuryAfter = await betting.treasury()
+  console.log('Depois -> Treasury ativa:', treasuryAfter.active)
+  console.log('Depois -> Total deposited:', treasuryAfter.totalDeposited.toString())
+  console.log('Depois -> Tracked balance:', treasuryAfter.trackedBalance.toString())
 }
 
 main().catch((error) => {
