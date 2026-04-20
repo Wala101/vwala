@@ -42,6 +42,15 @@ const BETTING_ABI = [
   'function resolveMarket(uint64 fixtureId, uint8 winningOutcome)',
 ]
 
+function extractErrorDetails(error) {
+  return {
+    message: error?.message || String(error),
+    shortMessage: error?.shortMessage || '',
+    data: error?.data || error?.error?.data || error?.info?.error?.data || '',
+    code: error?.code || '',
+  }
+}
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -217,30 +226,82 @@ if (winningOutcome === null) {
 }
 
 const actions = []
+let latestMarketState = marketState
+let latestMarketStatus = marketStatus
 
-if (marketStatus === MARKET_STATUS.OPEN) {
-  console.log('[KEEPER CLOSE]', { fixtureId, marketStatus, winningOutcome })
+if (latestMarketStatus === MARKET_STATUS.OPEN) {
+  try {
+    console.log('[KEEPER CLOSE]', { fixtureId, marketStatus: latestMarketStatus, winningOutcome })
 
-  const closeTx = await contract.closeMarket(BigInt(fixtureId))
-  console.log('[KEEPER CLOSE TX]', closeTx.hash)
-  await closeTx.wait()
+    const closeTx = await contract.closeMarket(BigInt(fixtureId))
+    console.log('[KEEPER CLOSE TX]', closeTx.hash)
+    await closeTx.wait()
 
-  actions.push({
-    action: 'closed_before_resolve',
-    hash: closeTx.hash
-  })
+    actions.push({
+      action: 'closed_before_resolve',
+      hash: closeTx.hash
+    })
+  } catch (error) {
+    return {
+      ok: false,
+      fixtureId,
+      matchStatus,
+      stage: 'closeMarket',
+      winningOutcome,
+      ...extractErrorDetails(error)
+    }
+  }
+
+  latestMarketState = await contract.getMarketState(BigInt(fixtureId))
+  latestMarketStatus = Number(latestMarketState[3])
 }
 
-console.log('[KEEPER RESOLVE]', { fixtureId, winningOutcome })
+if (latestMarketStatus === MARKET_STATUS.RESOLVED) {
+  return {
+    ok: true,
+    fixtureId,
+    matchStatus,
+    alreadyResolved: true,
+    winningOutcome: Number(latestMarketState[5]),
+    action: 'none_after_refresh',
+    actions
+  }
+}
 
-const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
-console.log('[KEEPER RESOLVE TX]', resolveTx.hash)
-await resolveTx.wait()
+if (latestMarketStatus !== MARKET_STATUS.CLOSED) {
+  return {
+    ok: false,
+    fixtureId,
+    matchStatus,
+    stage: 'pre_resolve_check',
+    error: `Mercado não ficou fechado para resolver. Status atual: ${latestMarketStatus}`,
+    winningOutcome,
+    actions
+  }
+}
 
-actions.push({
-  action: 'resolved',
-  hash: resolveTx.hash
-})
+try {
+  console.log('[KEEPER RESOLVE]', { fixtureId, winningOutcome, marketStatus: latestMarketStatus })
+
+  const resolveTx = await contract.resolveMarket(BigInt(fixtureId), winningOutcome)
+  console.log('[KEEPER RESOLVE TX]', resolveTx.hash)
+  await resolveTx.wait()
+
+  actions.push({
+    action: 'resolved',
+    hash: resolveTx.hash
+  })
+} catch (error) {
+  return {
+    ok: false,
+    fixtureId,
+    matchStatus,
+    stage: 'resolveMarket',
+    winningOutcome,
+    actions,
+    ...extractErrorDetails(error)
+  }
+}
 
 return {
   ok: true,
@@ -318,12 +379,12 @@ const result = await syncSingleFixture(betting, fixtureId, footballToken)
 
 console.log('[KEEPER RESULT]', result)
 
-    return json({
-      keeper: 'polygon-football-keeper',
-      operator: signer.address,
-      bettingAddress,
-      ...result
-    })
+return json({
+  keeper: 'polygon-football-keeper',
+  operator: signer.address,
+  bettingAddress,
+  ...result
+}, result?.ok === false ? 200 : 200)
     } catch (error) {
     console.error('[KEEPER ERROR]', {
       message: error?.message || String(error),

@@ -1132,8 +1132,17 @@ async function syncFixtureBeforeClaim(fixtureId) {
   }
 
   if (!response.ok || result?.ok === false) {
-    throw new Error(result?.error || 'Não foi possível verificar o resultado do mercado.')
-  }
+  const detailParts = [
+    result?.stage ? `Etapa: ${result.stage}` : '',
+    result?.error || '',
+    result?.shortMessage || '',
+    result?.code ? `Code: ${result.code}` : ''
+  ].filter(Boolean)
+
+  throw new Error(
+    detailParts.join(' | ') || 'Não foi possível verificar o resultado do mercado.'
+  )
+}
 
   return result
 }
