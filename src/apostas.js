@@ -145,14 +145,15 @@ document.querySelector('#app').innerHTML = `
           </div>
         </section>
 
-        <section id="marketLoadingCard" class="card market-loading-card-inline">
-          <div id="marketLoading" class="market-loading-inline">
+        <section id="marketLoadingCard" class="card market-loading-card">
+          <div class="market-loading-card-inner">
             <div class="market-loading-spinner"></div>
-            <p class="market-loading-text">Carregando mercados...</p>
+            <p class="market-loading-title">Carregando mercados</p>
+            <p class="market-loading-text">Buscando jogos e preparando os mercados para você.</p>
           </div>
         </section>
 
-        <section id="marketSearchCard" class="card">
+        <section id="marketSearchCard" class="card" style="display:none;">
           <div class="section-head">
             <div>
               <p class="section-kicker">BUSCA</p>
@@ -239,7 +240,6 @@ document.querySelector('#app').innerHTML = `
 const marketGrid = document.getElementById('marketGrid')
 const marketCount = document.getElementById('marketCount')
 const marketEmpty = document.getElementById('marketEmpty')
-const marketLoading = document.getElementById('marketLoading')
 const marketLoadingCard = document.getElementById('marketLoadingCard')
 const marketSearchCard = document.getElementById('marketSearchCard')
 const searchInput = document.getElementById('searchInput')
@@ -1588,16 +1588,12 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
 function setMarketLoading(isLoading) {
   state.loading = Boolean(isLoading)
 
-  if (marketLoading) {
-    marketLoading.classList.toggle('show', state.loading)
-  }
-
   if (marketLoadingCard) {
-    marketLoadingCard.style.display = state.loading ? '' : 'none'
+    marketLoadingCard.style.display = state.loading ? 'block' : 'none'
   }
 
   if (marketSearchCard) {
-    marketSearchCard.style.display = state.loading ? 'none' : ''
+    marketSearchCard.style.display = state.loading ? 'none' : 'block'
   }
 
   if (marketEmpty) {
@@ -1631,6 +1627,7 @@ function renderMatches() {
 
 async function boot() {
   setMarketLoading(true)
+  marketGrid.innerHTML = ''
   menuBtn.addEventListener('click', openSidebar)
   sidebarOverlay.addEventListener('click', closeSidebar)
 
