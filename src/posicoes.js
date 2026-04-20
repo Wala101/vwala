@@ -1164,9 +1164,36 @@ async function claimItem(item) {
 hideLoadingModal()
 
 if (!freshItem) {
+  const marketStateAfterSync = await state.betting.getMarketState(BigInt(item.fixtureId))
+  const marketStatusAfterSync = Number(marketStateAfterSync[3])
+  const hasWinnerAfterSync = Boolean(marketStateAfterSync[4])
+  const winningOutcomeAfterSync = Number(marketStateAfterSync[5])
+  const originalOutcome = Number(item.outcome)
+
+  if (
+    marketStatusAfterSync === MarketStatus.RESOLVED &&
+    hasWinnerAfterSync &&
+    originalOutcome !== winningOutcomeAfterSync
+  ) {
+    showAlert('Aposta perdida', 'Essa aposta não venceu e foi removida da lista.')
+    return
+  }
+
+  if (
+    marketStatusAfterSync === MarketStatus.RESOLVED &&
+    hasWinnerAfterSync &&
+    originalOutcome === winningOutcomeAfterSync
+  ) {
+    showAlert(
+      'Resultado confirmado',
+      'Sua posição venceu, mas não foi possível recarregar o item na lista. Atualize a página e tente resgatar.'
+    )
+    return
+  }
+
   showAlert(
     'Resultado confirmado',
-    'Essa posição foi encerrada após a verificação. Se ela sumiu da lista, foi porque perdeu ou já foi finalizada.'
+    'Essa posição foi encerrada após a verificação, mas ainda não ficou disponível para resgate.'
   )
   return
 }
