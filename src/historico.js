@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -626,7 +626,11 @@ function isPredictionsConfigured() {
   )
 }
 
-function getSavedCouponEntries() {
+function getBinaryPositionDocId(marketId, couponId) {
+  return `${String(marketId).trim()}_${String(couponId).trim()}`
+}
+
+function getSavedCouponEntriesFromLocal() {
   const walletAddress = String(state.userAddress || getCurrentWalletAddress()).trim().toLowerCase()
 
   if (!walletAddress) {
@@ -660,6 +664,136 @@ function getSavedCouponEntries() {
     console.error('Erro ao ler cupons salvos:', error)
     return []
   }
+}
+
+function restoreCouponsToLocalStorage(entries = []) {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+
+  if (!walletAddress || !entries.length) {
+    return
+  }
+
+  const next = {}
+
+  for (const entry of entries) {
+    const marketId = String(entry?.marketId || '').trim()
+    const couponId = String(entry?.couponId || '').trim()
+
+    if (!marketId || !couponId) continue
+
+    if (!Array.isArray(next[marketId])) {
+      next[marketId] = []
+    }
+
+    if (!next[marketId].includes(couponId)) {
+      next[marketId].push(couponId)
+    }
+  }
+
+  localStorage.setItem(`wala_binary_coupons_${walletAddress}`, JSON.stringify(next))
+}
+
+async function getSavedCouponEntriesFromFirebase() {
+  if (!currentGoogleUser?.uid) {
+    return []
+  }
+
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+
+  if (!walletAddress) {
+    return []
+  }
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, 'users', currentGoogleUser.uid, 'binary_positions')
+    )
+
+    const dedupe = new Set()
+    const entries = []
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {}
+
+      if (data.claimed === true) return
+      if (String(data.walletAddress || '').trim().toLowerCase() !== walletAddress) return
+
+      const marketId = String(data.marketId || '').trim()
+      const couponId = String(data.couponId || '').trim()
+      const uniqueKey = `${marketId}:${couponId}`
+
+      if (!marketId || !couponId || dedupe.has(uniqueKey)) {
+        return
+      }
+
+      dedupe.add(uniqueKey)
+      entries.push({ marketId, couponId })
+    })
+
+    return entries.sort((a, b) => Number(b.marketId) - Number(a.marketId))
+  } catch (error) {
+    console.error('Erro ao ler posições binárias do Firebase:', error)
+    return []
+  }
+}
+
+async function getSavedCouponEntries() {
+  if (currentGoogleUser?.uid) {
+    const firebaseEntries = await getSavedCouponEntriesFromFirebase()
+
+    if (firebaseEntries.length) {
+      restoreCouponsToLocalStorage(firebaseEntries)
+    }
+
+    return firebaseEntries
+  }
+
+  return getSavedCouponEntriesFromLocal()
+}
+
+function removeCouponFromLocalStorage(marketId, couponId) {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+
+  if (!walletAddress) {
+    return
+  }
+
+  try {
+    const key = `wala_binary_coupons_${walletAddress}`
+    const saved = JSON.parse(localStorage.getItem(key) || '{}')
+    const marketKey = String(marketId).trim()
+    const couponKey = String(couponId).trim()
+
+    if (!Array.isArray(saved[marketKey])) {
+      return
+    }
+
+    saved[marketKey] = saved[marketKey].filter((item) => String(item) !== couponKey)
+
+    if (!saved[marketKey].length) {
+      delete saved[marketKey]
+    }
+
+    localStorage.setItem(key, JSON.stringify(saved))
+  } catch (error) {
+    console.error('Erro ao remover cupom binário do localStorage:', error)
+  }
+}
+
+async function removeBinaryPositionFromFirebase(item) {
+  if (!currentGoogleUser?.uid) {
+    return
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'binary_positions',
+      getBinaryPositionDocId(item.marketId, item.couponId)
+    )
+  )
 }
 
 function getPredictionsErrorName(error) {
@@ -719,25 +853,29 @@ function isClaimable(item) {
   )
 }
 
+function isLosingResolved(item) {
+  return (
+    Number(item.status) === MarketStatus.RESOLVED &&
+    item.hasWinner &&
+    !item.claimed &&
+    Number(item.side) !== Number(item.winningSide)
+  )
+}
+
 function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
+  if (isLosingResolved(item)) return 'NÃO VENCEU'
   if (isClaimable(item)) return 'PRONTA PARA RESGATE'
-  if (Number(item.status) === MarketStatus.OPEN) return 'MERCADO ABERTO'
-  if (Number(item.status) === MarketStatus.CLOSED) return 'AGUARDANDO RESOLUÇÃO'
-  if (Number(item.status) === MarketStatus.RESOLVED && Number(item.side) !== Number(item.winningSide)) {
-    return 'NÃO VENCEU'
-  }
-
+  if (Number(item.status) === MarketStatus.OPEN) return 'APOSTA ABERTA'
+  if (Number(item.status) === MarketStatus.CLOSED) return 'APOSTA FECHADA'
   return '---'
 }
 
 function getClaimButtonText(item) {
   if (item.claimed) return 'Resgatado'
+  if (isLosingResolved(item)) return 'Perdido'
   if (isClaimable(item)) return 'Resgatar'
-  if (Number(item.status) === MarketStatus.OPEN) return 'Mercado aberto'
-  if (Number(item.status) === MarketStatus.CLOSED) return 'Aguardando'
-  if (Number(item.status) === MarketStatus.RESOLVED) return 'Sem resgate'
-  return 'Indisponível'
+  return 'Verificar resultado'
 }
 
 async function loadUserTokenBalance() {
@@ -953,7 +1091,7 @@ async function loadHistory() {
       return
     }
 
-    const entries = getSavedCouponEntries()
+    const entries = await getSavedCouponEntries()
 
     if (!entries.length) {
       state.positions = []
@@ -989,6 +1127,31 @@ async function loadHistory() {
         )
 
         if (!position[0]) {
+          continue
+        }
+
+        if (position[6] === true) {
+          await removeBinaryPositionFromFirebase({
+            marketId: String(entry.marketId),
+            couponId: String(entry.couponId)
+          })
+
+          removeCouponFromLocalStorage(entry.marketId, entry.couponId)
+          continue
+        }
+
+        const isResolved = Number(marketState[3]) === MarketStatus.RESOLVED
+        const hasWinner = Boolean(marketState[4])
+        const winningSide = Number(marketState[5])
+        const userSide = Number(position[4])
+
+        if (isResolved && hasWinner && userSide !== winningSide) {
+          await removeBinaryPositionFromFirebase({
+            marketId: String(entry.marketId),
+            couponId: String(entry.couponId)
+          })
+
+          removeCouponFromLocalStorage(entry.marketId, entry.couponId)
           continue
         }
 
@@ -1055,6 +1218,12 @@ async function claimItem(item) {
     )
 
     await tx.wait()
+
+    await removeBinaryPositionFromFirebase({
+      marketId: String(item.marketId),
+      couponId: String(item.couponId)
+    })
+    removeCouponFromLocalStorage(item.marketId, item.couponId)
 
     hideLoadingModal()
     showAlert('Sucesso', 'Resgate concluído com sucesso.')
@@ -1140,9 +1309,9 @@ function createHistoryCard(item) {
             : canClaim
               ? 'Sua posição venceu e já pode ser resgatada.'
               : Number(item.status) === MarketStatus.OPEN
-                ? 'Esse mercado ainda está aberto.'
+                ? 'Essa aposta ainda está aberta.'
                 : Number(item.status) === MarketStatus.CLOSED
-                  ? 'O mercado fechou e aguarda resolução.'
+                  ? 'A aposta fechou e aguarda resolução.'
                   : Number(item.status) === MarketStatus.RESOLVED
                     ? 'Essa posição não venceu.'
                     : 'Aguardando atualização on-chain.'
@@ -1150,7 +1319,7 @@ function createHistoryCard(item) {
       </div>
     </div>
 
-    <button class="launch confirm-bet-btn js-claim-btn" type="button" ${canClaim ? '' : 'disabled'}>
+    <button class="launch confirm-bet-btn js-claim-btn" type="button" ${item.claimed || isLosingResolved(item) ? 'disabled' : ''}>
       ${buttonText}
     </button>
   `
