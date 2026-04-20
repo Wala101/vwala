@@ -11,6 +11,7 @@ export default defineConfig({
         posicoes: 'posicoes.html',
         predicoes: 'predicoes.html',
         historico: 'historico.html',
+        whitpaper: 'whitpaper.html',
         token: 'token.html',
       },
     },
