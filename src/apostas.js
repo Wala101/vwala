@@ -1087,14 +1087,13 @@ async function loadMatches() {
       renderMatches()
       return
     }
-    const hydrated = []
-    for (const match of baseMatches) {
-      hydrated.push(await hydrateMatch(match))
-    }
+    const hydrated = await Promise.all(
+  baseMatches.map((match) => hydrateMatch(match))
+)
 
-    state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
-    await refreshAllPositions()
-    renderMatches()
+state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
+await refreshAllPositions()
+renderMatches()
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar os mercados.')
@@ -1105,31 +1104,47 @@ async function refreshAllPositions() {
   if (!state.userAddress || !state.betting) return
 
   const nextPositions = {}
+  const requests = []
 
   for (const match of state.matches) {
     if (!Array.isArray(match.userCoupons)) continue
 
     for (const couponId of match.userCoupons) {
-      try {
-        const position = await state.betting.getPosition(
+      requests.push(
+        state.betting.getPosition(
           BigInt(match.fixtureId),
           state.userAddress,
           BigInt(couponId)
         )
+          .then((position) => ({
+            ok: true,
+            match,
+            couponId,
+            position
+          }))
+          .catch(() => ({
+            ok: false
+          }))
+      )
+    }
+  }
 
-        if (position[0]) {
-          nextPositions[`${match.fixtureId}:${couponId}`] = {
-            exists: position[0],
-            fixtureId: Number(position[1]),
-            couponId: position[3].toString(),
-            outcome: Number(position[4]),
-            amount: formatUnits(position[5], state.decimals),
-            claimed: position[6],
-            claimedAmount: formatUnits(position[7], state.decimals)
-          }
-        }
-      } catch {
-        continue
+  const results = await Promise.all(requests)
+
+  for (const result of results) {
+    if (!result.ok) continue
+
+    const { match, couponId, position } = result
+
+    if (position[0]) {
+      nextPositions[`${match.fixtureId}:${couponId}`] = {
+        exists: position[0],
+        fixtureId: Number(position[1]),
+        couponId: position[3].toString(),
+        outcome: Number(position[4]),
+        amount: formatUnits(position[5], state.decimals),
+        claimed: position[6],
+        claimedAmount: formatUnits(position[7], state.decimals)
       }
     }
   }
