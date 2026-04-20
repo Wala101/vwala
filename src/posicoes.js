@@ -1156,17 +1156,20 @@ async function claimItem(item) {
     await loadHistory()
 
     const freshItem = state.positions.find(
-      (position) =>
-        String(position.fixtureId) === String(item.fixtureId) &&
-        String(position.couponId) === String(item.couponId)
-    )
+  (position) =>
+    String(position.fixtureId) === String(item.fixtureId) &&
+    String(position.couponId) === String(item.couponId)
+)
 
-    hideLoadingModal()
+hideLoadingModal()
 
-    if (!freshItem) {
-      showAlert('Posição', 'Não foi possível recarregar essa posição.')
-      return
-    }
+if (!freshItem) {
+  showAlert(
+    'Resultado confirmado',
+    'Essa posição foi encerrada após a verificação. Se ela sumiu da lista, foi porque perdeu ou já foi finalizada.'
+  )
+  return
+}
 
     if (freshItem.claimed) {
       showAlert('Resgate', 'Essa posição já foi resgatada.')
