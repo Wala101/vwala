@@ -1246,31 +1246,38 @@ async function previewPayout(fixtureId, outcome, amountUi, match = null) {
   }
 }
 
-async function ensureMarketExists(match, signer) {
+async function ensureMarketExists(match) {
   if (match.exists) return
 
-  const bettingContract = state.betting.connect(signer)
   const normalized = normalizeMarketProbabilities(match)
 
+  const response = await fetch(`${API_BASE}/create-football-market`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      fixtureId: String(match.fixtureId),
+      league: String(match.league || 'Futebol'),
+      teamA: String(match.teamA || 'Time A'),
+      teamB: String(match.teamB || 'Time B'),
+      feeBps: 0,
+      homeProbBps: Number(normalized.probHomeBps),
+      drawProbBps: Number(normalized.probDrawBps),
+      awayProbBps: Number(normalized.probAwayBps)
+    })
+  })
+
+  let result = {}
+
   try {
-    const tx = await bettingContract.createMarket(
-      BigInt(match.fixtureId),
-      match.league,
-      match.teamA,
-      match.teamB,
-      0,
-      normalized.probHomeBps,
-      normalized.probDrawBps,
-      normalized.probAwayBps
-    )
+    result = await response.json()
+  } catch {
+    result = {}
+  }
 
-    await tx.wait()
-  } catch (error) {
-    const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
-
-    if (!text.includes('marketalreadyexists')) {
-      throw error
-    }
+  if (!response.ok || result?.ok === false) {
+    throw new Error(result?.error || 'Não foi possível criar o mercado.')
   }
 
   match.exists = true
@@ -1506,7 +1513,7 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
 
       if (!match.exists) {
         showLoadingModal('Criando mercado', 'Aguarde enquanto o mercado é criado na Polygon.')
-        await ensureMarketExists(match, signer)
+        await ensureMarketExists(match)
         createdNow = true
       }
 
