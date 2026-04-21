@@ -1,5 +1,4 @@
-import { Contract, JsonRpcProvider, Wallet } from 'ethers'
-
+import { Contract, JsonRpcProvider, Wallet, isAddress } from 'ethers'
 const DEFAULT_BINARY_ADDRESS = process.env.VWALA_BINARY_ADDRESS
 
 const MARKET_STATUS = {
@@ -59,7 +58,12 @@ function getDeployerKey() {
 }
 
 function getBinaryAddress() {
-  return String(process.env.VWALA_BINARY_ADDRESS || DEFAULT_BINARY_ADDRESS).trim()
+  return String(
+    process.env.VWALA_BINARY_ADDRESS ||
+    process.env.VITE_BINARY_PREDICTIONS_ADDRESS ||
+    DEFAULT_BINARY_ADDRESS ||
+    ''
+  ).trim()
 }
 
 function normalizeMarketId(value) {
@@ -118,12 +122,23 @@ export default async (request) => {
     const binaryAddress = getBinaryAddress()
 
     if (!rpcUrl || !deployerKey || !binaryAddress) {
-      throw new Error('ENV não configurado')
-    }
+  throw new Error('ENV não configurado')
+}
 
-    const provider = new JsonRpcProvider(rpcUrl)
-    const signer = new Wallet(deployerKey, provider)
-    const contract = new Contract(binaryAddress, BINARY_ABI, signer)
+if (!isAddress(binaryAddress)) {
+  throw new Error(`VWALA_BINARY_ADDRESS inválido: ${binaryAddress}`)
+}
+
+const provider = new JsonRpcProvider(rpcUrl)
+const signer = new Wallet(deployerKey, provider)
+
+console.log('[BINARY KEEPER INPUT]', {
+  marketId,
+  binaryAddress,
+  operator: signer.address
+})
+
+const contract = new Contract(binaryAddress, BINARY_ABI, signer)
 
     const marketState = await contract.getMarketState(BigInt(marketId))
 const marketMeta = await contract.getMarketMeta(BigInt(marketId))
