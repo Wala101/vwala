@@ -170,6 +170,26 @@ document.querySelector('#app').innerHTML = `
             Nenhuma posição encontrada para esta carteira.
           </div>
         </section>
+
+<section id="historyResolvedCard" class="card" style="display:none;">
+  <div class="section-head">
+    <div>
+      <p class="section-kicker">FINALIZADAS</p>
+      <h2>Histórico on-chain</h2>
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <h3 style="color:#25ff8a;">Ganhas</h3>
+    <div id="resolvedWins" class="match-grid"></div>
+  </div>
+
+  <div style="margin-top:20px;">
+    <h3 style="color:#ff4d4d;">Perdidas</h3>
+    <div id="resolvedLosses" class="match-grid"></div>
+  </div>
+</section>
+
       </main>
     </div>
   </div>
@@ -233,6 +253,9 @@ const historyLoadingCard = document.getElementById('historyLoadingCard')
 const historySearchCard = document.getElementById('historySearchCard')
 const historyResultsCard = document.getElementById('historyResultsCard')
 const positionsGrid = document.getElementById('positionsGrid')
+const historyResolvedCard = document.getElementById('historyResolvedCard')
+const resolvedWins = document.getElementById('resolvedWins')
+const resolvedLosses = document.getElementById('resolvedLosses')
 const positionsEmpty = document.getElementById('positionsEmpty')
 const positionCount = document.getElementById('positionCount')
 const searchInput = document.getElementById('searchInput')
@@ -303,6 +326,37 @@ function closePinModal(result = null) {
   if (resolve) {
     resolve(result)
   }
+}
+
+
+function renderResolvedPositions(allPositions) {
+  if (!historyResolvedCard) return
+
+  const wins = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
+    item.hasWinner &&
+    Number(item.side) === Number(item.winningSide)
+  )
+
+  const losses = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
+    item.hasWinner &&
+    Number(item.side) !== Number(item.winningSide)
+  )
+
+  resolvedWins.innerHTML = ''
+  resolvedLosses.innerHTML = ''
+
+  wins.forEach(item => {
+    resolvedWins.appendChild(createHistoryCard(item))
+  })
+
+  losses.forEach(item => {
+    resolvedLosses.appendChild(createHistoryCard(item))
+  })
+
+  historyResolvedCard.style.display =
+    (wins.length || losses.length) ? 'block' : 'none'
 }
 
 function showLoadingModal(title = 'Processando', text = 'Aguarde...') {
@@ -1119,8 +1173,10 @@ function isLosingResolved(item) {
 
 function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
-  if (isLosingResolved(item)) return 'NÃO VENCEU'
-  if (isClaimable(item)) return 'PRONTA PARA RESGATE'
+if (isClaimable(item)) return 'GANHOU'
+if (isLosingResolved(item)) return 'PERDEU'
+if (Number(item.status) === MarketStatus.CLOSED) return 'AGUARDANDO RESULTADO'
+if (Number(item.status) === MarketStatus.OPEN) return 'EM ANDAMENTO'
   if (Number(item.status) === MarketStatus.OPEN) return 'PREVISÃO ABERTA'
   if (Number(item.status) === MarketStatus.CLOSED) return 'PREVISÃO FECHADA'
   return '---'
@@ -1450,6 +1506,7 @@ async function loadHistory() {
     })
 
     renderPositions()
+renderResolvedPositions(nextPositions)
     } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar o histórico de futures.')
@@ -1651,8 +1708,12 @@ function createHistoryCard(item) {
         <div class="estimated-payout-text">
           ${
             item.claimed
-              ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}`
-              : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
+  ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}`
+  : isClaimable(item)
+    ? `Você ganhou: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
+    : isLosingResolved(item)
+      ? `Você perdeu essa posição`
+      : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
           }
         </div>
       </div>
@@ -1668,7 +1729,11 @@ function createHistoryCard(item) {
                 : Number(item.status) === MarketStatus.CLOSED
                   ? 'A previsão fechou e aguarda resolução.'
                   : Number(item.status) === MarketStatus.RESOLVED
-                    ? 'Essa posição não venceu.'
+  ? item.hasWinner
+    ? Number(item.side) === Number(item.winningSide)
+      ? 'Sua posição venceu e está pronta para resgate.'
+      : 'Essa posição não venceu.'
+    : 'Resultado ainda não definido.'
                     : 'Aguardando atualização on-chain.'
         }
       </div>
