@@ -977,6 +977,12 @@ async function getSavedCouponEntriesFromFirebase() {
 }
 
 async function getSavedCouponEntries() {
+  const localEntries = getSavedCouponEntriesFromLocal()
+
+  if (localEntries.length) {
+    return localEntries
+  }
+
   if (currentGoogleUser?.uid) {
     const firebaseEntries = await getSavedCouponEntriesFromFirebase()
 
@@ -987,7 +993,7 @@ async function getSavedCouponEntries() {
     return firebaseEntries
   }
 
-  return getSavedCouponEntriesFromLocal()
+  return []
 }
 
 function removeCouponFromLocalStorage(marketId, couponId) {
