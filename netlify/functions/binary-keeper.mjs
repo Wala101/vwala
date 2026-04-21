@@ -212,21 +212,46 @@ if (status === MARKET_STATUS.CLOSED) {
     outcome
   })
 
-  const tx = await contract.resolveMarket(BigInt(marketId), outcome)
-  await tx.wait()
+  try {
+    const tx = await contract.resolveMarket(BigInt(marketId), outcome)
+    await tx.wait()
 
-  return json({
-    ok: true,
-    action: 'resolved',
-    operator: signer.address,
-    authority: String(marketState[1] || ''),
-    assetSymbol,
-    coinGeckoId,
-    referencePrice,
-    currentPrice,
-    outcome,
-    hash: tx.hash
-  })
+    return json({
+      ok: true,
+      action: 'resolved',
+      operator: signer.address,
+      authority: String(marketState[1] || ''),
+      assetSymbol,
+      coinGeckoId,
+      referencePrice,
+      currentPrice,
+      outcome,
+      status,
+      hasWinner: Boolean(marketState[4]),
+      winningSide: Number(marketState[5]),
+      closeAt,
+      now,
+      hash: tx.hash
+    })
+  } catch (error) {
+    return json({
+      ok: false,
+      stage: 'resolve_tx',
+      operator: signer.address,
+      authority: String(marketState[1] || ''),
+      assetSymbol,
+      coinGeckoId,
+      referencePrice,
+      currentPrice,
+      outcome,
+      status,
+      hasWinner: Boolean(marketState[4]),
+      winningSide: Number(marketState[5]),
+      closeAt,
+      now,
+      error: error?.shortMessage || error?.message || String(error)
+    }, 500)
+  }
 }
 
     return json({
