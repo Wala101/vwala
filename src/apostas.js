@@ -2006,47 +2006,8 @@ async function buyPosition(match, outcome, amountUi, signer) {
   }
 }
 
-function createPositionBlock(match) {
-  const positions = Object.values(state.positions || {}).filter(
-    (item) => String(item.fixtureId) === String(match.fixtureId)
-  )
-
-  if (!positions.length) {
-    return ''
-  }
-
-  const itemsHtml = positions.map((position) => {
-    const isResolved = Number(match.status) === MarketStatus.RESOLVED
-    const hasWinner = Boolean(match.hasWinner)
-    const isWinner = isResolved && hasWinner && Number(position.outcome) === Number(match.winningOutcome)
-    const isLoser = isResolved && hasWinner && Number(position.outcome) !== Number(match.winningOutcome)
-
-    let statusLabel = 'APOSTA ABERTA'
-    if (position.claimed) statusLabel = 'RESGATADA'
-    else if (isWinner) statusLabel = 'GANHOU'
-    else if (isLoser) statusLabel = 'PERDEU'
-    else if (Number(match.status) === MarketStatus.CLOSED) statusLabel = 'AGUARDANDO RESULTADO'
-
-    return `
-      <div class="stat-box" style="margin-top:8px;">
-        <span class="stat-label">${getOutcomeLabel(match, position.outcome)} · Cupom #${String(position.couponId).slice(-10)}</span>
-        <strong class="stat-value">${formatNumber(position.amount, 4)} ${TOKEN_SYMBOL}</strong>
-        <div class="bet-hint-text" style="margin-top:6px;">${statusLabel}</div>
-      </div>
-    `
-  }).join('')
-
-  return `
-    <div class="user-positions-box">
-      <div class="section-head" style="margin-bottom:8px;">
-        <div>
-          <p class="section-kicker">SUAS APOSTAS</p>
-          <h3 style="margin:0;">Posições abertas neste jogo</h3>
-        </div>
-      </div>
-      ${itemsHtml}
-    </div>
-  `
+function createPositionBlock() {
+  return ''
 }
 
 function createCard(match) {
@@ -2105,8 +2066,6 @@ function createCard(match) {
         <span>B ${formatNumber(match.poolAway)}</span>
       </div>
     </div>
-
-    ${createPositionBlock(match)}
 
     <div class="bet-panel">
       <div class="bet-top">
