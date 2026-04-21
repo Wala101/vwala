@@ -15,8 +15,27 @@ const OUTCOME = {
 
 const TARGET_PCT = 0.001 // 0.1%
 
+const COINGECKO_IDS_BY_SYMBOL = {
+  BTC: 'bitcoin',
+  ETH: 'ethereum',
+  SOL: 'solana',
+  BNB: 'binancecoin',
+  XRP: 'ripple',
+  ADA: 'cardano',
+  DOGE: 'dogecoin',
+  TRX: 'tron',
+  LINK: 'chainlink',
+  AVAX: 'avalanche-2',
+  DOT: 'polkadot',
+  POL: 'polygon',
+  LTC: 'litecoin',
+  BCH: 'bitcoin-cash',
+  SHIB: 'shiba-inu'
+}
+
 const BINARY_ABI = [
-  'function getMarket(uint64 marketId) view returns (bool exists, uint8 status, bool resolved, uint8 outcome, uint256 referencePrice, uint256 closeAt)',
+  'function getMarketState(uint64 marketId) external view returns (bool exists, address authority, uint64 storedMarketId, uint8 status, bool hasWinner, uint8 winningSide, uint256 createdAt, uint256 resolvedAt, uint256 closeAt)',
+  'function getMarketMeta(uint64 marketId) external view returns (string assetSymbol, string question, int256 referencePriceE8)',
   'function closeMarket(uint64 marketId)',
   'function resolveMarket(uint64 marketId, uint8 outcome)'
 ]
@@ -76,6 +95,11 @@ function computeOutcome(referencePrice, currentPrice) {
     : OUTCOME.NO
 }
 
+function getCoinGeckoIdFromAssetSymbol(assetSymbol) {
+  const normalized = String(assetSymbol || '').trim().toUpperCase()
+  return COINGECKO_IDS_BY_SYMBOL[normalized] || ''
+}
+
 export default async (request) => {
   if (request.method !== 'GET') {
     return json({ ok: false, error: 'Método inválido' }, 405)
@@ -101,16 +125,18 @@ export default async (request) => {
     const signer = new Wallet(deployerKey, provider)
     const contract = new Contract(binaryAddress, BINARY_ABI, signer)
 
-    const market = await contract.getMarket(BigInt(marketId))
+    const marketState = await contract.getMarketState(BigInt(marketId))
+const marketMeta = await contract.getMarketMeta(BigInt(marketId))
 
-    if (!market[0]) {
-      return json({ ok: false, error: 'Market não existe' })
-    }
+if (!marketState[0]) {
+  return json({ ok: false, error: 'Market não existe' })
+}
 
-    const status = Number(market[1])
-    const referencePrice = Number(market[4])
-    const closeAt = Number(market[5])
-    const now = Math.floor(Date.now() / 1000)
+const status = Number(marketState[3])
+const assetSymbol = String(marketMeta[0] || '').trim().toUpperCase()
+const referencePrice = Number(marketMeta[2]) / 100000000
+const closeAt = Number(marketState[8])
+const now = Math.floor(Date.now() / 1000)
 
     // 🔒 ainda aberto
     if (now < closeAt) {
@@ -134,24 +160,30 @@ export default async (request) => {
     }
 
     // 🔒 resolver mercado
-    if (status === MARKET_STATUS.CLOSED) {
-      // ⚠️ aqui você precisa mapear symbol corretamente
-      // por enquanto exemplo fixo:
-      const symbol = 'bitcoin'
+if (status === MARKET_STATUS.CLOSED) {
+  const coinGeckoId = getCoinGeckoIdFromAssetSymbol(assetSymbol)
 
-      const currentPrice = await getCurrentPrice(symbol)
-      const outcome = computeOutcome(referencePrice, currentPrice)
+  if (!coinGeckoId) {
+    throw new Error(`AssetSymbol sem mapeamento para CoinGecko: ${assetSymbol}`)
+  }
 
-      const tx = await contract.resolveMarket(BigInt(marketId), outcome)
-      await tx.wait()
+  const currentPrice = await getCurrentPrice(coinGeckoId)
+  const outcome = computeOutcome(referencePrice, currentPrice)
 
-      return json({
-        ok: true,
-        action: 'resolved',
-        outcome,
-        hash: tx.hash
-      })
-    }
+  const tx = await contract.resolveMarket(BigInt(marketId), outcome)
+  await tx.wait()
+
+  return json({
+    ok: true,
+    action: 'resolved',
+    assetSymbol,
+    coinGeckoId,
+    referencePrice,
+    currentPrice,
+    outcome,
+    hash: tx.hash
+  })
+}
 
     return json({
       ok: true,
