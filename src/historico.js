@@ -953,6 +953,72 @@ async function removeBinaryPositionFromFirebase(item) {
   )
 }
 
+function getBinaryLocalPositionsStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_binary_local_positions_${walletAddress || 'guest'}`
+}
+
+function readLocalBinaryPositions() {
+  try {
+    const raw = localStorage.getItem(getBinaryLocalPositionsStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler posições binárias locais:', error)
+    return []
+  }
+}
+
+function writeLocalBinaryPositions(items) {
+  localStorage.setItem(getBinaryLocalPositionsStorageKey(), JSON.stringify(items))
+}
+
+function removeLocalBinaryPosition(marketId, couponId) {
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const items = readLocalBinaryPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writeLocalBinaryPositions(filtered)
+}
+
+function getBinaryPendingStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_binary_pending_positions_${walletAddress || 'guest'}`
+}
+
+function readPendingBinaryPositions() {
+  try {
+    const raw = localStorage.getItem(getBinaryPendingStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler pendências binárias locais:', error)
+    return []
+  }
+}
+
+function writePendingBinaryPositions(items) {
+  localStorage.setItem(getBinaryPendingStorageKey(), JSON.stringify(items))
+}
+
+function removePendingBinaryPositionLocally(marketId, couponId) {
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const items = readPendingBinaryPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writePendingBinaryPositions(filtered)
+}
+
+async function finalizeBinaryPositionCleanup(item) {
+  try {
+    await removeBinaryPositionFromFirebase(item)
+  } catch (firebaseError) {
+    console.error('Erro ao remover posição binária do Firebase:', firebaseError)
+  }
+
+  removePendingBinaryPositionLocally(item.marketId, item.couponId)
+  removeLocalBinaryPosition(item.marketId, item.couponId)
+  removeCouponFromLocalStorage(item.marketId, item.couponId)
+}
+
 function getPredictionsErrorName(error) {
   const candidates = [
     error?.data,
@@ -1286,12 +1352,11 @@ async function loadHistory() {
         }
 
         if (position[6] === true) {
-          await removeBinaryPositionFromFirebase({
+          await finalizeBinaryPositionCleanup({
             marketId: String(entry.marketId),
             couponId: String(entry.couponId)
           })
 
-          removeCouponFromLocalStorage(entry.marketId, entry.couponId)
           continue
         }
 
@@ -1301,12 +1366,11 @@ async function loadHistory() {
         const userSide = Number(position[4])
 
         if (isResolved && hasWinner && userSide !== winningSide) {
-          await removeBinaryPositionFromFirebase({
+          await finalizeBinaryPositionCleanup({
             marketId: String(entry.marketId),
             couponId: String(entry.couponId)
           })
 
-          removeCouponFromLocalStorage(entry.marketId, entry.couponId)
           continue
         }
 
@@ -1400,11 +1464,10 @@ const claimedAmountUi =
       })
     }
 
-    await removeBinaryPositionFromFirebase({
+    await finalizeBinaryPositionCleanup({
       marketId: String(item.marketId),
       couponId: String(item.couponId)
     })
-    removeCouponFromLocalStorage(item.marketId, item.couponId)
 
     hideLoadingModal()
     showAlert('Sucesso', 'Resgate concluído com sucesso.')

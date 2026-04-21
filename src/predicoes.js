@@ -1458,6 +1458,57 @@ function removeLocalBinaryPosition(marketId, couponId) {
   writeLocalBinaryPositions(filtered)
 }
 
+function removeCouponId(marketId, couponId) {
+  if (!state.userAddress) {
+    return
+  }
+
+  const key = `wala_binary_coupons_${state.userAddress.toLowerCase()}`
+  const current = JSON.parse(localStorage.getItem(key) || '{}')
+
+  if (!Array.isArray(current[marketId])) {
+    return
+  }
+
+  current[marketId] = current[marketId].filter((item) => String(item) !== String(couponId))
+
+  if (!current[marketId].length) {
+    delete current[marketId]
+  }
+
+  localStorage.setItem(key, JSON.stringify(current))
+}
+
+async function deleteBinaryPositionFromFirebase(marketId, couponId) {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'binary_positions',
+      getBinaryPositionDocId(marketId, couponId)
+    )
+  )
+}
+
+async function finalizeBinaryPositionCleanup(marketId, couponId) {
+  try {
+    await deleteBinaryPositionFromFirebase(marketId, couponId)
+  } catch (firebaseError) {
+    console.error('Erro ao remover posição binária do Firebase:', firebaseError)
+  }
+
+  removePendingBinaryPositionLocally(marketId, couponId)
+  removeLocalBinaryPosition(marketId, couponId)
+  removeCouponId(marketId, couponId)
+
+  delete state.positions[`${marketId}:${couponId}`]
+}
+
 function restoreCouponsFromLocalBinaryPositions() {
   if (!state.userAddress) {
     return
