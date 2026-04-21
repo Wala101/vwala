@@ -209,7 +209,7 @@ document.querySelector('#app').innerHTML = `
       </div>
 
       <div class="notice-modal-body">
-        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para apostar.</p>
+        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para confirmar a previsão.</p>
         <input
           id="appPinInput"
           class="input"
@@ -311,7 +311,7 @@ function closePinModal(result = null) {
   }
 }
 
-async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para apostar.') {
+async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para confirmar a previsão.') {
   return openPinModal(title, text)
 }
 
@@ -1836,7 +1836,7 @@ async function buyPosition(match, outcome, amountUi, signer) {
   const confirmedTxHash = String(receipt?.hash || tx?.hash || '')
 
   if (!confirmedTxHash) {
-    throw new Error('Aposta confirmada sem tx hash.')
+    throw new Error('Previsão confirmada sem tx hash.')
   }
 
   if (currentGoogleUser?.uid) {
@@ -1944,7 +1944,7 @@ function createCard(match) {
     </div>
 
     <button class="launch confirm-bet-btn js-confirm-bet-btn" type="button" ${match.exists && Number(match.status) !== MarketStatus.OPEN ? 'disabled' : ''}>
-  ${match.exists ? 'Abrir posição' : 'Criar mercado e apostar'}
+  ${match.exists ? 'Abrir posição' : 'Criar mercado e prever'}
 </button>
 
   `
@@ -2017,14 +2017,14 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
   confirmBtn.addEventListener('click', async () => {
     try {
       if (!state.userAddress) {
-        showAlert('Carteira necessária', 'Configure a carteira interna antes de apostar.')
+        showAlert('Carteira necessária', 'Configure a carteira interna antes de enviar a previsão.')
         return
       }
 
       const signer = await getInternalWalletSigner()
 
       if (!signer) {
-        showAlert('PIN necessário', 'Digite o PIN da carteira interna para apostar.')
+        showAlert('PIN necessário', 'Digite o PIN da carteira interna para confirmar a previsão.')
         return
       }
 
@@ -2050,7 +2050,7 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
         createdNow = true
       }
 
-      showLoadingModal('Abrindo posição', 'Aguarde enquanto sua aposta é enviada para a Polygon.')
+      showLoadingModal('Abrindo posição', 'Aguarde enquanto sua previsão é enviada para a Polygon.')
 
       const positionResult = await buyPosition(match, selectedOutcome, amountUi, signer)
 
