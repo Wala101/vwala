@@ -939,8 +939,10 @@ async function getSavedCouponEntriesFromFirebase() {
         return
       }
 
+      const walletAddress = String(data.walletAddress || '').trim()
+
       dedupe.add(uniqueKey)
-      entries.push({ marketId, couponId })
+      entries.push({ marketId, couponId, walletAddress })
     })
 
     console.log('[HISTORICO FIREBASE ENTRIES]', entries)
@@ -1408,11 +1410,22 @@ async function loadHistory() {
           marketMetaCache.set(entry.marketId, marketMeta)
         }
 
+        const walletAddressForPosition = String(
+          entry.walletAddress || state.userAddress || ''
+        ).trim()
+
         const position = await state.predictions.getPosition(
           marketIdBigInt,
-          state.userAddress,
+          walletAddressForPosition,
           couponIdBigInt
         )
+
+        console.log('[HISTORICO POSITION CHECK]', {
+          marketId: entry.marketId,
+          couponId: entry.couponId,
+          walletAddressForPosition,
+          exists: position[0]
+        })
 
         if (!position[0]) {
           continue
