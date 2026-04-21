@@ -598,7 +598,9 @@ function getFriendlyError(error) {
   if (errorName === 'MarketNotFound') return 'Esse mercado ainda não foi criado no contrato.'
   if (errorName === 'MarketClosed') return 'Esse mercado já está fechado.'
   if (errorName === 'InvalidAmount') return 'Valor inválido.'
-  if (errorName === 'InvalidProbabilityConfig') return 'As probabilidades do mercado estão inválidas.'
+  if (errorName === 'InvalidProbabilityConfig') {
+    return 'O contrato rejeitou a configuração das probabilidades do mercado.'
+  }
   if (errorName === 'PositionAlreadyExists') return 'Essa posição já existe para esse cupom.'
   if (errorName === 'PositionNotFound') return 'Posição não encontrada.'
   if (errorName === 'PositionAlreadyClaimed') return 'Essa posição já foi resgatada.'
@@ -923,11 +925,20 @@ function buildBinaryMarketId(symbol, closeAt) {
 }
 
 function normalizeBinaryProbabilities(market = {}) {
-  const yes = Number(market.probYesBps || market.yesProbBps || 0)
-  const no = Number(market.probNoBps || market.noProbBps || 0)
+  const rawYes = market.probYesBps ?? market.yesProbBps ?? 5000
+  const rawNo = market.probNoBps ?? market.noProbBps ?? 5000
+
+  const yes = Math.round(Number(rawYes))
+  const no = Math.round(Number(rawNo))
   const total = yes + no
 
-  if (yes > 0 && no > 0 && total === 10000) {
+  if (
+    Number.isInteger(yes) &&
+    Number.isInteger(no) &&
+    yes > 0 &&
+    no > 0 &&
+    total === 10000
+  ) {
     return {
       probYesBps: yes,
       probNoBps: no
@@ -1541,6 +1552,19 @@ async function ensureMarketExists(market, signer) {
   const normalized = normalizeBinaryProbabilities(market)
 
   try {
+    console.log('[BINARY_CREATE_MARKET_PAYLOAD]', {
+      marketId: String(market.marketId),
+      assetSymbol: market.assetSymbol,
+      question: market.question,
+      closeAt: Number(market.closeAt),
+      referencePriceUsd: Number(market.referencePriceUsd),
+      referencePriceE8: getReferencePriceE8(market.referencePriceUsd).toString(),
+      feeBps: 0,
+      probYesBps: normalized.probYesBps,
+      probNoBps: normalized.probNoBps,
+      totalBps: Number(normalized.probYesBps) + Number(normalized.probNoBps)
+    })
+
     const tx = await predictionsContract.createMarket(
       BigInt(market.marketId),
       market.assetSymbol,
