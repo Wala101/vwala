@@ -1651,7 +1651,7 @@ function createCard(market) {
 
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
-        <span class="stat-label">Meta +0,1%</span>
+        <span class="stat-label">Preço de referência</span>
         <strong class="stat-value">${formatUsd(market.referencePriceUsd)}</strong>
       </div>
 
