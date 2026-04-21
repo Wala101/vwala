@@ -1129,7 +1129,7 @@ function getClaimButtonText(item) {
   if (isClaimable(item)) return 'Resgatar'
   if (Number(item.status) === MarketStatus.OPEN) return 'Mercado aberto'
   if (Number(item.status) === MarketStatus.CLOSED) return 'Ver resultado'
-  return 'Verificar resultado'
+    return 'Ver resultado'
 }
 
 async function loadUserTokenBalance() {
