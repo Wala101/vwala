@@ -16,8 +16,8 @@ const COINS = [
   { id: 'shiba-inu', assetSymbol: 'SHIB', fallbackPrice: 0.000025 }
 ]
 
-const MARKET_RULE_VERSION = 'DAY23V1'
-const TARGET_PCT = 0.03
+const MARKET_RULE_VERSION = 'DAY00V1'
+const TARGET_PCT = 0.001
 
 function getTargetPriceUsd(currentPrice) {
   const price = Number(currentPrice || 0)
@@ -35,8 +35,8 @@ function getDailyMarketCloseTimestamp(fromDate = new Date()) {
   const close = new Date(
     base.getFullYear(),
     base.getMonth(),
-    base.getDate(),
-    23,
+    base.getDate() + 1,
+    0,
     0,
     0,
     0
@@ -60,7 +60,7 @@ function buildFallbackMarkets() {
     marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
     assetSymbol: coin.assetSymbol,
     imageUrl: '/logo.png',
-  question: `${coin.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
+  question: `${coin.assetSymbol} fechará 0,1% acima da referência até 00:00?`,
 referencePriceUsd: getTargetPriceUsd(coin.fallbackPrice),
 currentPriceUsd: coin.fallbackPrice,
     closeAt,
@@ -120,7 +120,7 @@ const referencePriceUsd = getTargetPriceUsd(currentPriceUsd)
         marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
         assetSymbol: coin.assetSymbol,
         imageUrl: String(row?.image || '/logo.png'),
-        question: `${coin.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
+        question: `${coin.assetSymbol} fechará 0,1% acima da referência até 00:00?`,
         referencePriceUsd,
         currentPriceUsd,
         closeAt,
