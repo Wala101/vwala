@@ -36,7 +36,7 @@ const BINARY_ABI = [
   'function getMarketState(uint64 marketId) external view returns (bool exists, address authority, uint64 storedMarketId, uint8 status, bool hasWinner, uint8 winningSide, uint256 createdAt, uint256 resolvedAt, uint256 closeAt)',
   'function getMarketMeta(uint64 marketId) external view returns (string assetSymbol, string question, int256 referencePriceE8)',
   'function closeMarket(uint64 marketId)',
-  'function resolveMarket(uint64 marketId, uint8 outcome)',
+  'function resolveMarket(uint64 marketId, int256 finalPriceE8)',
   'error Unauthorized()',
   'error MarketNotFound()',
   'error MarketNotOpen()',
@@ -190,6 +190,7 @@ if (status === MARKET_STATUS.CLOSED) {
   }
 
   const currentPrice = await getCurrentPrice(coinGeckoId)
+  const finalPriceE8 = BigInt(Math.floor(currentPrice * 100000000))
   const outcome = computeOutcome(referencePrice, currentPrice)
 
   console.log('[BINARY KEEPER PRE-RESOLVE]', {
@@ -203,17 +204,18 @@ if (status === MARKET_STATUS.CLOSED) {
     coinGeckoId,
     referencePrice,
     currentPrice,
+    finalPriceE8: finalPriceE8.toString(),
     outcome
   })
 
-  // ⚠️ remover staticCall pois pode falhar mesmo com tx válida
   console.log('[BINARY KEEPER SKIP STATIC CALL]', {
     marketId,
+    finalPriceE8: finalPriceE8.toString(),
     outcome
   })
 
   try {
-    const tx = await contract.resolveMarket(BigInt(marketId), outcome)
+    const tx = await contract.resolveMarket(BigInt(marketId), finalPriceE8)
     await tx.wait()
 
     return json({
@@ -225,6 +227,7 @@ if (status === MARKET_STATUS.CLOSED) {
       coinGeckoId,
       referencePrice,
       currentPrice,
+      finalPriceE8: finalPriceE8.toString(),
       outcome,
       status,
       hasWinner: Boolean(marketState[4]),
@@ -243,6 +246,7 @@ if (status === MARKET_STATUS.CLOSED) {
       coinGeckoId,
       referencePrice,
       currentPrice,
+      finalPriceE8: finalPriceE8.toString(),
       outcome,
       status,
       hasWinner: Boolean(marketState[4]),
