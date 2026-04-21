@@ -308,31 +308,31 @@ function renderResolvedPositions(allPositions) {
   if (!historyResolvedCard) return
 
   const claimable = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
     isClaimable(item)
   )
 
   const claimed = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
     item.claimed === true
   )
 
   const losses = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
     isLosingResolved(item)
   )
 
   resolvedWins.innerHTML = ''
   resolvedLosses.innerHTML = ''
 
-  // 🟢 GANHOU E NÃO RESGATOU
   claimable.forEach(item => {
     resolvedWins.appendChild(createHistoryCard(item))
   })
 
-  // 🟢 GANHOU E JÁ RESGATOU
   claimed.forEach(item => {
     resolvedWins.appendChild(createHistoryCard(item))
   })
 
-  // 🔴 PERDIDAS
   losses.forEach(item => {
     resolvedLosses.appendChild(createHistoryCard(item))
   })
@@ -935,10 +935,9 @@ async function getSavedCouponEntriesFromFirebase() {
     const entries = []
 
     snapshot.forEach((docSnap) => {
-      const data = docSnap.data() || {}
+  const data = docSnap.data() || {}
 
-      if (data.claimed === true) return
-      if (String(data.walletAddress || '').trim().toLowerCase() !== walletAddress) return
+  if (String(data.walletAddress || '').trim().toLowerCase() !== walletAddress) return
 
       const marketId = String(data.marketId || '').trim()
       const couponId = String(data.couponId || '').trim()
@@ -1755,24 +1754,31 @@ function createHistoryCard(item) {
 }
 
 function renderPositions() {
-      if (historyLoadingCard && historyLoadingCard.style.display !== 'none') {
+  if (historyLoadingCard && historyLoadingCard.style.display !== 'none') {
     positionCount.textContent = '...'
     positionsGrid.innerHTML = ''
     positionsEmpty.classList.remove('show')
+    if (historyResultsCard) {
+      historyResultsCard.style.display = 'none'
+    }
     return
   }
-  
+
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.positions.filter((item) => {
-  if (isLosingResolved(item)) {
-    return false
-  }
+    const isActiveTop =
+      Number(item.status) === MarketStatus.OPEN ||
+      Number(item.status) === MarketStatus.CLOSED
+
+    if (!isActiveTop) {
+      return false
+    }
+
     const text = [
       item.assetSymbol,
       item.question,
       getSideLabel(item.side),
-      getSideLabel(item.winningSide),
       formatMarketStatus(item.status, item.hasWinner, item.closeAt),
       getHistoryStateLabel(item)
     ]
@@ -1790,6 +1796,10 @@ function renderPositions() {
 
   positionCount.textContent = String(filtered.length)
   positionsEmpty.classList.toggle('show', filtered.length === 0)
+
+  if (historyResultsCard) {
+    historyResultsCard.style.display = filtered.length ? 'block' : 'none'
+  }
 }
 
 async function boot() {
