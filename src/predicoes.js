@@ -1190,7 +1190,7 @@ function buildFallbackMarkets() {
     { assetSymbol: 'LINK', imageUrl: '/logo.png', referencePriceUsd: 14.5, currentPriceUsd: 14.5 },
     { assetSymbol: 'AVAX', imageUrl: '/logo.png', referencePriceUsd: 27, currentPriceUsd: 27 },
     { assetSymbol: 'DOT', imageUrl: '/logo.png', referencePriceUsd: 6.8, currentPriceUsd: 6.8 },
-    { assetSymbol: 'MATIC', imageUrl: '/logo.png', referencePriceUsd: 0.95, currentPriceUsd: 0.95 },
+    { assetSymbol: 'POL', imageUrl: '/logo.png', referencePriceUsd: 0.95, currentPriceUsd: 0.95 },
     { assetSymbol: 'LTC', imageUrl: '/logo.png', referencePriceUsd: 84, currentPriceUsd: 84 },
     { assetSymbol: 'BCH', imageUrl: '/logo.png', referencePriceUsd: 460, currentPriceUsd: 460 },
     { assetSymbol: 'SHIB', imageUrl: '/logo.png', referencePriceUsd: 0.000025, currentPriceUsd: 0.000025 }
