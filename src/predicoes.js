@@ -1887,16 +1887,26 @@ async function ensureMarketExists(market) {
   }
 
   if (!response.ok || result?.ok === false) {
-    throw new Error(result?.error || 'Não foi possível criar o mercado binário.')
-  }
+  throw new Error(result?.error || 'Não foi possível criar o mercado binário.')
+}
 
-  market.exists = true
-  market.status = MarketStatus.OPEN
-  market.hasWinner = false
-  market.winningSide = null
-  market.poolYes = market.poolYes || '0'
-  market.poolNo = market.poolNo || '0'
-  market.totalPool = market.totalPool || '0'
+console.log('[BINARY MARKET CREATED VIA BACKEND]', {
+  marketId: String(market.marketId),
+  assetSymbol: String(market.assetSymbol || 'CRYPTO'),
+  operator: String(result?.operator || ''),
+  authority: String(result?.authority || ''),
+  created: Boolean(result?.created),
+  alreadyExists: Boolean(result?.alreadyExists),
+  hash: String(result?.hash || '')
+})
+
+market.exists = true
+market.status = MarketStatus.OPEN
+market.hasWinner = false
+market.winningSide = null
+market.poolYes = market.poolYes || '0'
+market.poolNo = market.poolNo || '0'
+market.totalPool = market.totalPool || '0'
 }
 
 async function approveIfNeeded(amountUi, signer) {
