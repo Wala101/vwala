@@ -920,12 +920,6 @@ async function getSavedCouponEntriesFromFirebase() {
     return []
   }
 
-  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
-
-  if (!walletAddress) {
-    return []
-  }
-
   try {
     const snapshot = await getDocs(
       collection(db, 'users', currentGoogleUser.uid, 'binary_positions')
@@ -935,9 +929,7 @@ async function getSavedCouponEntriesFromFirebase() {
     const entries = []
 
     snapshot.forEach((docSnap) => {
-  const data = docSnap.data() || {}
-
-  if (String(data.walletAddress || '').trim().toLowerCase() !== walletAddress) return
+      const data = docSnap.data() || {}
 
       const marketId = String(data.marketId || '').trim()
       const couponId = String(data.couponId || '').trim()
@@ -950,6 +942,8 @@ async function getSavedCouponEntriesFromFirebase() {
       dedupe.add(uniqueKey)
       entries.push({ marketId, couponId })
     })
+
+    console.log('[HISTORICO FIREBASE ENTRIES]', entries)
 
     return entries.sort((a, b) => Number(b.marketId) - Number(a.marketId))
   } catch (error) {
