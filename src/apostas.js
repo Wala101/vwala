@@ -5,7 +5,7 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { deleteDoc, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract, Interface, formatUnits, parseUnits } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -202,26 +202,37 @@ document.querySelector('#app').innerHTML = `
 
   <div id="appPinOverlay" class="overlay"></div>
   <div id="appPinModal" class="custom-modal">
-    <div class="card modal-card notice-modal-card">
-      <div class="modal-header">
-        <h3 id="appPinTitle">Confirmar PIN</h3>
-        <button class="modal-close" id="closeAppPinBtn" type="button">✕</button>
+    <div class="card modal-card notice-modal-card app-pin-modal-card">
+      <div class="modal-header app-pin-modal-header">
+        <div class="app-pin-modal-brand">
+          <div class="app-pin-modal-badge">W</div>
+          <div class="app-pin-modal-headings">
+            <h3 id="appPinTitle">Confirmar PIN</h3>
+            <span class="app-pin-modal-subtitle">Segurança da carteira</span>
+          </div>
+        </div>
+        <button class="modal-close app-pin-modal-close" id="closeAppPinBtn" type="button">✕</button>
       </div>
 
-      <div class="notice-modal-body">
-        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para confirmar a previsão.</p>
-        <input
-          id="appPinInput"
-          class="input"
-          type="password"
-          placeholder="Digite seu PIN"
-          autocomplete="current-password"
-        />
+      <div class="notice-modal-body app-pin-modal-body">
+        <p id="appPinText" class="notice-modal-text app-pin-modal-text">
+          Digite o PIN da carteira para apostar.
+        </p>
+
+        <div class="app-pin-input-wrap">
+          <input
+            id="appPinInput"
+            class="input app-pin-input"
+            type="password"
+            placeholder="Digite seu PIN"
+            autocomplete="current-password"
+          />
+        </div>
       </div>
 
-      <div class="notice-modal-footer app-pin-actions">
-  <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
-</div>
+      <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
+        <button id="appPinConfirmBtn" class="notice-confirm-btn app-pin-confirm-btn" type="button">Confirmar</button>
+      </div>
     </div>
   </div>
 
@@ -283,10 +294,34 @@ const pinModalState = {
   resolve: null
 }
 
+function resetPinModalState() {
+  appPinTitle.textContent = 'Confirmar PIN'
+  appPinText.textContent = 'Digite o PIN da carteira para apostar.'
+  appPinText.style.color = '#cfd6df'
+  appPinConfirmBtn.textContent = 'Confirmar'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+}
+
+function setPinModalError() {
+  appPinTitle.textContent = 'PIN inválido'
+  appPinText.textContent = 'PIN errado ou não cadastrado. Vá até a página de swap e crie um novo.'
+  appPinText.style.color = '#ff7b7b'
+  appPinConfirmBtn.textContent = 'Tentar novamente'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+
+  setTimeout(() => {
+    appPinInput.focus()
+  }, 0)
+}
+
 function openPinModal(title, text) {
+  resetPinModalState()
   appPinTitle.textContent = title
   appPinText.textContent = text
-  appPinInput.value = ''
   appPinModal.classList.add('active')
   appPinOverlay.classList.add('active')
 
@@ -311,7 +346,7 @@ function closePinModal(result = null) {
   }
 }
 
-async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para confirmar a previsão.') {
+async function showPinModal(title = 'Confirmar PIN', text = 'Digite o PIN da carteira para apostar.') {
   return openPinModal(title, text)
 }
 
@@ -1115,7 +1150,9 @@ async function getInternalWalletSigner() {
   }
 
   const deviceVault = getLocalDeviceWalletForBetting()
+
   if (!deviceVault?.walletKeystoreLocal) {
+    showAlert('Carteira não encontrada', 'Nenhum PIN cadastrado para esta carteira. Vá até a página de swap e crie um novo.')
     return null
   }
 
@@ -1123,30 +1160,45 @@ async function getInternalWalletSigner() {
   const vaultAddress = String(deviceVault.walletAddress || '').trim().toLowerCase()
 
   if (!expectedAddress || !vaultAddress || expectedAddress !== vaultAddress) {
+    showAlert('Carteira incompatível', 'A carteira local não corresponde à carteira logada. Vá até a página de swap e crie um novo PIN.')
     return null
   }
 
-  const pin = await showPinModal('Confirmar PIN', 'Digite o PIN da carteira para apostar.')
-  if (pin === null) {
-    return null
+  while (true) {
+    const pin = await showPinModal('Confirmar PIN', 'Digite o PIN da carteira para apostar.')
+
+    if (pin === null) {
+      return null
+    }
+
+    if (!pin.trim()) {
+      setPinModalError()
+      continue
+    }
+
+    try {
+      appPinInput.disabled = true
+      appPinConfirmBtn.disabled = true
+      appPinConfirmBtn.textContent = 'Validando...'
+
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        deviceVault.walletKeystoreLocal,
+        pin.trim()
+      )
+
+      const signer = unlockedWallet.connect(state.provider)
+
+      state.signer = signer
+      state.token = state.token.connect(signer)
+      state.betting = state.betting.connect(signer)
+
+      closePinModal(pin.trim())
+      return signer
+    } catch (error) {
+      console.error('Erro ao desbloquear carteira pelo PIN:', error)
+      setPinModalError()
+    }
   }
-
-  if (!pin.trim()) {
-    throw new Error('PIN inválido.')
-  }
-
-  const unlockedWallet = await Wallet.fromEncryptedJson(
-    deviceVault.walletKeystoreLocal,
-    pin.trim()
-  )
-
-  const signer = unlockedWallet.connect(state.provider)
-
-  state.signer = signer
-  state.token = state.token.connect(signer)
-  state.betting = state.betting.connect(signer)
-
-  return signer
 }
 
 
@@ -1162,7 +1214,7 @@ async function initWalletSession() {
     state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider)
     state.decimals = Number(await state.token.decimals())
 
-    restoreCouponsFromLocalFootballPositions()
+    await ensureFootballCouponsLoaded()
     await loadUserTokenBalance()
     state.matches = loadCouponsForMatches(state.matches)
     renderMatches()
@@ -1247,14 +1299,16 @@ async function loadMatches() {
   setMarketLoading(true)
 
   try {
+    await ensureFootballCouponsLoaded()
+
     const fetchedMatches = await fetchMatches()
 
     const rawMatches = fetchedMatches.map((match) => ({
-  ...match,
-  teamA: cleanTeamName(match.teamA),
-  teamB: cleanTeamName(match.teamB),
-  ...normalizeMarketProbabilities(match)
-}))
+      ...match,
+      teamA: cleanTeamName(match.teamA),
+      teamB: cleanTeamName(match.teamB),
+      ...normalizeMarketProbabilities(match)
+    }))
 
     const baseMatches = loadCouponsForMatches(rawMatches)
 
@@ -1263,15 +1317,16 @@ async function loadMatches() {
       renderMatches()
       return
     }
-    const hydrated = await Promise.all(
-  baseMatches.map((match) => hydrateMatch(match))
-)
 
-state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
-await refreshAllPositions()
-await reconcileLocalFootballPositionsToFirebase()
-await flushPendingFootballPositionsToFirebase()
-renderMatches()
+    const hydrated = await Promise.all(
+      baseMatches.map((match) => hydrateMatch(match))
+    )
+
+    state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
+    await refreshAllPositions()
+    await reconcileLocalFootballPositionsToFirebase()
+    await flushPendingFootballPositionsToFirebase()
+    renderMatches()
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar os mercados.')
@@ -1514,28 +1569,10 @@ function removeCouponId(fixtureId, couponId) {
 }
 
 async function deleteFootballPositionFromFirebase(fixtureId, couponId) {
-  if (!currentGoogleUser?.uid || !state.userAddress) {
-    return
-  }
-
-  await deleteDoc(
-    doc(
-      db,
-      'users',
-      currentGoogleUser.uid,
-      'football_positions',
-      getFootballPositionDocId(fixtureId, couponId)
-    )
-  )
+  return
 }
 
 async function finalizeFootballPositionCleanup(fixtureId, couponId) {
-  try {
-    await deleteFootballPositionFromFirebase(fixtureId, couponId)
-  } catch (firebaseError) {
-    console.error('Erro ao remover posição de futebol do Firebase:', firebaseError)
-  }
-
   removePendingFootballPositionLocally(fixtureId, couponId)
   removeLocalFootballPosition(fixtureId, couponId)
   removeCouponId(fixtureId, couponId)
@@ -1712,13 +1749,125 @@ async function saveFootballPositionToFirebase(match, payload) {
   )
 }
 
+function getFootballCouponsStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_coupons_${walletAddress}`
+}
+
+function getSavedFootballCouponEntriesFromLocal() {
+  if (!state.userAddress) {
+    return []
+  }
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(getFootballCouponsStorageKey()) || '{}')
+    const entries = []
+
+    for (const [fixtureId, coupons] of Object.entries(saved)) {
+      if (!Array.isArray(coupons)) continue
+
+      for (const couponId of coupons) {
+        entries.push({
+          fixtureId: String(fixtureId),
+          couponId: String(couponId)
+        })
+      }
+    }
+
+    return entries.sort((a, b) => Number(b.fixtureId) - Number(a.fixtureId))
+  } catch (error) {
+    console.error('Erro ao ler bilhetes locais de futebol:', error)
+    return []
+  }
+}
+
+function restoreFootballCouponsToLocalStorage(entries = []) {
+  if (!state.userAddress || !entries.length) {
+    return
+  }
+
+  const next = {}
+
+  for (const entry of entries) {
+    const fixtureId = String(entry?.fixtureId || '').trim()
+    const couponId = String(entry?.couponId || '').trim()
+
+    if (!fixtureId || !couponId) continue
+
+    if (!Array.isArray(next[fixtureId])) {
+      next[fixtureId] = []
+    }
+
+    if (!next[fixtureId].includes(couponId)) {
+      next[fixtureId].push(couponId)
+    }
+  }
+
+  localStorage.setItem(getFootballCouponsStorageKey(), JSON.stringify(next))
+}
+
+async function getSavedFootballCouponEntriesFromFirebase() {
+  if (!currentGoogleUser?.uid) {
+    return []
+  }
+
+  try {
+    const snapshot = await getDocs(
+      collection(db, 'users', currentGoogleUser.uid, 'football_positions')
+    )
+
+    const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+    const entries = []
+    const dedupe = new Set()
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data() || {}
+      const fixtureId = String(data.fixtureId || '').trim()
+      const couponId = String(data.couponId || '').trim()
+      const positionWallet = String(data.walletAddress || '').trim().toLowerCase()
+      const uniqueKey = `${fixtureId}:${couponId}`
+
+      if (!fixtureId || !couponId) return
+      if (walletAddress && positionWallet && positionWallet !== walletAddress) return
+      if (dedupe.has(uniqueKey)) return
+
+      dedupe.add(uniqueKey)
+      entries.push({
+        fixtureId,
+        couponId
+      })
+    })
+
+    return entries.sort((a, b) => Number(b.fixtureId) - Number(a.fixtureId))
+  } catch (error) {
+    console.error('Erro ao ler bilhetes do Firebase:', error)
+    return []
+  }
+}
+
+async function ensureFootballCouponsLoaded() {
+  restoreCouponsFromLocalFootballPositions()
+
+  const localEntries = getSavedFootballCouponEntriesFromLocal()
+  if (localEntries.length) {
+    return localEntries
+  }
+
+  const firebaseEntries = await getSavedFootballCouponEntriesFromFirebase()
+
+  if (firebaseEntries.length) {
+    restoreFootballCouponsToLocalStorage(firebaseEntries)
+  }
+
+  return firebaseEntries
+}
+
 function loadCouponsForMatches(matches) {
   if (!state.userAddress) {
     return matches.map((match) => ({ ...match, userCoupons: [] }))
   }
 
-  const key = `wala_coupons_${state.userAddress.toLowerCase()}`
-  const saved = JSON.parse(localStorage.getItem(key) || '{}')
+  const saved = JSON.parse(localStorage.getItem(getFootballCouponsStorageKey()) || '{}')
 
   return matches.map((match) => ({
     ...match,
@@ -1857,8 +2006,47 @@ async function buyPosition(match, outcome, amountUi, signer) {
   }
 }
 
-function createPositionBlock() {
-  return ''
+function createPositionBlock(match) {
+  const positions = Object.values(state.positions || {}).filter(
+    (item) => String(item.fixtureId) === String(match.fixtureId)
+  )
+
+  if (!positions.length) {
+    return ''
+  }
+
+  const itemsHtml = positions.map((position) => {
+    const isResolved = Number(match.status) === MarketStatus.RESOLVED
+    const hasWinner = Boolean(match.hasWinner)
+    const isWinner = isResolved && hasWinner && Number(position.outcome) === Number(match.winningOutcome)
+    const isLoser = isResolved && hasWinner && Number(position.outcome) !== Number(match.winningOutcome)
+
+    let statusLabel = 'APOSTA ABERTA'
+    if (position.claimed) statusLabel = 'RESGATADA'
+    else if (isWinner) statusLabel = 'GANHOU'
+    else if (isLoser) statusLabel = 'PERDEU'
+    else if (Number(match.status) === MarketStatus.CLOSED) statusLabel = 'AGUARDANDO RESULTADO'
+
+    return `
+      <div class="stat-box" style="margin-top:8px;">
+        <span class="stat-label">${getOutcomeLabel(match, position.outcome)} · Cupom #${String(position.couponId).slice(-10)}</span>
+        <strong class="stat-value">${formatNumber(position.amount, 4)} ${TOKEN_SYMBOL}</strong>
+        <div class="bet-hint-text" style="margin-top:6px;">${statusLabel}</div>
+      </div>
+    `
+  }).join('')
+
+  return `
+    <div class="user-positions-box">
+      <div class="section-head" style="margin-bottom:8px;">
+        <div>
+          <p class="section-kicker">SUAS APOSTAS</p>
+          <h3 style="margin:0;">Posições abertas neste jogo</h3>
+        </div>
+      </div>
+      ${itemsHtml}
+    </div>
+  `
 }
 
 function createCard(match) {
@@ -1917,6 +2105,8 @@ function createCard(match) {
         <span>B ${formatNumber(match.poolAway)}</span>
       </div>
     </div>
+
+    ${createPositionBlock(match)}
 
     <div class="bet-panel">
       <div class="bet-top">
@@ -2091,6 +2281,7 @@ showAlert(
     : 'Posição aberta com sucesso.'
 )
 
+await ensureFootballCouponsLoaded()
 await refreshWalletBalance()
 state.matches = loadCouponsForMatches(state.matches)
 await refreshAllPositions()
@@ -2163,9 +2354,9 @@ async function boot() {
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
-  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
+  closeAppPinBtn.addEventListener('click', () => {})
   appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
-  appPinOverlay.addEventListener('click', () => closePinModal(null))
+  appPinOverlay.addEventListener('click', () => {})
 
   appPinInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -2176,7 +2367,6 @@ async function boot() {
 
     if (event.key === 'Escape') {
       event.preventDefault()
-      closePinModal(null)
     }
   })
 
