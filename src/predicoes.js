@@ -1552,19 +1552,7 @@ async function ensureMarketExists(market, signer) {
   const normalized = normalizeBinaryProbabilities(market)
 
   try {
-    console.log('[BINARY_CREATE_MARKET_PAYLOAD]', {
-      contractAddress: BINARY_PREDICTIONS_ADDRESS,
-      marketId: String(market.marketId),
-      assetSymbol: market.assetSymbol,
-      question: market.question,
-      closeAt: Number(market.closeAt),
-      referencePriceUsd: Number(market.referencePriceUsd),
-      referencePriceE8: getReferencePriceE8(market.referencePriceUsd).toString(),
-      probYesBps: Number(normalized.probYesBps),
-      probNoBps: Number(normalized.probNoBps),
-      feeBps: 0,
-      totalBps: Number(normalized.probYesBps) + Number(normalized.probNoBps)
-    })
+
 
     const tx = await predictionsContract.createMarket(
   BigInt(market.marketId),
@@ -1637,13 +1625,7 @@ async function buyPosition(market, side, amountUi, signer) {
     })
   }
 
-  console.log('Binary market position opened:', {
-    marketId: market.marketId,
-    couponId: couponId.toString(),
-    side: Number(side),
-    amountUi,
-    txHash: confirmedTxHash
-  })
+
 
   saveCouponId(market.marketId, couponId.toString())
 
