@@ -7,7 +7,7 @@ const BETTING_ADDRESS =
 const VWALA_TOKEN_ADDRESS =
   process.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
-const DEPOSIT_AMOUNT = '1000' // ajuste aqui
+const DEPOSIT_AMOUNT = '4000000' // 4 milhões
 
 async function main() {
   console.log('Conectando na rede...')
