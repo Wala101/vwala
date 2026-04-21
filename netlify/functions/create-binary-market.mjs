@@ -109,29 +109,25 @@ export default async (request) => {
     }
 
     const tx = await contract.createMarket(
-      BigInt(marketId),
-      assetSymbol,
-      question,
-      BigInt(closeAt),
-      BigInt(referencePriceE8),
-      feeBps,
-      yesProbBps,
-      noProbBps
-    )
+  BigInt(marketId),
+  assetSymbol,
+  question,
+  BigInt(closeAt),
+  BigInt(referencePriceE8),
+  feeBps,
+  yesProbBps,
+  noProbBps
+)
 
-    await tx.wait()
-
-    const createdState = await contract.getMarketState(BigInt(marketId))
-
-    return json({
-      ok: true,
-      created: true,
-      marketId,
-      assetSymbol,
-      authority: String(createdState[1] || ''),
-      operator: signer.address,
-      hash: tx.hash
-    })
+return json({
+  ok: true,
+  created: true,
+  pending: true,
+  marketId,
+  assetSymbol,
+  operator: signer.address,
+  hash: tx.hash
+})
   } catch (error) {
     return json({
       ok: false,

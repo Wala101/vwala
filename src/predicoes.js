@@ -1897,16 +1897,43 @@ console.log('[BINARY MARKET CREATED VIA BACKEND]', {
   authority: String(result?.authority || ''),
   created: Boolean(result?.created),
   alreadyExists: Boolean(result?.alreadyExists),
+  pending: Boolean(result?.pending),
   hash: String(result?.hash || '')
 })
 
-market.exists = true
-market.status = MarketStatus.OPEN
-market.hasWinner = false
-market.winningSide = null
-market.poolYes = market.poolYes || '0'
-market.poolNo = market.poolNo || '0'
-market.totalPool = market.totalPool || '0'
+for (let attempt = 1; attempt <= 12; attempt += 1) {
+  try {
+    const marketState = await state.predictions.getMarketState(BigInt(market.marketId))
+
+    if (marketState[0]) {
+      console.log('[BINARY MARKET CONFIRMED ONCHAIN]', {
+        marketId: String(market.marketId),
+        authority: String(marketState[1] || ''),
+        status: Number(marketState[3]),
+        attempt
+      })
+
+      market.exists = true
+      market.status = Number(marketState[3])
+      market.hasWinner = Boolean(marketState[4])
+      market.winningSide = Number(marketState[5])
+      market.poolYes = market.poolYes || '0'
+      market.poolNo = market.poolNo || '0'
+      market.totalPool = market.totalPool || '0'
+      return
+    }
+  } catch (error) {
+    console.warn('[BINARY MARKET WAIT ERROR]', {
+      marketId: String(market.marketId),
+      attempt,
+      error: error?.shortMessage || error?.message || String(error)
+    })
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 2500))
+}
+
+throw new Error('Mercado enviado, mas ainda não apareceu on-chain. Aguarde alguns segundos e tente novamente.')
 }
 
 async function approveIfNeeded(amountUi, signer) {
