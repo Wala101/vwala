@@ -2025,3 +2025,109 @@ body{
   display: flex;
   flex-direction: column;
 }
+.app-pin-modal-card{
+  width:min(92vw,420px);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:22px;
+  background:linear-gradient(180deg,rgba(18,22,30,.98),rgba(10,12,18,.98));
+  box-shadow:0 24px 70px rgba(0,0,0,.45);
+  overflow:hidden;
+}
+
+.app-pin-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:18px 18px 8px;
+  border-bottom:none;
+}
+
+.app-pin-modal-brand{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.app-pin-modal-badge{
+  width:42px;
+  height:42px;
+  border-radius:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight:800;
+  font-size:18px;
+  color:#04110a;
+  background:linear-gradient(135deg,#5cffb4,#25ff8a);
+  box-shadow:0 10px 24px rgba(37,255,138,.22);
+}
+
+.app-pin-modal-headings h3{
+  margin:0;
+  font-size:20px;
+  font-weight:800;
+  color:#fff;
+}
+
+.app-pin-modal-subtitle{
+  display:block;
+  margin-top:2px;
+  font-size:12px;
+  color:rgba(255,255,255,.55);
+}
+
+.app-pin-modal-close{
+  opacity:.85;
+}
+
+.app-pin-modal-body{
+  padding:12px 18px 18px;
+}
+
+.app-pin-modal-text{
+  margin:0 0 14px;
+  font-size:14px;
+  line-height:1.6;
+  color:#cfd6df;
+}
+
+.app-pin-input-wrap{
+  padding:10px;
+  border-radius:16px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+
+.app-pin-input{
+  height:52px;
+  border-radius:14px;
+  font-size:16px;
+  font-weight:600;
+  letter-spacing:.3px;
+  background:rgba(8,10,14,.9);
+  border:1px solid rgba(255,255,255,.08);
+  color:#fff;
+}
+
+.app-pin-input::placeholder{
+  color:rgba(255,255,255,.36);
+}
+
+.app-pin-input:focus{
+  border-color:rgba(37,255,138,.55);
+  box-shadow:0 0 0 3px rgba(37,255,138,.10);
+}
+
+.app-pin-modal-footer{
+  padding:0 18px 18px;
+}
+
+.app-pin-confirm-btn{
+  width:100%;
+  min-height:50px;
+  border-radius:14px;
+  font-size:15px;
+  font-weight:800;
+  box-shadow:0 12px 28px rgba(37,255,138,.18);
+}
