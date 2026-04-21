@@ -1416,9 +1416,11 @@ async function loadHistory() {
   }
 }
 
+const BINARY_KEEPER_URL = '/.netlify/functions/binary-keeper'
+
 async function syncBinaryMarket(marketId) {
   try {
-    const res = await fetch(`/api/binary-keeper?marketId=${marketId}`)
+    const res = await fetch(`${BINARY_KEEPER_URL}?marketId=${marketId}`)
     const data = await res.json()
 
     console.log('[BINARY KEEPER RESULT]', data)
