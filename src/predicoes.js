@@ -1553,15 +1553,16 @@ async function ensureMarketExists(market, signer) {
 
   try {
     console.log('[BINARY_CREATE_MARKET_PAYLOAD]', {
+      contractAddress: BINARY_PREDICTIONS_ADDRESS,
       marketId: String(market.marketId),
       assetSymbol: market.assetSymbol,
       question: market.question,
       closeAt: Number(market.closeAt),
       referencePriceUsd: Number(market.referencePriceUsd),
       referencePriceE8: getReferencePriceE8(market.referencePriceUsd).toString(),
+      probYesBps: Number(normalized.probYesBps),
+      probNoBps: Number(normalized.probNoBps),
       feeBps: 0,
-      probYesBps: normalized.probYesBps,
-      probNoBps: normalized.probNoBps,
       totalBps: Number(normalized.probYesBps) + Number(normalized.probNoBps)
     })
 
@@ -1571,9 +1572,9 @@ async function ensureMarketExists(market, signer) {
       market.question,
       BigInt(market.closeAt),
       getReferencePriceE8(market.referencePriceUsd),
-      0,
       normalized.probYesBps,
-      normalized.probNoBps
+      normalized.probNoBps,
+      0
     )
 
     await tx.wait()
