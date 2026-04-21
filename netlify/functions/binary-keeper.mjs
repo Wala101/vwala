@@ -218,21 +218,23 @@ if (status === MARKET_STATUS.CLOSED) {
     const tx = await contract.resolveMarket(BigInt(marketId), finalPriceE8)
     await tx.wait()
 
+    const resolvedState = await contract.getMarketState(BigInt(marketId))
+
     return json({
       ok: true,
       action: 'resolved',
       operator: signer.address,
-      authority: String(marketState[1] || ''),
+      authority: String(resolvedState[1] || ''),
       assetSymbol,
       coinGeckoId,
       referencePrice,
       currentPrice,
       finalPriceE8: finalPriceE8.toString(),
       outcome,
-      status,
-      hasWinner: Boolean(marketState[4]),
-      winningSide: Number(marketState[5]),
-      closeAt,
+      status: Number(resolvedState[3]),
+      hasWinner: Boolean(resolvedState[4]),
+      winningSide: Number(resolvedState[5]),
+      closeAt: Number(resolvedState[8]),
       now,
       hash: tx.hash
     })

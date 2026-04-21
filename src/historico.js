@@ -1106,11 +1106,14 @@ function isClaimable(item) {
 }
 
 function isLosingResolved(item) {
-  return (
-    Number(item.status) === MarketStatus.RESOLVED &&
-    item.hasWinner &&
-    !item.claimed &&
-    Number(item.side) !== Number(item.winningSide)
+  return Boolean(
+    item?.lost ||
+    (
+      Number(item.status) === MarketStatus.RESOLVED &&
+      item.hasWinner &&
+      !item.claimed &&
+      Number(item.side) !== Number(item.winningSide)
+    )
   )
 }
 
@@ -1384,28 +1387,34 @@ async function loadHistory() {
           continue
         }
 
-        if (position[6] === true) {
-          await finalizeBinaryPositionCleanup({
-            marketId: String(entry.marketId),
-            couponId: String(entry.couponId)
-          })
-
-          continue
-        }
-
         const isResolved = Number(marketState[3]) === MarketStatus.RESOLVED
         const hasWinner = Boolean(marketState[4])
         const winningSide = Number(marketState[5])
         const userSide = Number(position[4])
 
-        if (isResolved && hasWinner && userSide !== winningSide) {
-          await finalizeBinaryPositionCleanup({
-            marketId: String(entry.marketId),
-            couponId: String(entry.couponId)
-          })
+        const isClaimed = position[6] === true
+        const isLost = isResolved && hasWinner && userSide !== winningSide
 
-          continue
-        }
+        nextPositions.push({
+          marketId: String(entry.marketId),
+          couponId: String(entry.couponId),
+          assetSymbol: marketMeta[0] || 'CRYPTO',
+          question: marketMeta[1] || 'Mercado binário',
+          referencePriceUsd: Number(marketMeta[2]) / 100000000,
+          status: Number(marketState[3]),
+          hasWinner: marketState[4],
+          winningSide: Number(marketState[5]),
+          createdAt: Number(marketState[6]),
+          resolvedAt: Number(marketState[7]),
+          closeAt: Number(marketState[8]),
+          side: Number(position[4]),
+          amount: formatUnits(position[5], state.decimals),
+          claimed: isClaimed,
+          claimedAmount: formatUnits(position[7], state.decimals),
+          lost: isLost
+        })
+
+        continue
 
         nextPositions.push({
           marketId: String(entry.marketId),
@@ -1500,12 +1509,22 @@ async function claimItem(item) {
   }
 
   if (item.claimed) {
-    showAlert('Resgate indisponível', 'Essa posição já foi resgatada.')
+    showAlert('Posição encerrada', 'Essa posição já foi resgatada e será removida do histórico ativo.')
+    await finalizeBinaryPositionCleanup({
+      marketId: String(item.marketId),
+      couponId: String(item.couponId)
+    })
+    await loadHistory()
     return
   }
 
   if (isLosingResolved(item)) {
-    showAlert('Resgate indisponível', 'Essa posição não venceu.')
+    showAlert('Posição encerrada', 'Essa posição não venceu e será removida do histórico ativo.')
+    await finalizeBinaryPositionCleanup({
+      marketId: String(item.marketId),
+      couponId: String(item.couponId)
+    })
+    await loadHistory()
     return
   }
 
