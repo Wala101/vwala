@@ -1567,15 +1567,15 @@ async function ensureMarketExists(market, signer) {
     })
 
     const tx = await predictionsContract.createMarket(
-      BigInt(market.marketId),
-      market.assetSymbol,
-      market.question,
-      BigInt(market.closeAt),
-      getReferencePriceE8(market.referencePriceUsd),
-      normalized.probYesBps,
-      normalized.probNoBps,
-      0
-    )
+  BigInt(market.marketId),
+  market.assetSymbol,
+  market.question,
+  BigInt(market.closeAt),
+  getReferencePriceE8(market.referencePriceUsd),
+  0,
+  normalized.probYesBps,
+  normalized.probNoBps
+)
 
     await tx.wait()
   } catch (error) {
