@@ -36,7 +36,13 @@ const BINARY_ABI = [
   'function getMarketState(uint64 marketId) external view returns (bool exists, address authority, uint64 storedMarketId, uint8 status, bool hasWinner, uint8 winningSide, uint256 createdAt, uint256 resolvedAt, uint256 closeAt)',
   'function getMarketMeta(uint64 marketId) external view returns (string assetSymbol, string question, int256 referencePriceE8)',
   'function closeMarket(uint64 marketId)',
-  'function resolveMarket(uint64 marketId, uint8 outcome)'
+  'function resolveMarket(uint64 marketId, uint8 outcome)',
+  'error Unauthorized()',
+  'error MarketNotFound()',
+  'error MarketNotOpen()',
+  'error MarketClosed()',
+  'error MarketAlreadyResolved()',
+  'error MarketNotResolved()'
 ]
 
 function json(data, status = 200) {
@@ -186,12 +192,48 @@ if (status === MARKET_STATUS.CLOSED) {
   const currentPrice = await getCurrentPrice(coinGeckoId)
   const outcome = computeOutcome(referencePrice, currentPrice)
 
+  console.log('[BINARY KEEPER PRE-RESOLVE]', {
+    marketId,
+    operator: signer.address,
+    authority: String(marketState[1] || ''),
+    status,
+    hasWinner: Boolean(marketState[4]),
+    winningSide: Number(marketState[5]),
+    assetSymbol,
+    coinGeckoId,
+    referencePrice,
+    currentPrice,
+    outcome
+  })
+
+  try {
+    await contract.resolveMarket.staticCall(BigInt(marketId), outcome)
+  } catch (error) {
+    return json({
+      ok: false,
+      stage: 'resolve_static_call',
+      operator: signer.address,
+      authority: String(marketState[1] || ''),
+      status,
+      hasWinner: Boolean(marketState[4]),
+      winningSide: Number(marketState[5]),
+      assetSymbol,
+      coinGeckoId,
+      referencePrice,
+      currentPrice,
+      outcome,
+      error: error?.shortMessage || error?.message || String(error)
+    }, 500)
+  }
+
   const tx = await contract.resolveMarket(BigInt(marketId), outcome)
   await tx.wait()
 
   return json({
     ok: true,
     action: 'resolved',
+    operator: signer.address,
+    authority: String(marketState[1] || ''),
     assetSymbol,
     coinGeckoId,
     referencePrice,
