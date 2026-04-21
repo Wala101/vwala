@@ -1416,8 +1416,42 @@ async function loadHistory() {
   }
 }
 
+async function syncBinaryMarket(marketId) {
+  try {
+    const res = await fetch(`/api/binary-keeper?marketId=${marketId}`)
+    const data = await res.json()
+
+    console.log('[BINARY KEEPER RESULT]', data)
+
+    return data
+  } catch (error) {
+    console.error('Erro ao chamar binary keeper:', error)
+    return null
+  }
+}
+
 async function claimItem(item) {
   try {
+    // 🔥 TENTA RESOLVER AUTOMATICAMENTE ANTES DE VALIDAR
+    if (Number(item.status) === MarketStatus.CLOSED) {
+      showLoadingModal('Atualizando mercado', 'Verificando resultado on-chain...')
+
+      await syncBinaryMarket(item.marketId)
+
+      hideLoadingModal()
+
+      await loadHistory()
+
+      const refreshed = state.positions.find(
+        p => String(p.marketId) === String(item.marketId) &&
+             String(p.couponId) === String(item.couponId)
+      )
+
+      if (refreshed) {
+        item = refreshed
+      }
+    }
+
     if (!isClaimable(item)) {
   if (Number(item.status) === MarketStatus.OPEN) {
     showAlert('Resgate indisponível', 'Esse mercado ainda está aberto.')
