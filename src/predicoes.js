@@ -126,7 +126,7 @@ document.querySelector('#app').innerHTML = `
             <p class="eyebrow">VWALA · POLYGON</p>
             <h1>Mercado Binário de Cripto</h1>
             <p class="hero-text">
-  Faça previsões diárias. Entradas das 06:00 às 18:00 e resolução às 23:00.
+  Faça previsões diárias. Entradas até 23:00 e fechamento do mercado à meia-noite.
 </p>
           </div>
 
@@ -138,7 +138,7 @@ document.querySelector('#app').innerHTML = `
 
             <div class="stat-box">
               <span>Fechamento</span>
-              <strong>23:00</strong>
+              <strong>00:00</strong>
             </div>
 
             <div class="stat-box">
@@ -848,9 +848,9 @@ function isPredictionsConfigured() {
   )
 }
 
-const MARKET_OPEN_HOUR = 6
-const MARKET_BET_CLOSE_HOUR = 18
-const MARKET_RESOLVE_HOUR = 23
+const MARKET_OPEN_HOUR = 0
+const MARKET_BET_CLOSE_HOUR = 23
+const MARKET_RESOLVE_HOUR = 24
 
 function getDailyMarketSchedule(baseDate = new Date()) {
   const base = new Date(baseDate)
@@ -859,7 +859,7 @@ function getDailyMarketSchedule(baseDate = new Date()) {
     base.getFullYear(),
     base.getMonth(),
     base.getDate(),
-    MARKET_OPEN_HOUR,
+    0,
     0,
     0,
     0
@@ -869,7 +869,7 @@ function getDailyMarketSchedule(baseDate = new Date()) {
     base.getFullYear(),
     base.getMonth(),
     base.getDate(),
-    MARKET_BET_CLOSE_HOUR,
+    23,
     0,
     0,
     0
@@ -878,8 +878,8 @@ function getDailyMarketSchedule(baseDate = new Date()) {
   const resolveAt = new Date(
     base.getFullYear(),
     base.getMonth(),
-    base.getDate(),
-    MARKET_RESOLVE_HOUR,
+    base.getDate() + 1,
+    0,
     0,
     0,
     0
@@ -903,7 +903,8 @@ function getReferencePriceE8(value) {
     return 0n
   }
 
-  return BigInt(Math.round(numeric * 100000000))
+  const targetPrice = numeric * 1.001
+  return BigInt(Math.round(targetPrice * 100000000))
 }
 
 function generateCouponId(market) {
@@ -1205,7 +1206,7 @@ function buildFallbackMarkets() {
     marketId: buildBinaryMarketId(asset.assetSymbol, closeAt),
     assetSymbol: asset.assetSymbol,
     imageUrl: asset.imageUrl,
-    question: `${asset.assetSymbol} fechará 3% acima da referência do dia até 23:00?`,
+    question: `${assetSymbol} fechará 0,1% acima da referência até 00:00?`,
     referencePriceUsd: asset.referencePriceUsd,
     currentPriceUsd: asset.currentPriceUsd,
     closeAt,
@@ -1240,7 +1241,7 @@ return source.slice(0, 15).map((market) => {
     assetSymbol,
     imageUrl: String(market.imageUrl || market.logo || market.image || '/logo.png').trim(),
     question: String(
-      market.question || `${assetSymbol} fechará 3% acima da referência do dia até 23:00?`
+      market.question || `${assetSymbol} fechará 0,1% acima da referência até 00:00?`
     ),
     referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
     currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
@@ -1510,11 +1511,11 @@ function getMarketEntryMessage(market) {
   }
 
   if (now.getTime() < openAt.getTime()) {
-    return 'As apostas abrem às 06:00.'
+    return 'Mercado ainda não abriu para o ciclo atual.'
   }
 
   if (now.getTime() >= betCloseAt.getTime() && now.getTime() < resolveAt.getTime()) {
-    return 'As apostas encerraram às 18:00. Agora o mercado aguarda resolução às 23:00.'
+    return 'As apostas encerraram às 23:00. Agora o mercado aguarda fechamento à meia-noite.'
   }
 
   if (marketIsClosedByTime(market)) {
@@ -1525,7 +1526,7 @@ function getMarketEntryMessage(market) {
     return 'Mercado indisponível no momento.'
   }
 
-  return 'Apostas liberadas das 06:00 às 18:00.'
+  return 'Apostas liberadas até 23:00.'
 }
 
 async function ensureMarketExists(market, signer) {
@@ -1698,7 +1699,7 @@ function createCard(market) {
       />
 
       <div class="bet-hint-text js-bet-hint-text">
-  Apostas abertas das 06:00 às 18:00. Mercado resolve às 23:00.
+  Apostas abertas até 23:00. Mercado fecha à meia-noite.
 </div>
     </div>
 
