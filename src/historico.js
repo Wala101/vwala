@@ -1507,15 +1507,16 @@ async function loadHistory() {
   return Number(b.marketId) - Number(a.marketId)
 })
 
-    renderPositions()
-renderResolvedPositions(nextPositions)
     } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar o histórico de futures.')
   } finally {
-  setHistoryLoading(false)
+    setHistoryLoading(false)
+    renderPositions()
+    renderResolvedPositions(state.positions)
+  }
 }
-}
+
 
 const BINARY_KEEPER_URL = '/.netlify/functions/binary-keeper'
 
@@ -1795,6 +1796,8 @@ function renderPositions() {
     return text.includes(term)
   })
 
+  console.log('[HISTORICO TOP FILTERED]', filtered)
+
   positionsGrid.innerHTML = ''
 
   filtered.forEach((item) => {
@@ -1805,7 +1808,7 @@ function renderPositions() {
   positionsEmpty.classList.toggle('show', filtered.length === 0)
 
   if (historyResultsCard) {
-    historyResultsCard.style.display = filtered.length ? 'block' : 'none'
+    historyResultsCard.style.display = 'block'
   }
 }
 
