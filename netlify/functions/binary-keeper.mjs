@@ -60,6 +60,7 @@ function getDeployerKey() {
 function getBinaryAddress() {
   return String(
     process.env.VWALA_BINARY_ADDRESS ||
+    process.env.BINARY_PREDICTIONS_ADDRESS ||
     process.env.VITE_BINARY_PREDICTIONS_ADDRESS ||
     DEFAULT_BINARY_ADDRESS ||
     ''
