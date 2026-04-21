@@ -1098,6 +1098,8 @@ function getClaimButtonText(item) {
   if (item.claimed) return 'Resgatado'
   if (isLosingResolved(item)) return 'Perdido'
   if (isClaimable(item)) return 'Resgatar'
+  if (Number(item.status) === MarketStatus.OPEN) return 'Mercado aberto'
+  if (Number(item.status) === MarketStatus.CLOSED) return 'Aguardando resolução'
   return 'Verificar resultado'
 }
 
@@ -1417,9 +1419,29 @@ async function loadHistory() {
 async function claimItem(item) {
   try {
     if (!isClaimable(item)) {
-      showAlert('Resgate indisponível', 'Essa posição ainda não pode ser resgatada.')
-      return
-    }
+  if (Number(item.status) === MarketStatus.OPEN) {
+    showAlert('Resgate indisponível', 'Esse mercado ainda está aberto.')
+    return
+  }
+
+  if (Number(item.status) === MarketStatus.CLOSED) {
+    showAlert('Resgate indisponível', 'Esse mercado já fechou, mas ainda aguarda resolução on-chain.')
+    return
+  }
+
+  if (item.claimed) {
+    showAlert('Resgate indisponível', 'Essa posição já foi resgatada.')
+    return
+  }
+
+  if (isLosingResolved(item)) {
+    showAlert('Resgate indisponível', 'Essa posição não venceu.')
+    return
+  }
+
+  showAlert('Resgate indisponível', 'Essa posição ainda não pode ser resgatada.')
+  return
+}
 
     const signer = await getInternalWalletSigner()
 
