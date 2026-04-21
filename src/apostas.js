@@ -1162,6 +1162,7 @@ async function initWalletSession() {
     state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider)
     state.decimals = Number(await state.token.decimals())
 
+    restoreCouponsFromLocalFootballPositions()
     await loadUserTokenBalance()
     state.matches = loadCouponsForMatches(state.matches)
     renderMatches()
@@ -1268,6 +1269,8 @@ async function loadMatches() {
 
 state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
 await refreshAllPositions()
+await reconcileLocalFootballPositionsToFirebase()
+await flushPendingFootballPositionsToFirebase()
 renderMatches()
   } catch (error) {
     console.error(error)
@@ -1349,6 +1352,322 @@ function getFootballPositionDocId(fixtureId, couponId) {
   return `${String(fixtureId).trim()}_${String(couponId).trim()}`
 }
 
+function getFootballLocalPositionsStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_football_local_positions_${walletAddress || 'guest'}`
+}
+
+function readLocalFootballPositions() {
+  try {
+    const raw = localStorage.getItem(getFootballLocalPositionsStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler posições locais de futebol:', error)
+    return []
+  }
+}
+
+function writeLocalFootballPositions(items) {
+  localStorage.setItem(getFootballLocalPositionsStorageKey(), JSON.stringify(items))
+}
+
+function upsertLocalFootballPosition(match, payload) {
+  const fixtureId = String(match?.fixtureId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!fixtureId || !couponId) {
+    return
+  }
+
+  const items = readLocalFootballPositions()
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const existing = items.find((item) => String(item?.docId || '') === docId)
+
+  const nextItem = {
+    docId,
+    fixtureId,
+    couponId,
+    walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+    league: String(match?.league || 'Futebol'),
+    teamA: String(match?.teamA || ''),
+    teamB: String(match?.teamB || ''),
+    outcome: Number(payload?.outcome),
+    amountUi: String(payload?.amountUi || '0'),
+    txHash: String(payload?.txHash || ''),
+    claimed: Boolean(payload?.claimed || false),
+    statusCache: String(payload?.statusCache || 'open'),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  }
+
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  filtered.push(nextItem)
+  writeLocalFootballPositions(filtered)
+}
+
+function removeLocalFootballPosition(fixtureId, couponId) {
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const items = readLocalFootballPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writeLocalFootballPositions(filtered)
+}
+
+function getFootballPendingStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_football_pending_positions_${walletAddress || 'guest'}`
+}
+
+function readPendingFootballPositions() {
+  try {
+    const raw = localStorage.getItem(getFootballPendingStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler pendências locais de futebol:', error)
+    return []
+  }
+}
+
+function writePendingFootballPositions(items) {
+  localStorage.setItem(getFootballPendingStorageKey(), JSON.stringify(items))
+}
+
+function savePendingFootballPositionLocally(match, payload) {
+  const fixtureId = String(match?.fixtureId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!fixtureId || !couponId) {
+    return
+  }
+
+  const items = readPendingFootballPositions()
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const existing = items.find((item) => String(item?.docId || '') === docId)
+
+  const nextItem = {
+    docId,
+    fixtureId,
+    couponId,
+    walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+    league: String(match?.league || 'Futebol'),
+    teamA: String(match?.teamA || ''),
+    teamB: String(match?.teamB || ''),
+    outcome: Number(payload?.outcome),
+    amountUi: String(payload?.amountUi || '0'),
+    txHash: String(payload?.txHash || ''),
+    retryCount: Number(existing?.retryCount || 0),
+    lastAttemptAt: Number(existing?.lastAttemptAt || 0),
+    createdAt: Number(existing?.createdAt || Date.now())
+  }
+
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  filtered.push(nextItem)
+  writePendingFootballPositions(filtered)
+}
+
+function markPendingFootballPositionAttempt(fixtureId, couponId) {
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const items = readPendingFootballPositions()
+
+  const nextItems = items.map((item) => {
+    if (String(item?.docId || '') !== docId) {
+      return item
+    }
+
+    return {
+      ...item,
+      retryCount: Number(item?.retryCount || 0) + 1,
+      lastAttemptAt: Date.now()
+    }
+  })
+
+  writePendingFootballPositions(nextItems)
+}
+
+function removePendingFootballPositionLocally(fixtureId, couponId) {
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const items = readPendingFootballPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writePendingFootballPositions(filtered)
+}
+
+function removeCouponId(fixtureId, couponId) {
+  if (!state.userAddress) {
+    return
+  }
+
+  const key = `wala_coupons_${state.userAddress.toLowerCase()}`
+  const current = JSON.parse(localStorage.getItem(key) || '{}')
+
+  if (!Array.isArray(current[fixtureId])) {
+    return
+  }
+
+  current[fixtureId] = current[fixtureId].filter((item) => String(item) !== String(couponId))
+
+  if (!current[fixtureId].length) {
+    delete current[fixtureId]
+  }
+
+  localStorage.setItem(key, JSON.stringify(current))
+}
+
+async function deleteFootballPositionFromFirebase(fixtureId, couponId) {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  await deleteDoc(
+    doc(
+      db,
+      'users',
+      currentGoogleUser.uid,
+      'football_positions',
+      getFootballPositionDocId(fixtureId, couponId)
+    )
+  )
+}
+
+async function finalizeFootballPositionCleanup(fixtureId, couponId) {
+  try {
+    await deleteFootballPositionFromFirebase(fixtureId, couponId)
+  } catch (firebaseError) {
+    console.error('Erro ao remover posição de futebol do Firebase:', firebaseError)
+  }
+
+  removePendingFootballPositionLocally(fixtureId, couponId)
+  removeLocalFootballPosition(fixtureId, couponId)
+  removeCouponId(fixtureId, couponId)
+
+  delete state.positions[`${fixtureId}:${couponId}`]
+}
+
+function restoreCouponsFromLocalFootballPositions() {
+  if (!state.userAddress) {
+    return
+  }
+
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  const items = readLocalFootballPositions().filter(
+    (item) => String(item?.walletAddress || '').trim().toLowerCase() === walletAddress
+  )
+
+  if (!items.length) {
+    return
+  }
+
+  const key = `wala_coupons_${walletAddress}`
+  const current = JSON.parse(localStorage.getItem(key) || '{}')
+
+  for (const item of items) {
+    const fixtureId = String(item?.fixtureId || '').trim()
+    const couponId = String(item?.couponId || '').trim()
+
+    if (!fixtureId || !couponId) {
+      continue
+    }
+
+    if (!Array.isArray(current[fixtureId])) {
+      current[fixtureId] = []
+    }
+
+    if (!current[fixtureId].includes(couponId)) {
+      current[fixtureId].push(couponId)
+    }
+  }
+
+  localStorage.setItem(key, JSON.stringify(current))
+}
+
+async function flushPendingFootballPositionsToFirebase() {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const items = readPendingFootballPositions()
+
+  if (!items.length) {
+    return
+  }
+
+  for (const item of items) {
+    try {
+      await saveFootballPositionToFirebase(
+        {
+          fixtureId: item.fixtureId,
+          league: item.league,
+          teamA: item.teamA,
+          teamB: item.teamB
+        },
+        {
+          couponId: item.couponId,
+          outcome: item.outcome,
+          amountUi: item.amountUi,
+          txHash: item.txHash
+        }
+      )
+
+      upsertLocalFootballPosition(
+        {
+          fixtureId: item.fixtureId,
+          league: item.league,
+          teamA: item.teamA,
+          teamB: item.teamB
+        },
+        {
+          couponId: item.couponId,
+          outcome: item.outcome,
+          amountUi: item.amountUi,
+          txHash: item.txHash,
+          statusCache: 'open'
+        }
+      )
+
+      removePendingFootballPositionLocally(item.fixtureId, item.couponId)
+    } catch (error) {
+      markPendingFootballPositionAttempt(item.fixtureId, item.couponId)
+      console.error('Erro ao sincronizar pendência local de futebol:', error)
+    }
+  }
+}
+
+async function reconcileLocalFootballPositionsToFirebase() {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  const items = readLocalFootballPositions().filter(
+    (item) => String(item?.walletAddress || '').trim().toLowerCase() === walletAddress
+  )
+
+  if (!items.length) {
+    return
+  }
+
+  for (const item of items) {
+    try {
+      await saveFootballPositionToFirebase(
+        {
+          fixtureId: item.fixtureId,
+          league: item.league,
+          teamA: item.teamA,
+          teamB: item.teamB
+        },
+        {
+          couponId: item.couponId,
+          outcome: item.outcome,
+          amountUi: item.amountUi,
+          txHash: item.txHash
+        }
+      )
+    } catch (error) {
+      console.error('Erro ao reconciliar posição local de futebol com Firebase:', error)
+    }
+  }
+}
+
 async function saveFootballPositionToFirebase(match, payload) {
   if (!currentGoogleUser?.uid || !state.userAddress) {
     return
@@ -1361,14 +1680,19 @@ async function saveFootballPositionToFirebase(match, payload) {
     return
   }
 
+  const positionRef = doc(
+    db,
+    'users',
+    currentGoogleUser.uid,
+    'football_positions',
+    getFootballPositionDocId(fixtureId, couponId)
+  )
+
+  const currentSnap = await getDoc(positionRef)
+  const currentData = currentSnap.exists() ? currentSnap.data() || {} : {}
+
   await setDoc(
-    doc(
-      db,
-      'users',
-      currentGoogleUser.uid,
-      'football_positions',
-      getFootballPositionDocId(fixtureId, couponId)
-    ),
+    positionRef,
     {
       fixtureId,
       couponId,
@@ -1379,10 +1703,10 @@ async function saveFootballPositionToFirebase(match, payload) {
       outcome: Number(payload?.outcome),
       amount: String(payload?.amountUi || '0'),
       txHash: String(payload?.txHash || ''),
-      claimed: false,
-      statusCache: 'open',
+      claimed: Boolean(currentData.claimed || false),
+      statusCache: String(currentData.statusCache || 'open'),
       updatedAt: serverTimestamp(),
-      createdAt: serverTimestamp()
+      createdAt: currentData.createdAt || serverTimestamp()
     },
     { merge: true }
   )
@@ -1730,26 +2054,47 @@ const projected = await previewPayout(match.fixtureId, selectedOutcome, amountUi
 
       const positionResult = await buyPosition(match, selectedOutcome, amountUi, signer)
 
-      await saveFootballPositionToFirebase(match, {
-        couponId: positionResult.couponId,
-        outcome: selectedOutcome,
-        amountUi,
-        txHash: positionResult.txHash
-      })
+upsertLocalFootballPosition(match, {
+  couponId: positionResult.couponId,
+  outcome: selectedOutcome,
+  amountUi,
+  txHash: positionResult.txHash,
+  statusCache: 'open'
+})
 
-      hideLoadingModal()
+hideLoadingModal()
 
-      showAlert(
-        'Sucesso',
-        createdNow
-          ? 'Mercado criado e posição aberta com sucesso.'
-          : 'Posição aberta com sucesso.'
-      )
+try {
+  await saveFootballPositionToFirebase(match, {
+    couponId: positionResult.couponId,
+    outcome: selectedOutcome,
+    amountUi,
+    txHash: positionResult.txHash
+  })
 
-      await refreshWalletBalance()
-      state.matches = loadCouponsForMatches(state.matches)
-      await refreshAllPositions()
-      renderMatches()
+  removePendingFootballPositionLocally(match.fixtureId, positionResult.couponId)
+} catch (firebaseError) {
+  console.error('Erro ao salvar posição de futebol no Firebase:', firebaseError)
+
+  savePendingFootballPositionLocally(match, {
+    couponId: positionResult.couponId,
+    outcome: selectedOutcome,
+    amountUi,
+    txHash: positionResult.txHash
+  })
+}
+
+showAlert(
+  'Sucesso',
+  createdNow
+    ? 'Mercado criado e posição aberta com sucesso.'
+    : 'Posição aberta com sucesso.'
+)
+
+await refreshWalletBalance()
+state.matches = loadCouponsForMatches(state.matches)
+await refreshAllPositions()
+renderMatches()
     } catch (error) {
       hideLoadingModal()
       showAlert('Erro', getFriendlyError(error))
