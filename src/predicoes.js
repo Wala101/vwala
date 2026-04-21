@@ -1839,27 +1839,41 @@ function createCard(market) {
 
       const positionResult = await buyPosition(market, selectedSide, amountUi, signer)
 
-      await saveBinaryPositionToFirebase(market, {
-        couponId: positionResult.couponId,
-        side: selectedSide,
-        amountUi,
-        txHash: positionResult.txHash
-      })
-
       hideLoadingModal()
 
-      showAlert(
-  'Sucesso',
-  createdNow
-    ? `Mercado criado e posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
-    : `Posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
-)
+      try {
+        await saveBinaryPositionToFirebase(market, {
+          couponId: positionResult.couponId,
+          side: selectedSide,
+          amountUi,
+          txHash: positionResult.txHash
+        })
+      } catch (firebaseError) {
+        console.error('Erro ao salvar posição binária no Firebase:', firebaseError)
+      }
 
-      await refreshWalletBalance()
+      showAlert(
+        'Sucesso',
+        createdNow
+          ? `Mercado criado e posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
+          : `Posição aberta com sucesso.\n\nMarket ID: ${market.marketId}`
+      )
+
+      try {
+        await refreshWalletBalance()
+      } catch (balanceError) {
+        console.error('Erro ao atualizar saldo após abrir posição:', balanceError)
+      }
+
       state.markets = loadCouponsForMarkets(state.markets)
-      await refreshAllPositions()
-      renderMarkets()
-    } catch (error) {
+
+      try {
+        await refreshAllPositions()
+      } catch (positionsError) {
+        console.error('Erro ao atualizar posições após abrir posição:', positionsError)
+      }
+
+      renderMarkets()    } catch (error) {
       hideLoadingModal()
       showAlert('Erro', getFriendlyError(error))
     } finally {
