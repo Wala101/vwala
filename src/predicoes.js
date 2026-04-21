@@ -1483,11 +1483,14 @@ function canEnterMarketNow(market) {
   const now = new Date()
   const { openAt, betCloseAt } = getDailyMarketSchedule(now)
 
-  if (!market?.exists) return false
-  if (Number(market.status) !== MarketStatus.OPEN) return false
+
   if (marketIsClosedByTime(market)) return false
   if (now.getTime() < openAt.getTime()) return false
   if (now.getTime() >= betCloseAt.getTime()) return false
+
+  if (market?.exists && Number(market.status) !== MarketStatus.OPEN) {
+    return false
+  }
 
   return true
 }
@@ -1495,14 +1498,6 @@ function canEnterMarketNow(market) {
 function getMarketEntryMessage(market) {
   const now = new Date()
   const { openAt, betCloseAt, resolveAt } = getDailyMarketSchedule(now)
-
-  if (!market?.exists) {
-    return 'Mercado do dia ainda não foi publicado ou o anterior ainda não foi resolvido.'
-  }
-
-  if (Number(market.status) === MarketStatus.RESOLVED) {
-    return 'Mercado já resolvido.'
-  }
 
   if (now.getTime() < openAt.getTime()) {
     return 'Mercado ainda não abriu para o ciclo atual.'
@@ -1514,6 +1509,14 @@ function getMarketEntryMessage(market) {
 
   if (marketIsClosedByTime(market)) {
     return 'Mercado fechado. Aguarde a resolução e o próximo ciclo.'
+  }
+
+  if (!market?.exists) {
+    return 'Mercado será publicado automaticamente na primeira entrada desta janela.'
+  }
+
+  if (Number(market.status) === MarketStatus.RESOLVED) {
+    return 'Mercado já resolvido.'
   }
 
   if (Number(market.status) !== MarketStatus.OPEN) {
@@ -1815,12 +1818,17 @@ function createCard(market) {
 
       let createdNow = false
 
-      if (!market.exists) {
-  showAlert('Mercado pendente', 'Esse mercado ainda não foi publicado pelo operador.')
-  return
-}
+      showLoadingModal(
+        'Abrindo posição',
+        market.exists
+          ? 'Aguarde enquanto sua posição é enviada para a Polygon.'
+          : 'Publicando o mercado e enviando sua posição para a Polygon.'
+      )
 
-showLoadingModal('Abrindo posição', 'Aguarde enquanto sua posição é enviada para a Polygon.')
+      if (!market.exists) {
+        await ensureMarketExists(market, signer)
+        createdNow = true
+      }
 
       const positionResult = await buyPosition(market, selectedSide, amountUi, signer)
 
