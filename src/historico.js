@@ -111,32 +111,7 @@ document.querySelector('#app').innerHTML = `
       </aside>
 
       <main class="app-content">
-        <section class="hero-card">
-          <div class="hero-copy">
-            <p class="eyebrow">VWALA · POLYGON</p>
-            <h1>Histórico Futures</h1>
-            <p class="hero-text">
-              Veja suas posições em cripto, acompanhe o status do mercado e resgate quando estiver liberado.
-            </p>
-          </div>
-
-          <div class="hero-stats">
-            <div class="stat-box">
-              <span>Histórico</span>
-              <strong>On-chain</strong>
-            </div>
-
-            <div class="stat-box">
-              <span>Resgate</span>
-              <strong>Claim</strong>
-            </div>
-
-            <div class="stat-box">
-              <span>Rede</span>
-              <strong>Polygon</strong>
-            </div>
-          </div>
-        </section>
+        
 
         <section id="historyLoadingCard" class="card market-loading-card">
           <div class="market-loading-card-inner">
