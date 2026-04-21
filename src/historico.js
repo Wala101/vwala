@@ -307,31 +307,38 @@ function closePinModal(result = null) {
 function renderResolvedPositions(allPositions) {
   if (!historyResolvedCard) return
 
-  const wins = allPositions.filter(item =>
-    Number(item.status) === MarketStatus.RESOLVED &&
-    item.hasWinner &&
-    Number(item.side) === Number(item.winningSide)
+  const claimable = allPositions.filter(item =>
+    isClaimable(item)
+  )
+
+  const claimed = allPositions.filter(item =>
+    item.claimed === true
   )
 
   const losses = allPositions.filter(item =>
-    Number(item.status) === MarketStatus.RESOLVED &&
-    item.hasWinner &&
-    Number(item.side) !== Number(item.winningSide)
+    isLosingResolved(item)
   )
 
   resolvedWins.innerHTML = ''
   resolvedLosses.innerHTML = ''
 
-  wins.forEach(item => {
+  // 🟢 GANHOU E NÃO RESGATOU
+  claimable.forEach(item => {
     resolvedWins.appendChild(createHistoryCard(item))
   })
 
+  // 🟢 GANHOU E JÁ RESGATOU
+  claimed.forEach(item => {
+    resolvedWins.appendChild(createHistoryCard(item))
+  })
+
+  // 🔴 PERDIDAS
   losses.forEach(item => {
     resolvedLosses.appendChild(createHistoryCard(item))
   })
 
   historyResolvedCard.style.display =
-    (wins.length || losses.length) ? 'block' : 'none'
+    (claimable.length || claimed.length || losses.length) ? 'block' : 'none'
 }
 
 function showLoadingModal(title = 'Processando', text = 'Aguarde...') {
@@ -1067,7 +1074,7 @@ function removePendingBinaryPositionLocally(marketId, couponId) {
 
 async function finalizeBinaryPositionCleanup(item) {
   try {
-    await removeBinaryPositionFromFirebase(item)
+    // await removeBinaryPositionFromFirebase(item)  ❌ DESATIVADO
   } catch (firebaseError) {
     console.error('Erro ao remover posição binária do Firebase:', firebaseError)
   }
@@ -1470,15 +1477,29 @@ async function loadHistory() {
     }
 
     state.positions = nextPositions.sort((a, b) => {
-      const aClaimable = isClaimable(a) ? 1 : 0
-      const bClaimable = isClaimable(b) ? 1 : 0
+  const aClaimable = isClaimable(a) ? 1 : 0
+  const bClaimable = isClaimable(b) ? 1 : 0
 
-      if (aClaimable !== bClaimable) {
-        return bClaimable - aClaimable
-      }
+  if (aClaimable !== bClaimable) {
+    return bClaimable - aClaimable
+  }
 
-      return Number(b.marketId) - Number(a.marketId)
-    })
+  const aClaimed = a.claimed ? 1 : 0
+  const bClaimed = b.claimed ? 1 : 0
+
+  if (aClaimed !== bClaimed) {
+    return aClaimed - bClaimed
+  }
+
+  const aLost = isLosingResolved(a) ? 1 : 0
+  const bLost = isLosingResolved(b) ? 1 : 0
+
+  if (aLost !== bLost) {
+    return aLost - bLost
+  }
+
+  return Number(b.marketId) - Number(a.marketId)
+})
 
     renderPositions()
 renderResolvedPositions(nextPositions)
@@ -1744,8 +1765,7 @@ function renderPositions() {
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.positions.filter((item) => {
-  // ❌ REMOVE RESOLVIDAS DO TOPO
-  if (Number(item.status) === MarketStatus.RESOLVED) {
+  if (isLosingResolved(item)) {
     return false
   }
     const text = [
