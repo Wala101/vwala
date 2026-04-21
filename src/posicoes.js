@@ -97,32 +97,6 @@ document.querySelector('#app').innerHTML = `
       </aside>
 
       <main class="app-content">
-        <section class="hero-card">
-          <div class="hero-copy">
-            <p class="eyebrow">VWALA · POLYGON</p>
-            <h1>Histórico de Futebol</h1>
-            <p class="hero-text">
-              Veja suas previsões, acompanhe se o mercado está aberto, fechado ou resolvido e resgate quando estiver liberado.
-            </p>
-          </div>
-
-          <div class="hero-stats">
-            <div class="stat-box">
-              <span>Histórico</span>
-              <strong>On-chain</strong>
-            </div>
-
-            <div class="stat-box">
-              <span>Resgate</span>
-              <strong>Winner Claim</strong>
-            </div>
-
-            <div class="stat-box">
-              <span>Rede</span>
-              <strong>Polygon</strong>
-            </div>
-          </div>
-        </section>
 
         <section id="historyLoadingCard" class="card market-loading-card">
           <div class="market-loading-card-inner">
@@ -156,6 +130,25 @@ document.querySelector('#app').innerHTML = `
             Nenhuma previsão encontrada para esta carteira.
           </div>
         </section>
+
+        <section id="historyResolvedCard" class="card" style="display:none;">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">FINALIZADAS</p>
+              <h2>Histórico on-chain</h2>
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <h3 style="color:#25ff8a;">Ganhas</h3>
+            <div id="resolvedWins" class="match-grid"></div>
+          </div>
+
+          <div style="margin-top:20px;">
+            <h3 style="color:#ff4d4d;">Perdidas</h3>
+            <div id="resolvedLosses" class="match-grid"></div>
+          </div>
+        </section>
       </main>
     </div>
   </div>
@@ -180,25 +173,36 @@ document.querySelector('#app').innerHTML = `
 
   <div id="appPinOverlay" class="overlay"></div>
   <div id="appPinModal" class="custom-modal">
-    <div class="card modal-card notice-modal-card">
-      <div class="modal-header">
-        <h3 id="appPinTitle">Confirmar PIN</h3>
-        <button class="modal-close" id="closeAppPinBtn" type="button">✕</button>
+    <div class="card modal-card notice-modal-card app-pin-modal-card">
+      <div class="modal-header app-pin-modal-header">
+        <div class="app-pin-modal-brand">
+          <div class="app-pin-modal-badge">W</div>
+          <div class="app-pin-modal-headings">
+            <h3 id="appPinTitle">Confirmar PIN</h3>
+            <span class="app-pin-modal-subtitle">Segurança da carteira</span>
+          </div>
+        </div>
+        <button class="modal-close app-pin-modal-close" id="closeAppPinBtn" type="button">✕</button>
       </div>
 
-      <div class="notice-modal-body">
-        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para resgatar.</p>
-        <input
-          id="appPinInput"
-          class="input"
-          type="password"
-          placeholder="Digite seu PIN"
-          autocomplete="current-password"
-        />
+      <div class="notice-modal-body app-pin-modal-body">
+        <p id="appPinText" class="notice-modal-text app-pin-modal-text">
+          Digite o PIN da carteira para resgatar.
+        </p>
+
+        <div class="app-pin-input-wrap">
+          <input
+            id="appPinInput"
+            class="input app-pin-input"
+            type="password"
+            placeholder="Digite seu PIN"
+            autocomplete="current-password"
+          />
+        </div>
       </div>
 
-      <div class="notice-modal-footer app-pin-actions">
-        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+      <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
+        <button id="appPinConfirmBtn" class="notice-confirm-btn app-pin-confirm-btn" type="button">Confirmar</button>
       </div>
     </div>
   </div>
@@ -219,6 +223,9 @@ const historyLoadingCard = document.getElementById('historyLoadingCard')
 const historySearchCard = document.getElementById('historySearchCard')
 const historyResultsCard = document.getElementById('historyResultsCard')
 const positionsGrid = document.getElementById('positionsGrid')
+const historyResolvedCard = document.getElementById('historyResolvedCard')
+const resolvedWins = document.getElementById('resolvedWins')
+const resolvedLosses = document.getElementById('resolvedLosses')
 const positionsEmpty = document.getElementById('positionsEmpty')
 const positionCount = document.getElementById('positionCount')
 const searchInput = document.getElementById('searchInput')
@@ -251,6 +258,30 @@ const pinModalState = {
   resolve: null
 }
 
+function resetPinModalState() {
+  appPinTitle.textContent = 'Confirmar PIN'
+  appPinText.textContent = 'Digite o PIN da carteira para resgatar.'
+  appPinText.style.color = '#cfd6df'
+  appPinConfirmBtn.textContent = 'Confirmar'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+}
+
+function setPinModalError() {
+  appPinTitle.textContent = 'PIN inválido'
+  appPinText.textContent = 'PIN errado ou não cadastrado. Vá até a página de swap e crie um novo.'
+  appPinText.style.color = '#ff7b7b'
+  appPinConfirmBtn.textContent = 'Tentar novamente'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+
+  setTimeout(() => {
+    appPinInput.focus()
+  }, 0)
+}
+
 function showAlert(title, message) {
   appNoticeTitle.textContent = title
   appNoticeText.textContent = message
@@ -264,9 +295,9 @@ function closeAlert() {
 }
 
 function openPinModal(title, text) {
+  resetPinModalState()
   appPinTitle.textContent = title
   appPinText.textContent = text
-  appPinInput.value = ''
   appPinModal.classList.add('active')
   appPinOverlay.classList.add('active')
 
@@ -289,6 +320,43 @@ function closePinModal(result = null) {
   if (resolve) {
     resolve(result)
   }
+}
+
+function renderResolvedPositions(allPositions) {
+  if (!historyResolvedCard) return
+
+  const claimable = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
+    isClaimable(item)
+  )
+
+  const claimed = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
+    item.claimed === true
+  )
+
+  const losses = allPositions.filter(item =>
+    Number(item.status) === MarketStatus.RESOLVED &&
+    isLosingResolved(item)
+  )
+
+  resolvedWins.innerHTML = ''
+  resolvedLosses.innerHTML = ''
+
+  claimable.forEach(item => {
+    resolvedWins.appendChild(createHistoryCard(item))
+  })
+
+  claimed.forEach(item => {
+    resolvedWins.appendChild(createHistoryCard(item))
+  })
+
+  losses.forEach(item => {
+    resolvedLosses.appendChild(createHistoryCard(item))
+  })
+
+  historyResolvedCard.style.display =
+    (claimable.length || claimed.length || losses.length) ? 'block' : 'none'
 }
 
 function showLoadingModal(title = 'Processando', text = 'Aguarde...') {
@@ -1087,8 +1155,10 @@ function isLosingResolved(item) {
 
 function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
-  if (isLosingResolved(item)) return 'NÃO VENCEU'
-  if (isClaimable(item)) return 'PRONTA PARA RESGATE'
+  if (isClaimable(item)) return 'GANHOU'
+  if (isLosingResolved(item)) return 'PERDEU'
+  if (Number(item.status) === MarketStatus.CLOSED) return 'AGUARDANDO RESULTADO'
+  if (Number(item.status) === MarketStatus.OPEN) return 'EM ANDAMENTO'
   if (Number(item.status) === MarketStatus.OPEN) return 'PREVISÃO ABERTA'
   if (Number(item.status) === MarketStatus.CLOSED) return 'PREVISÃO FECHADA'
   return '---'
@@ -1220,6 +1290,7 @@ async function getInternalWalletSigner() {
 
   const deviceVault = getLocalDeviceWalletForBetting()
   if (!deviceVault?.walletKeystoreLocal) {
+    showAlert('Carteira não encontrada', 'Nenhum PIN cadastrado para esta carteira. Vá até a página de swap e crie um novo.')
     return null
   }
 
@@ -1227,28 +1298,46 @@ async function getInternalWalletSigner() {
   const vaultAddress = String(deviceVault.walletAddress || '').trim().toLowerCase()
 
   if (!expectedAddress || !vaultAddress || expectedAddress !== vaultAddress) {
+    showAlert('Carteira incompatível', 'A carteira local não corresponde à carteira logada. Vá até a página de swap e crie um novo PIN.')
     return null
   }
 
-  const pin = await openPinModal('Confirmar PIN', 'Digite o PIN da carteira para resgatar.')
-  if (pin === null) {
-    return null
+  while (true) {
+    const pin = await openPinModal('Confirmar PIN', 'Digite o PIN da carteira para resgatar.')
+
+    if (pin === null) {
+      return null
+    }
+
+    if (!pin.trim()) {
+      setPinModalError()
+      continue
+    }
+
+    try {
+      appPinInput.disabled = true
+      appPinConfirmBtn.disabled = true
+      appPinConfirmBtn.textContent = 'Validando...'
+
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        deviceVault.walletKeystoreLocal,
+        pin.trim()
+      )
+
+      const signer = unlockedWallet.connect(state.provider)
+      state.signer = signer
+
+      if (state.betting) {
+        state.betting = state.betting.connect(signer)
+      }
+
+      closePinModal(pin.trim())
+      return signer
+    } catch (error) {
+      console.error('Erro ao desbloquear carteira pelo PIN:', error)
+      setPinModalError()
+    }
   }
-
-  if (!pin.trim()) {
-    throw new Error('PIN inválido.')
-  }
-
-  const unlockedWallet = await Wallet.fromEncryptedJson(
-    deviceVault.walletKeystoreLocal,
-    pin.trim()
-  )
-
-  const signer = unlockedWallet.connect(state.provider)
-  state.signer = signer
-  state.betting = state.betting.connect(signer)
-
-  return signer
 }
 
 async function initWalletSession() {
@@ -1318,20 +1407,12 @@ async function loadHistory() {
           continue
         }
 
-        if (position[6] === true) {
-  await finalizeFootballPositionCleanup(entry.fixtureId, entry.couponId)
-  continue
-}
-
-const isResolved = Number(marketState[3]) === MarketStatus.RESOLVED
-const hasWinner = Boolean(marketState[4])
-const winningOutcome = Number(marketState[5])
-const userOutcome = Number(position[4])
-
-if (isResolved && hasWinner && userOutcome !== winningOutcome) {
-  await finalizeFootballPositionCleanup(entry.fixtureId, entry.couponId)
-  continue
-}
+        const isResolved = Number(marketState[3]) === MarketStatus.RESOLVED
+        const hasWinner = Boolean(marketState[4])
+        const winningOutcome = Number(marketState[5])
+        const userOutcome = Number(position[4])
+        const isClaimed = position[6] === true
+        const isLost = isResolved && hasWinner && userOutcome !== winningOutcome
 
         const teamA = cleanTeamName(marketNames[1] || 'Time A')
         const teamB = cleanTeamName(marketNames[2] || 'Time B')
@@ -1349,30 +1430,48 @@ if (isResolved && hasWinner && userOutcome !== winningOutcome) {
           resolvedAt: Number(marketState[7]),
           outcome: Number(position[4]),
           amount: formatUnits(position[5], state.decimals),
-          claimed: position[6],
-          claimedAmount: formatUnits(position[7], state.decimals)
+          claimed: isClaimed,
+          claimedAmount: formatUnits(position[7], state.decimals),
+          lost: isLost
         })      } catch (error) {
         console.error(`Erro ao carregar cupom ${entry.fixtureId}:${entry.couponId}`, error)
       }
     }
 
     state.positions = nextPositions.sort((a, b) => {
-      const weightDiff = getPositionSortWeight(a) - getPositionSortWeight(b)
+      const aClaimable = isClaimable(a) ? 1 : 0
+      const bClaimable = isClaimable(b) ? 1 : 0
 
-      if (weightDiff !== 0) {
-        return weightDiff
+      if (aClaimable !== bClaimable) {
+        return bClaimable - aClaimable
+      }
+
+      const aClaimed = a.claimed ? 1 : 0
+      const bClaimed = b.claimed ? 1 : 0
+
+      if (aClaimed !== bClaimed) {
+        return aClaimed - bClaimed
+      }
+
+      const aLost = isLosingResolved(a) ? 1 : 0
+      const bLost = isLosingResolved(b) ? 1 : 0
+
+      if (aLost !== bLost) {
+        return aLost - bLost
       }
 
       return Number(b.fixtureId) - Number(a.fixtureId)
     })
 
     renderPositions()
+    renderResolvedPositions(state.positions)
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar o histórico de futebol.')
   } finally {
     setHistoryLoading(false)
     renderPositions()
+    renderResolvedPositions(state.positions)
   }
 }
 
@@ -1612,7 +1711,15 @@ function createHistoryCard(item) {
       <div class="bet-top">
         <div class="selected-outcome-chip js-selected-outcome-chip">${userPick}</div>
         <div class="estimated-payout-text js-estimated-payout-text">
-          ${item.claimed ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}` : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`}
+          ${
+            item.claimed
+              ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}`
+              : isClaimable(item)
+                ? `Você ganhou: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
+                : isLosingResolved(item)
+                  ? `Você perdeu essa posição`
+                  : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
+          }
         </div>
       </div>
 
@@ -1627,7 +1734,11 @@ function createHistoryCard(item) {
                 : Number(item.status) === MarketStatus.CLOSED
                   ? 'A previsão fechou e aguarda resolução.'
                   : Number(item.status) === MarketStatus.RESOLVED
-                    ? 'Essa posição não venceu.'
+                    ? item.hasWinner
+                      ? Number(item.outcome) === Number(item.winningOutcome)
+                        ? 'Sua posição venceu e está pronta para resgate.'
+                        : 'Essa posição não venceu.'
+                      : 'Resultado ainda não definido.'
                     : 'Aguardando atualização on-chain.'
         }
       </div>
@@ -1664,6 +1775,14 @@ function renderPositions() {
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.positions.filter((item) => {
+    const isActiveTop =
+      Number(item.status) === MarketStatus.OPEN ||
+      Number(item.status) === MarketStatus.CLOSED
+
+    if (!isActiveTop) {
+      return false
+    }
+
     const text = [
       item.league,
       item.teamA,
@@ -1705,9 +1824,9 @@ async function boot() {
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
-  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
+  closeAppPinBtn.addEventListener('click', () => {})
   appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
-  appPinOverlay.addEventListener('click', () => closePinModal(null))
+  appPinOverlay.addEventListener('click', () => {})
 
   appPinInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
