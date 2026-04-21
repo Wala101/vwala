@@ -8,8 +8,8 @@ const MARKET_STATUS = {
 }
 
 const OUTCOME = {
-  NO: 0,
-  YES: 1
+  YES: 0,
+  NO: 1
 }
 
 const TARGET_PCT = 0.001 // 0.1%
