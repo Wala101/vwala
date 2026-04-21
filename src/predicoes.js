@@ -855,29 +855,29 @@ const MARKET_ENTRY_BUFFER_MINUTES = 5
 
 function getDailyMarketSchedule(baseDate = new Date()) {
   const base = new Date(baseDate)
-  const currentHour = base.getHours()
-  const blockStartHour = Math.floor(currentHour / MARKET_WINDOW_HOURS) * MARKET_WINDOW_HOURS
+  const currentUtcHour = base.getUTCHours()
+  const blockStartHour = Math.floor(currentUtcHour / MARKET_WINDOW_HOURS) * MARKET_WINDOW_HOURS
   const blockEndHour = blockStartHour + MARKET_WINDOW_HOURS
 
-  const openAt = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate(),
+  const openAt = new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate(),
     blockStartHour,
     0,
     0,
     0
-  )
+  ))
 
-  const resolveAt = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate(),
+  const resolveAt = new Date(Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate(),
     blockEndHour,
     0,
     0,
     0
-  )
+  ))
 
   const betCloseAt = new Date(resolveAt.getTime() - MARKET_ENTRY_BUFFER_MINUTES * 60 * 1000)
 

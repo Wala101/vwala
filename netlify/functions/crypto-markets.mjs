@@ -31,20 +31,21 @@ function getReferencePriceUsd(currentPrice) {
 
 function getDailyMarketCloseTimestamp(fromDate = new Date()) {
   const base = new Date(fromDate)
-  const currentHour = base.getHours()
-  const nextBlockHour = (Math.floor(currentHour / 4) + 1) * 4
+  const currentUtcHour = base.getUTCHours()
+  const nextBlockHour = (Math.floor(currentUtcHour / 4) + 1) * 4
 
-  const close = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate(),
+  const closeUtcMs = Date.UTC(
+    base.getUTCFullYear(),
+    base.getUTCMonth(),
+    base.getUTCDate(),
     0,
     0,
     0,
     0
   )
 
-  close.setHours(nextBlockHour, 0, 0, 0)
+  const close = new Date(closeUtcMs)
+  close.setUTCHours(nextBlockHour, 0, 0, 0)
 
   return Math.floor(close.getTime() / 1000)
 }
