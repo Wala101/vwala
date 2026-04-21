@@ -720,6 +720,83 @@ function getFootballPositionDocId(fixtureId, couponId) {
   return `${String(fixtureId).trim()}_${String(couponId).trim()}`
 }
 
+function getFootballLocalPositionsStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_football_local_positions_${walletAddress || 'guest'}`
+}
+
+function readLocalFootballPositions() {
+  try {
+    const raw = localStorage.getItem(getFootballLocalPositionsStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler posições locais de futebol:', error)
+    return []
+  }
+}
+
+function writeLocalFootballPositions(items) {
+  localStorage.setItem(getFootballLocalPositionsStorageKey(), JSON.stringify(items))
+}
+
+function removeLocalFootballPosition(fixtureId, couponId) {
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const items = readLocalFootballPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writeLocalFootballPositions(filtered)
+}
+
+function getFootballPendingStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_football_pending_positions_${walletAddress || 'guest'}`
+}
+
+function readPendingFootballPositions() {
+  try {
+    const raw = localStorage.getItem(getFootballPendingStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler pendências locais de futebol:', error)
+    return []
+  }
+}
+
+function writePendingFootballPositions(items) {
+  localStorage.setItem(getFootballPendingStorageKey(), JSON.stringify(items))
+}
+
+function removePendingFootballPositionLocally(fixtureId, couponId) {
+  const docId = getFootballPositionDocId(fixtureId, couponId)
+  const items = readPendingFootballPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writePendingFootballPositions(filtered)
+}
+
+async function finalizeFootballPositionCleanup(fixtureId, couponId) {
+  try {
+    await removeFootballPositionFromFirebase({
+      fixtureId: String(fixtureId),
+      couponId: String(couponId)
+    })
+  } catch (firebaseError) {
+    console.error('Erro ao remover posição de futebol do Firebase:', firebaseError)
+  }
+
+  removePendingFootballPositionLocally(fixtureId, couponId)
+  removeLocalFootballPosition(fixtureId, couponId)
+  removeCouponFromLocalStorage(fixtureId, couponId)
+
+  state.positions = state.positions.filter(
+    (item) =>
+      !(
+        String(item.fixtureId) === String(fixtureId) &&
+        String(item.couponId) === String(couponId)
+      )
+  )
+}
+ 
 function getSavedCouponEntriesFromLocal() {
   const walletAddress = String(state.userAddress || '').trim().toLowerCase()
 
@@ -1211,12 +1288,7 @@ async function loadHistory() {
         }
 
         if (position[6] === true) {
-  await removeFootballPositionFromFirebase({
-    fixtureId: String(entry.fixtureId),
-    couponId: String(entry.couponId)
-  })
-
-  removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
+  await finalizeFootballPositionCleanup(entry.fixtureId, entry.couponId)
   continue
 }
 
@@ -1226,12 +1298,7 @@ const winningOutcome = Number(marketState[5])
 const userOutcome = Number(position[4])
 
 if (isResolved && hasWinner && userOutcome !== winningOutcome) {
-  await removeFootballPositionFromFirebase({
-    fixtureId: String(entry.fixtureId),
-    couponId: String(entry.couponId)
-  })
-
-  removeCouponFromLocalStorage(entry.fixtureId, entry.couponId)
+  await finalizeFootballPositionCleanup(entry.fixtureId, entry.couponId)
   continue
 }
 
@@ -1340,13 +1407,15 @@ async function claimItem(item) {
       const originalOutcome = Number(item.outcome)
 
       if (
-        marketStatusAfterSync === MarketStatus.RESOLVED &&
-        hasWinnerAfterSync &&
-        originalOutcome !== winningOutcomeAfterSync
-      ) {
-        showAlert('Aposta perdida', 'Essa aposta não venceu e foi removida da lista.')
-        return
-      }
+  marketStatusAfterSync === MarketStatus.RESOLVED &&
+  hasWinnerAfterSync &&
+  originalOutcome !== winningOutcomeAfterSync
+) {
+  await finalizeFootballPositionCleanup(item.fixtureId, item.couponId)
+  showAlert('Aposta perdida', 'Essa aposta não venceu e foi removida da lista.')
+  renderPositions()
+  return
+}
 
       if (
         marketStatusAfterSync === MarketStatus.RESOLVED &&
@@ -1373,9 +1442,11 @@ async function claimItem(item) {
     }
 
     if (isLosingResolved(freshItem)) {
-      showAlert('Resultado confirmado', 'Sua posição não venceu.')
-      return
-    }
+  await finalizeFootballPositionCleanup(freshItem.fixtureId, freshItem.couponId)
+  showAlert('Resultado confirmado', 'Sua posição não venceu.')
+  renderPositions()
+  return
+}
 
     if (!isClaimable(freshItem)) {
       showAlert('Mercado ainda não resolvido', 'O jogo ainda não terminou ou o resultado ainda não foi confirmado on-chain.')
@@ -1425,17 +1496,14 @@ async function claimItem(item) {
       })
     }
 
-    await removeFootballPositionFromFirebase({
-      fixtureId: String(freshItem.fixtureId),
-      couponId: String(freshItem.couponId)
-    })
-    removeCouponFromLocalStorage(freshItem.fixtureId, freshItem.couponId)
+    await finalizeFootballPositionCleanup(freshItem.fixtureId, freshItem.couponId)
 
-    hideLoadingModal()
-    showAlert('Sucesso', 'Resgate concluído com sucesso.')
+hideLoadingModal()
+showAlert('Sucesso', 'Resgate concluído com sucesso.')
 
-    await loadUserTokenBalance()
-    await loadHistory()
+await loadUserTokenBalance()
+renderPositions()
+await loadHistory()
   } catch (error) {
     hideLoadingModal()
     showAlert('Erro', getFriendlyError(error))
