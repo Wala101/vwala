@@ -1398,6 +1398,96 @@ function getBinaryPositionDocId(marketId, couponId) {
   return `${String(marketId).trim()}_${String(couponId).trim()}`
 }
 
+function getBinaryPendingStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_binary_pending_positions_${walletAddress || 'guest'}`
+}
+
+function readPendingBinaryPositions() {
+  try {
+    const raw = localStorage.getItem(getBinaryPendingStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler pendências binárias locais:', error)
+    return []
+  }
+}
+
+function writePendingBinaryPositions(items) {
+  localStorage.setItem(getBinaryPendingStorageKey(), JSON.stringify(items))
+}
+
+function savePendingBinaryPositionLocally(market, payload) {
+  const marketId = String(market?.marketId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!marketId || !couponId) {
+    return
+  }
+
+  const items = readPendingBinaryPositions()
+  const docId = getBinaryPositionDocId(marketId, couponId)
+
+  const nextItem = {
+    docId,
+    marketId,
+    couponId,
+    walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+    assetSymbol: String(market?.assetSymbol || 'CRYPTO'),
+    question: String(market?.question || ''),
+    side: Number(payload?.side),
+    amountUi: String(payload?.amountUi || '0'),
+    txHash: String(payload?.txHash || ''),
+    createdAt: Date.now()
+  }
+
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  filtered.push(nextItem)
+  writePendingBinaryPositions(filtered)
+}
+
+function removePendingBinaryPositionLocally(marketId, couponId) {
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const items = readPendingBinaryPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writePendingBinaryPositions(filtered)
+}
+
+async function flushPendingBinaryPositionsToFirebase() {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const items = readPendingBinaryPositions()
+
+  if (!items.length) {
+    return
+  }
+
+  for (const item of items) {
+    try {
+      await saveBinaryPositionToFirebase(
+        {
+          marketId: item.marketId,
+          assetSymbol: item.assetSymbol,
+          question: item.question
+        },
+        {
+          couponId: item.couponId,
+          side: item.side,
+          amountUi: item.amountUi,
+          txHash: item.txHash
+        }
+      )
+
+      removePendingBinaryPositionLocally(item.marketId, item.couponId)
+    } catch (error) {
+      console.error('Erro ao sincronizar pendência binária local:', error)
+    }
+  }
+}
+
 async function saveBinaryPositionToFirebase(market, payload) {
   if (!currentGoogleUser?.uid || !state.userAddress) {
     return
@@ -1848,8 +1938,17 @@ function createCard(market) {
           amountUi,
           txHash: positionResult.txHash
         })
+
+        removePendingBinaryPositionLocally(market.marketId, positionResult.couponId)
       } catch (firebaseError) {
         console.error('Erro ao salvar posição binária no Firebase:', firebaseError)
+
+        savePendingBinaryPositionLocally(market, {
+          couponId: positionResult.couponId,
+          side: selectedSide,
+          amountUi,
+          txHash: positionResult.txHash
+        })
       }
 
       showAlert(
@@ -1873,7 +1972,8 @@ function createCard(market) {
         console.error('Erro ao atualizar posições após abrir posição:', positionsError)
       }
 
-      renderMarkets()    } catch (error) {
+      renderMarkets()
+    } catch (error) {
       hideLoadingModal()
       showAlert('Erro', getFriendlyError(error))
     } finally {
@@ -1958,6 +2058,7 @@ async function boot() {
 
   await initFirebaseSession()
   await initWalletSession()
+  await flushPendingBinaryPositionsToFirebase()
   await loadMarkets()
 }
 
