@@ -1552,24 +1552,23 @@ async function ensureMarketExists(market, signer) {
   const normalized = normalizeBinaryProbabilities(market)
 
   try {
-
-
     const tx = await predictionsContract.createMarket(
-  BigInt(market.marketId),
-  market.assetSymbol,
-  market.question,
-  BigInt(market.closeAt),
-  getReferencePriceE8(market.referencePriceUsd),
-  0,
-  normalized.probYesBps,
-  normalized.probNoBps
-)
+      BigInt(market.marketId),
+      market.assetSymbol,
+      market.question,
+      BigInt(market.closeAt),
+      getReferencePriceE8(market.referencePriceUsd),
+      0,
+      normalized.probYesBps,
+      normalized.probNoBps
+    )
 
     await tx.wait()
   } catch (error) {
     const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
+    const errorName = getPredictionsErrorName(error)
 
-    if (!text.includes('marketalreadyexists')) {
+    if (errorName !== 'MarketAlreadyExists' && !text.includes('marketalreadyexists')) {
       throw error
     }
   }
@@ -1577,6 +1576,7 @@ async function ensureMarketExists(market, signer) {
   market.exists = true
   market.status = MarketStatus.OPEN
   market.hasWinner = false
+  market.winningSide = null
   market.poolYes = market.poolYes || '0'
   market.poolNo = market.poolNo || '0'
   market.totalPool = market.totalPool || '0'
