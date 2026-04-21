@@ -18,6 +18,7 @@ const VWALA_TOKEN = import.meta.env.VITE_VWALA_TOKEN || '0x7bD1f6f4F5CEf026b6437
 const BINARY_PREDICTIONS_ADDRESS =
   import.meta.env.VITE_BINARY_PREDICTIONS_ADDRESS || '0x798474EC1C9f32ca2537bCD4f88d7b422baEE23d'
 const API_BASE = '/.netlify/functions'
+const CREATE_BINARY_MARKET_URL = `${API_BASE}/create-binary-market`
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 const ERC20_ABI = [
@@ -1847,7 +1848,7 @@ function getMarketEntryMessage(market) {
   return 'Apostas liberadas até os últimos 5 minutos de cada janela de 4 horas.'
 }
 
-async function ensureMarketExists(market, signer) {
+async function ensureMarketExists(market) {
   if (!state.predictions) {
     throw new Error('Contrato binário ainda não configurado.')
   }
@@ -1858,29 +1859,35 @@ async function ensureMarketExists(market, signer) {
     throw new Error('Esse mercado já fechou.')
   }
 
-  const predictionsContract = state.predictions.connect(signer)
   const normalized = normalizeBinaryProbabilities(market)
 
+  const response = await fetch(CREATE_BINARY_MARKET_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      marketId: String(market.marketId),
+      assetSymbol: String(market.assetSymbol || 'CRYPTO'),
+      question: String(market.question || 'Mercado binário'),
+      closeAt: String(market.closeAt),
+      referencePriceE8: getReferencePriceE8(market.referencePriceUsd).toString(),
+      feeBps: 0,
+      yesProbBps: Number(normalized.probYesBps),
+      noProbBps: Number(normalized.probNoBps)
+    })
+  })
+
+  let result = {}
+
   try {
-    const tx = await predictionsContract.createMarket(
-      BigInt(market.marketId),
-      market.assetSymbol,
-      market.question,
-      BigInt(market.closeAt),
-      getReferencePriceE8(market.referencePriceUsd),
-      0,
-      normalized.probYesBps,
-      normalized.probNoBps
-    )
+    result = await response.json()
+  } catch {
+    result = {}
+  }
 
-    await tx.wait()
-  } catch (error) {
-    const text = String(error?.shortMessage || error?.message || error || '').toLowerCase()
-    const errorName = getPredictionsErrorName(error)
-
-    if (errorName !== 'MarketAlreadyExists' && !text.includes('marketalreadyexists')) {
-      throw error
-    }
+  if (!response.ok || result?.ok === false) {
+    throw new Error(result?.error || 'Não foi possível criar o mercado binário.')
   }
 
   market.exists = true
@@ -2143,9 +2150,9 @@ function createCard(market) {
       )
 
       if (!market.exists) {
-        await ensureMarketExists(market, signer)
-        createdNow = true
-      }
+  await ensureMarketExists(market)
+  createdNow = true
+}
 
       const positionResult = await buyPosition(market, selectedSide, amountUi, signer)
 
