@@ -893,6 +893,26 @@ function closeUiModal(result = null) {
   }
 }
 
+function setPromptModalError({
+  title = 'PIN inválido',
+  text = 'Valor inválido.',
+  confirmText = 'Tentar novamente',
+  placeholder = 'Digite novamente'
+} = {}) {
+  uiModalTitle.textContent = title
+  uiModalText.innerHTML = text
+  uiModalConfirmBtn.textContent = confirmText
+  uiModalCancelBtn.style.display = 'none'
+  uiModalCloseBtn.classList.add('hidden')
+  uiModalInput.classList.remove('hidden')
+  uiModalInput.value = ''
+  uiModalInput.placeholder = placeholder
+  uiModalInput.disabled = false
+  uiModalConfirmBtn.disabled = false
+
+  setTimeout(() => uiModalInput.focus(), 0)
+}
+
 function showLoadingModal(
   title = 'Processando',
   text = 'Aguarde enquanto concluímos sua solicitação.'
@@ -1217,43 +1237,66 @@ async function saveConfirmedSellVWalaToFirebase({
 }
 
 async function promptCreateDevicePin() {
-  const pin = await showPinModal(
-    'Criar PIN neste aparelho',
-    'Crie um novo PIN para usar sua carteira neste aparelho.',
-    'Continuar'
-  )
+  let pin = ''
 
-  if (pin === null) {
-    return null
-  }
-
-  if (!pin || pin.trim().length < 6) {
-    await showMessageModal(
-      'PIN inválido',
-      'Use pelo menos 6 caracteres.'
+  while (true) {
+    pin = await showPinModal(
+      'Criar PIN neste aparelho',
+      'Crie um novo PIN para usar sua carteira neste aparelho.',
+      'Continuar'
     )
-    return null
+
+    if (pin === null) {
+      continue
+    }
+
+    if (!pin || pin.trim().length < 6) {
+      setPromptModalError({
+        title: 'PIN inválido',
+        text: 'Use pelo menos 6 caracteres.',
+        confirmText: 'Tentar novamente',
+        placeholder: 'Digite seu novo PIN'
+      })
+      continue
+    }
+
+    pin = pin.trim()
+    break
   }
 
-  const confirmPin = await showPinModal(
-    'Confirmar PIN',
-    'Confirme o novo PIN deste aparelho.',
-    'Confirmar'
-  )
-
-  if (confirmPin === null) {
-    return null
-  }
-
-  if (pin !== confirmPin) {
-    await showMessageModal(
-      'PIN diferente',
-      'Os PINs não coincidem.'
+  while (true) {
+    const confirmPin = await showPinModal(
+      'Confirmar PIN',
+      'Confirme o novo PIN deste aparelho.',
+      'Confirmar'
     )
-    return null
-  }
 
-  return pin.trim()
+    if (confirmPin === null) {
+      continue
+    }
+
+    if (!confirmPin || confirmPin.trim().length < 6) {
+      setPromptModalError({
+        title: 'PIN inválido',
+        text: 'Confirme usando pelo menos 6 caracteres.',
+        confirmText: 'Tentar novamente',
+        placeholder: 'Confirme seu PIN'
+      })
+      continue
+    }
+
+    if (pin !== confirmPin.trim()) {
+      setPromptModalError({
+        title: 'PIN diferente',
+        text: 'Os PINs não coincidem. Tente novamente.',
+        confirmText: 'Tentar novamente',
+        placeholder: 'Confirme seu PIN'
+      })
+      continue
+    }
+
+    return pin
+  }
 }
 
 async function ensureDeviceWalletAccess(user, walletProfile) {
@@ -2046,16 +2089,24 @@ uiModalConfirmBtn?.addEventListener('click', async () => {
 })
 
 uiModalCancelBtn?.addEventListener('click', () => {
+  if (modalState.mode === 'prompt') {
+    return
+  }
+
   closeUiModal(null)
 })
 
 uiModalCloseBtn?.addEventListener('click', () => {
+  if (modalState.mode === 'prompt') {
+    return
+  }
+
   closeUiModal(null)
 })
 
 uiModal?.addEventListener('click', (event) => {
   if (event.target === uiModal) {
-    closeUiModal(null)
+    return
   }
 })
 
@@ -2068,7 +2119,7 @@ uiModalInput?.addEventListener('keydown', (event) => {
 
   if (event.key === 'Escape') {
     event.preventDefault()
-    closeUiModal(null)
+    return
   }
 })
 
