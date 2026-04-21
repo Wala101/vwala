@@ -7,7 +7,7 @@ export default defineConfig({
         main: 'index.html',
         carteira: 'carteira.html',
         swap: 'swap.html',
-        apostas: 'apostas.html',
+        futebol: 'futebol.html',
         posicoes: 'posicoes.html',
         predicoes: 'predicoes.html',
         historico: 'historico.html',
