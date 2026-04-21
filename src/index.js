@@ -6,8 +6,8 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
-import { Contract, JsonRpcProvider, formatUnits } from 'ethers'
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers'
 
 const app = document.querySelector('#app')
 
@@ -273,6 +273,93 @@ function formatTokenBalance(value = 0) {
   })} ${TOKEN_SYMBOL}`
 }
 
+function parseVWalaUnits(value) {
+  return parseUnits(String(value || '0'), 18)
+}
+
+function formatVWalaUnits(value) {
+  return formatUnits(value, 18)
+}
+
+function sanitizeTxHashForDoc(txHash = '') {
+  return String(txHash || '').trim().toLowerCase()
+}
+
+function getSwapBalanceDocRef(userId, assetId = 'vwala') {
+  return doc(db, 'users', userId, 'swap_balances', assetId)
+}
+
+function getSwapHistoryDocRef(userId, txHash) {
+  return doc(db, 'users', userId, 'swap_history', sanitizeTxHashForDoc(txHash))
+}
+
+async function readFirebaseVWalaBalance(userId, walletAddress = '') {
+  if (!userId) return '0'
+
+  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
+  const balanceSnap = await getDoc(balanceRef)
+
+  if (balanceSnap.exists()) {
+    const data = balanceSnap.data() || {}
+
+    if (data.balanceRaw != null) {
+      return formatVWalaUnits(BigInt(String(data.balanceRaw)))
+    }
+
+    return String(data.balanceFormatted || data.balance || '0')
+  }
+
+  if (!walletAddress) {
+    return '0'
+  }
+
+  const migratedRead = await readBalanceViaEthers(
+    walletAddress,
+    `home_vwala_migration_${userId}`
+  )
+
+  const migratedBalanceRaw = BigInt(String(migratedRead?.rawBalance || '0'))
+  const migratedBalance = formatVWalaUnits(migratedBalanceRaw)
+
+  if (migratedBalanceRaw > 0n) {
+    await setDoc(
+      balanceRef,
+      {
+        assetId: 'vwala',
+        token: TOKEN_SYMBOL,
+        tokenAddress: VWALA_TOKEN_ADDRESS,
+        walletAddress,
+        balanceRaw: migratedBalanceRaw.toString(),
+        balance: Number(migratedBalance),
+        balanceFormatted: migratedBalance,
+        lastType: 'migration',
+        lastTxHash: 'migration-initial-onchain-read',
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+
+    await setDoc(
+      getSwapHistoryDocRef(userId, `migration-${String(walletAddress).toLowerCase()}`),
+      {
+        assetId: 'vwala',
+        type: 'migration',
+        token: TOKEN_SYMBOL,
+        tokenAddress: VWALA_TOKEN_ADDRESS,
+        walletAddress,
+        amountRaw: migratedBalanceRaw.toString(),
+        amount: Number(migratedBalance),
+        amountFormatted: migratedBalance,
+        txHash: 'migration-initial-onchain-read',
+        createdAt: serverTimestamp()
+      },
+      { merge: true }
+    )
+  }
+
+  return migratedBalance
+}
+
 function setConnectButtonText(text) {
   const connectBtn = document.getElementById('connectBtn')
   if (connectBtn) connectBtn.textContent = text
@@ -280,18 +367,18 @@ function setConnectButtonText(text) {
 
 async function loadUserTokenBalance() {
   const readId = ++balanceReadCounter
-  const groupLabel = `[VWALA_BALANCE_READ_${readId}]`
+  const groupLabel = `[VWALA_FIREBASE_BALANCE_READ_${readId}]`
 
   console.groupCollapsed(groupLabel)
 
   try {
     const walletAddress = getCurrentWalletAddress()
 
-console.log('wallet_resolution', {
-  uid: currentFirebaseUser?.uid || '',
-  walletAddress,
-  source: 'firebase_users_walletAddress'
-})
+    console.log('wallet_resolution', {
+      uid: currentFirebaseUser?.uid || '',
+      walletAddress,
+      source: 'firebase_users_walletAddress'
+    })
 
     if (!walletAddress) {
       setConnectButtonText('Sem carteira')
@@ -301,14 +388,17 @@ console.log('wallet_resolution', {
 
     setConnectButtonText('Validando saldo...')
 
-const selectedRead = await readBalanceViaEthers(walletAddress, `vwala_balance_main_${readId}`)
+    const firebaseBalance = currentFirebaseUser?.uid
+      ? await readFirebaseVWalaBalance(currentFirebaseUser.uid, walletAddress)
+      : '0'
 
-setConnectButtonText(formatTokenBalance(selectedRead.formattedBalance))
-console.log('selected_balance_read', selectedRead)
-console.log('balance_stabilization_reason', selectedRead.stabilizationReason)
-console.log('balance_attempts', selectedRead.attempts)
+    setConnectButtonText(formatTokenBalance(firebaseBalance))
+    console.log('firebase_balance_read', {
+      walletAddress,
+      balanceFormatted: firebaseBalance
+    })
   } catch (error) {
-    console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL}:`, error)
+    console.error(`Erro ao carregar saldo ${TOKEN_SYMBOL} no Firebase:`, error)
     setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`)
   } finally {
     console.groupEnd()
@@ -344,12 +434,12 @@ app.innerHTML = `
 
 
       <aside id="sidebar" class="side-menu">
-  <a href="/carteira.html">Carteira</a>
-  <a href="/token.html">Criar Token</a>
-  <a href="/apostas.html">Futebol</a>
-  <a href="/predicoes.html">Predições</a>
-  <a href="/posicoes.html">H/Futebol</a>
-  <a href="/historico.html">H/Futures</a>
+  <a href="/carteira">Carteira</a>
+  <a href="/token">Criar Token</a>
+  <a href="/apostas">Futebol</a>
+  <a href="/predicoes">Predições</a>
+  <a href="/posicoes">H/Futebol</a>
+  <a href="/historico">H/Futures</a>
 </aside>
 
       <main class="app-content">
@@ -390,7 +480,7 @@ app.innerHTML = `
         <section class="cards-list">
           <article
             class="feature-card clickable-card"
-            data-href="/apostas.html"
+            data-href="/apostas"
             role="button"
             tabindex="0"
             aria-label="Abrir página Futebol"
@@ -413,7 +503,7 @@ app.innerHTML = `
 
           <article
             class="feature-card clickable-card"
-            data-href="/predicoes.html"
+            data-href="/predicoes"
             role="button"
             tabindex="0"
             aria-label="Abrir página Predições"
@@ -436,7 +526,7 @@ app.innerHTML = `
 
           <article
             class="feature-card clickable-card"
-            data-href="/token.html"
+            data-href="/token"
             role="button"
             tabindex="0"
             aria-label="Abrir página Criar Token"
@@ -459,7 +549,7 @@ app.innerHTML = `
 
           <article
             class="feature-card clickable-card"
-            data-href="/whitepaper.html"
+            data-href="/whitepaper"
             role="button"
             tabindex="0"
             aria-label="Abrir página Whitepaper"
@@ -488,19 +578,19 @@ app.innerHTML = `
         </section>
 
         <section class="shortcut-grid">
-          <a class="shortcut-card" href="/apostas.html">
+          <a class="shortcut-card" href="/apostas">
             <span class="shortcut-icon">⚽</span>
             <strong>Futebol</strong>
             <small>Mercado esportivo</small>
           </a>
 
-          <a class="shortcut-card" href="/predicoes.html">
+          <a class="shortcut-card" href="/predicoes">
             <span class="shortcut-icon">📈</span>
             <strong>Predições</strong>
             <small>Mercado binário cripto</small>
           </a>
 
-         <a class="shortcut-card" href="/token.html">
+         <a class="shortcut-card" href="/token">
           <span class="shortcut-icon">🧾</span>
           <strong>Criar Token</strong>
           <small>Crie seu token</small>
@@ -508,7 +598,7 @@ app.innerHTML = `
 
 
 
-          <a class="shortcut-card" href="/carteira.html">
+          <a class="shortcut-card" href="/carteira">
             <span class="shortcut-icon">👛</span>
             <strong>Carteira</strong>
             <small>Saldo e ações internas</small>
