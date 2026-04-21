@@ -10,37 +10,41 @@ const COINS = [
   { id: 'chainlink', assetSymbol: 'LINK', fallbackPrice: 14.5 },
   { id: 'avalanche-2', assetSymbol: 'AVAX', fallbackPrice: 27 },
   { id: 'polkadot', assetSymbol: 'DOT', fallbackPrice: 6.8 },
-  { id: 'matic-network', assetSymbol: 'MATIC', fallbackPrice: 0.95 },
+{ id: 'polygon', assetSymbol: 'POL', fallbackPrice: 0.95 },
   { id: 'litecoin', assetSymbol: 'LTC', fallbackPrice: 84 },
   { id: 'bitcoin-cash', assetSymbol: 'BCH', fallbackPrice: 460 },
   { id: 'shiba-inu', assetSymbol: 'SHIB', fallbackPrice: 0.000025 }
 ]
 
-const MARKET_RULE_VERSION = 'DAY00V1'
+const MARKET_RULE_VERSION = 'H4_V1'
 const TARGET_PCT = 0.001
 
-function getTargetPriceUsd(currentPrice) {
+function getReferencePriceUsd(currentPrice) {
   const price = Number(currentPrice || 0)
 
   if (!Number.isFinite(price) || price <= 0) {
     return 0
   }
 
-  return Number((price * (1 + TARGET_PCT)).toFixed(2))
+  return Number(price.toFixed(8))
 }
 
 function getDailyMarketCloseTimestamp(fromDate = new Date()) {
   const base = new Date(fromDate)
+  const currentHour = base.getHours()
+  const nextBlockHour = (Math.floor(currentHour / 4) + 1) * 4
 
   const close = new Date(
     base.getFullYear(),
     base.getMonth(),
-    base.getDate() + 1,
+    base.getDate(),
     0,
     0,
     0,
     0
   )
+
+  close.setHours(nextBlockHour, 0, 0, 0)
 
   return Math.floor(close.getTime() / 1000)
 }
@@ -60,8 +64,8 @@ function buildFallbackMarkets() {
     marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
     assetSymbol: coin.assetSymbol,
     imageUrl: '/logo.png',
-  question: `${coin.assetSymbol} fechará 0,1% acima da referência até 00:00?`,
-referencePriceUsd: getTargetPriceUsd(coin.fallbackPrice),
+  question: `${coin.assetSymbol} fechará 0,1% acima da referência no fechamento desta janela de 4 horas?`,
+referencePriceUsd: getReferencePriceUsd(coin.fallbackPrice),
 currentPriceUsd: coin.fallbackPrice,
     closeAt,
     probYesBps: 5000,
@@ -114,13 +118,13 @@ export async function handler() {
       const row = byId.get(coin.id)
 
       const currentPriceUsd = Number(row?.current_price || coin.fallbackPrice)
-const referencePriceUsd = getTargetPriceUsd(currentPriceUsd)
+const referencePriceUsd = getReferencePriceUsd(currentPriceUsd)
 
       return {
         marketId: buildBinaryMarketId(coin.assetSymbol, closeAt),
         assetSymbol: coin.assetSymbol,
         imageUrl: String(row?.image || '/logo.png'),
-        question: `${coin.assetSymbol} fechará 0,1% acima da referência até 00:00?`,
+        question: `${coin.assetSymbol} fechará 0,1% acima da referência no fechamento desta janela de 4 horas?`,
         referencePriceUsd,
         currentPriceUsd,
         closeAt,

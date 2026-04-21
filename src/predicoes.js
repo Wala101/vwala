@@ -126,7 +126,7 @@ document.querySelector('#app').innerHTML = `
             <p class="eyebrow">VWALA · POLYGON</p>
             <h1>Mercado Binário de Cripto</h1>
             <p class="hero-text">
-  Faça previsões diárias. Entradas até 23:00 e fechamento do mercado à meia-noite.
+  Mercados abertos 24h em janelas de 4 horas. Cada ciclo fecha no próximo bloco de 4h.
 </p>
           </div>
 
@@ -138,7 +138,7 @@ document.querySelector('#app').innerHTML = `
 
             <div class="stat-box">
               <span>Fechamento</span>
-              <strong>00:00</strong>
+              <strong>4 em 4h</strong>
             </div>
 
             <div class="stat-box">
@@ -848,28 +848,20 @@ function isPredictionsConfigured() {
   )
 }
 
-const MARKET_OPEN_HOUR = 0
-const MARKET_BET_CLOSE_HOUR = 23
-const MARKET_RESOLVE_HOUR = 24
+const MARKET_WINDOW_HOURS = 4
+const MARKET_ENTRY_BUFFER_MINUTES = 5
 
 function getDailyMarketSchedule(baseDate = new Date()) {
   const base = new Date(baseDate)
+  const currentHour = base.getHours()
+  const blockStartHour = Math.floor(currentHour / MARKET_WINDOW_HOURS) * MARKET_WINDOW_HOURS
+  const blockEndHour = blockStartHour + MARKET_WINDOW_HOURS
 
   const openAt = new Date(
     base.getFullYear(),
     base.getMonth(),
     base.getDate(),
-    0,
-    0,
-    0,
-    0
-  )
-
-  const betCloseAt = new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    base.getDate(),
-    23,
+    blockStartHour,
     0,
     0,
     0
@@ -878,12 +870,14 @@ function getDailyMarketSchedule(baseDate = new Date()) {
   const resolveAt = new Date(
     base.getFullYear(),
     base.getMonth(),
-    base.getDate() + 1,
-    0,
+    base.getDate(),
+    blockEndHour,
     0,
     0,
     0
   )
+
+  const betCloseAt = new Date(resolveAt.getTime() - MARKET_ENTRY_BUFFER_MINUTES * 60 * 1000)
 
   return {
     openAt,
@@ -918,7 +912,7 @@ function generateCouponId(market) {
   return couponId === 0n ? 1n : couponId
 }
 
-const MARKET_RULE_VERSION = 'DAY23V1'
+const MARKET_RULE_VERSION = 'H4_V1'
 
 function buildBinaryMarketId(symbol, closeAt) {
   const seed = `${String(symbol || 'CRYPTO')}_${MARKET_RULE_VERSION}`
@@ -1206,7 +1200,7 @@ function buildFallbackMarkets() {
     marketId: buildBinaryMarketId(asset.assetSymbol, closeAt),
     assetSymbol: asset.assetSymbol,
     imageUrl: asset.imageUrl,
-    question: `${assetSymbol} fechará 0,1% acima da referência até 00:00?`,
+    question: `${asset.assetSymbol} fechará 0,1% acima da referência no fechamento desta janela de 4 horas?`,
     referencePriceUsd: asset.referencePriceUsd,
     currentPriceUsd: asset.currentPriceUsd,
     closeAt,
@@ -1241,7 +1235,7 @@ return source.slice(0, 15).map((market) => {
     assetSymbol,
     imageUrl: String(market.imageUrl || market.logo || market.image || '/logo.png').trim(),
     question: String(
-      market.question || `${assetSymbol} fechará 0,1% acima da referência até 00:00?`
+      market.question || `${assetSymbol} fechará 0,1% acima da referência no fechamento desta janela de 4 horas?`
     ),
     referencePriceUsd: Number(market.referencePriceUsd || market.referencePrice || 0),
     currentPriceUsd: Number(market.currentPriceUsd || market.priceUsd || market.referencePriceUsd || 0),
@@ -1515,7 +1509,7 @@ function getMarketEntryMessage(market) {
   }
 
   if (now.getTime() >= betCloseAt.getTime() && now.getTime() < resolveAt.getTime()) {
-    return 'As apostas encerraram às 23:00. Agora o mercado aguarda fechamento à meia-noite.'
+    return 'As apostas para esta janela foram encerradas. Aguarde o fechamento do bloco atual.'
   }
 
   if (marketIsClosedByTime(market)) {
@@ -1526,7 +1520,7 @@ function getMarketEntryMessage(market) {
     return 'Mercado indisponível no momento.'
   }
 
-  return 'Apostas liberadas até 23:00.'
+  return 'Apostas liberadas até os últimos 5 minutos de cada janela de 4 horas.'
 }
 
 async function ensureMarketExists(market, signer) {
@@ -1657,7 +1651,7 @@ function createCard(market) {
 
     <div class="stats-grid inline-stats-grid">
       <div class="stat-box">
-        <span class="stat-label">Meta +3%</span>
+        <span class="stat-label">Meta +0,1%</span>
         <strong class="stat-value">${formatUsd(market.referencePriceUsd)}</strong>
       </div>
 
@@ -1699,7 +1693,7 @@ function createCard(market) {
       />
 
       <div class="bet-hint-text js-bet-hint-text">
-  Apostas abertas até 23:00. Mercado fecha à meia-noite.
+  Apostas abertas em ciclos de 4 horas.
 </div>
     </div>
 
