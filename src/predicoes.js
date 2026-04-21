@@ -1398,6 +1398,103 @@ function getBinaryPositionDocId(marketId, couponId) {
   return `${String(marketId).trim()}_${String(couponId).trim()}`
 }
 
+function getBinaryLocalPositionsStorageKey() {
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  return `wala_binary_local_positions_${walletAddress || 'guest'}`
+}
+
+function readLocalBinaryPositions() {
+  try {
+    const raw = localStorage.getItem(getBinaryLocalPositionsStorageKey())
+    const parsed = JSON.parse(raw || '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch (error) {
+    console.error('Erro ao ler posições binárias locais:', error)
+    return []
+  }
+}
+
+function writeLocalBinaryPositions(items) {
+  localStorage.setItem(getBinaryLocalPositionsStorageKey(), JSON.stringify(items))
+}
+
+function upsertLocalBinaryPosition(market, payload) {
+  const marketId = String(market?.marketId || '').trim()
+  const couponId = String(payload?.couponId || '').trim()
+
+  if (!marketId || !couponId) {
+    return
+  }
+
+  const items = readLocalBinaryPositions()
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const existing = items.find((item) => String(item?.docId || '') === docId)
+
+  const nextItem = {
+    docId,
+    marketId,
+    couponId,
+    walletAddress: String(state.userAddress || '').trim().toLowerCase(),
+    assetSymbol: String(market?.assetSymbol || 'CRYPTO'),
+    question: String(market?.question || ''),
+    side: Number(payload?.side),
+    amountUi: String(payload?.amountUi || '0'),
+    txHash: String(payload?.txHash || ''),
+    claimed: Boolean(payload?.claimed || false),
+    statusCache: String(payload?.statusCache || 'open'),
+    createdAt: existing?.createdAt || Date.now(),
+    updatedAt: Date.now()
+  }
+
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  filtered.push(nextItem)
+  writeLocalBinaryPositions(filtered)
+}
+
+function removeLocalBinaryPosition(marketId, couponId) {
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const items = readLocalBinaryPositions()
+  const filtered = items.filter((item) => String(item?.docId || '') !== docId)
+  writeLocalBinaryPositions(filtered)
+}
+
+function restoreCouponsFromLocalBinaryPositions() {
+  if (!state.userAddress) {
+    return
+  }
+
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  const items = readLocalBinaryPositions().filter(
+    (item) => String(item?.walletAddress || '').trim().toLowerCase() === walletAddress
+  )
+
+  if (!items.length) {
+    return
+  }
+
+  const key = `wala_binary_coupons_${walletAddress}`
+  const current = JSON.parse(localStorage.getItem(key) || '{}')
+
+  for (const item of items) {
+    const marketId = String(item?.marketId || '').trim()
+    const couponId = String(item?.couponId || '').trim()
+
+    if (!marketId || !couponId) {
+      continue
+    }
+
+    if (!Array.isArray(current[marketId])) {
+      current[marketId] = []
+    }
+
+    if (!current[marketId].includes(couponId)) {
+      current[marketId].push(couponId)
+    }
+  }
+
+  localStorage.setItem(key, JSON.stringify(current))
+}
+
 function getBinaryPendingStorageKey() {
   const walletAddress = String(state.userAddress || '').trim().toLowerCase()
   return `wala_binary_pending_positions_${walletAddress || 'guest'}`
@@ -1428,6 +1525,7 @@ function savePendingBinaryPositionLocally(market, payload) {
 
   const items = readPendingBinaryPositions()
   const docId = getBinaryPositionDocId(marketId, couponId)
+  const existing = items.find((item) => String(item?.docId || '') === docId)
 
   const nextItem = {
     docId,
@@ -1439,12 +1537,32 @@ function savePendingBinaryPositionLocally(market, payload) {
     side: Number(payload?.side),
     amountUi: String(payload?.amountUi || '0'),
     txHash: String(payload?.txHash || ''),
-    createdAt: Date.now()
+    retryCount: Number(existing?.retryCount || 0),
+    lastAttemptAt: Number(existing?.lastAttemptAt || 0),
+    createdAt: Number(existing?.createdAt || Date.now())
   }
 
   const filtered = items.filter((item) => String(item?.docId || '') !== docId)
   filtered.push(nextItem)
   writePendingBinaryPositions(filtered)
+}
+
+function markPendingBinaryPositionAttempt(marketId, couponId) {
+  const docId = getBinaryPositionDocId(marketId, couponId)
+  const items = readPendingBinaryPositions()
+  const nextItems = items.map((item) => {
+    if (String(item?.docId || '') !== docId) {
+      return item
+    }
+
+    return {
+      ...item,
+      retryCount: Number(item?.retryCount || 0) + 1,
+      lastAttemptAt: Date.now()
+    }
+  })
+
+  writePendingBinaryPositions(nextItems)
 }
 
 function removePendingBinaryPositionLocally(marketId, couponId) {
@@ -1481,9 +1599,60 @@ async function flushPendingBinaryPositionsToFirebase() {
         }
       )
 
+      upsertLocalBinaryPosition(
+        {
+          marketId: item.marketId,
+          assetSymbol: item.assetSymbol,
+          question: item.question
+        },
+        {
+          couponId: item.couponId,
+          side: item.side,
+          amountUi: item.amountUi,
+          txHash: item.txHash,
+          statusCache: 'open'
+        }
+      )
+
       removePendingBinaryPositionLocally(item.marketId, item.couponId)
     } catch (error) {
+      markPendingBinaryPositionAttempt(item.marketId, item.couponId)
       console.error('Erro ao sincronizar pendência binária local:', error)
+    }
+  }
+}
+
+async function reconcileLocalBinaryPositionsToFirebase() {
+  if (!currentGoogleUser?.uid || !state.userAddress) {
+    return
+  }
+
+  const walletAddress = String(state.userAddress || '').trim().toLowerCase()
+  const items = readLocalBinaryPositions().filter(
+    (item) => String(item?.walletAddress || '').trim().toLowerCase() === walletAddress
+  )
+
+  if (!items.length) {
+    return
+  }
+
+  for (const item of items) {
+    try {
+      await saveBinaryPositionToFirebase(
+        {
+          marketId: item.marketId,
+          assetSymbol: item.assetSymbol,
+          question: item.question
+        },
+        {
+          couponId: item.couponId,
+          side: item.side,
+          amountUi: item.amountUi,
+          txHash: item.txHash
+        }
+      )
+    } catch (error) {
+      console.error('Erro ao reconciliar posição binária local com Firebase:', error)
     }
   }
 }
@@ -1929,6 +2098,14 @@ function createCard(market) {
 
       const positionResult = await buyPosition(market, selectedSide, amountUi, signer)
 
+      upsertLocalBinaryPosition(market, {
+        couponId: positionResult.couponId,
+        side: selectedSide,
+        amountUi,
+        txHash: positionResult.txHash,
+        statusCache: 'open'
+      })
+
       hideLoadingModal()
 
       try {
@@ -2058,7 +2235,9 @@ async function boot() {
 
   await initFirebaseSession()
   await initWalletSession()
+  restoreCouponsFromLocalBinaryPositions()
   await flushPendingBinaryPositionsToFirebase()
+  await reconcileLocalBinaryPositionsToFirebase()
   await loadMarkets()
 }
 
