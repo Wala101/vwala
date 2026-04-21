@@ -1118,8 +1118,8 @@ function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
   if (isLosingResolved(item)) return 'NÃO VENCEU'
   if (isClaimable(item)) return 'PRONTA PARA RESGATE'
-  if (Number(item.status) === MarketStatus.OPEN) return 'APOSTA ABERTA'
-  if (Number(item.status) === MarketStatus.CLOSED) return 'APOSTA FECHADA'
+  if (Number(item.status) === MarketStatus.OPEN) return 'PREVISÃO ABERTA'
+  if (Number(item.status) === MarketStatus.CLOSED) return 'PREVISÃO FECHADA'
   return '---'
 }
 
@@ -1604,7 +1604,7 @@ function createHistoryCard(item) {
       </div>
 
       <div class="stat-box">
-        <span class="stat-label">Sua aposta</span>
+        <span class="stat-label">Sua previsão</span>
         <strong class="stat-value">${userPick}</strong>
       </div>
 
@@ -1633,7 +1633,7 @@ function createHistoryCard(item) {
           ${
             item.claimed
               ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}`
-              : `Valor apostado: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
+              : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`
           }
         </div>
       </div>
@@ -1645,9 +1645,9 @@ function createHistoryCard(item) {
             : canClaim
               ? 'Sua posição venceu e já pode ser resgatada.'
               : Number(item.status) === MarketStatus.OPEN
-                ? 'Essa aposta ainda está aberta.'
+                ? 'Essa previsão ainda está aberta.'
                 : Number(item.status) === MarketStatus.CLOSED
-                  ? 'A aposta fechou e aguarda resolução.'
+                  ? 'A previsão fechou e aguarda resolução.'
                   : Number(item.status) === MarketStatus.RESOLVED
                     ? 'Essa posição não venceu.'
                     : 'Aguardando atualização on-chain.'
