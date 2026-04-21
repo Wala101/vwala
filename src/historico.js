@@ -263,6 +263,28 @@ const pinModalState = {
   resolve: null
 }
 
+function resetPinModalState() {
+  appPinTitle.textContent = 'Confirmar PIN'
+  appPinText.textContent = 'Digite o PIN da carteira para resgatar.'
+  appPinConfirmBtn.textContent = 'Confirmar'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+}
+
+function setPinModalError() {
+  appPinTitle.textContent = 'PIN inválido'
+  appPinText.textContent = 'PIN errado ou não cadastrado. Vá até a página de swap e crie um novo.'
+  appPinConfirmBtn.textContent = 'Tentar novamente'
+  appPinInput.value = ''
+  appPinInput.disabled = false
+  appPinConfirmBtn.disabled = false
+
+  setTimeout(() => {
+    appPinInput.focus()
+  }, 0)
+}
+
 function showAlert(title, message) {
   appNoticeTitle.textContent = title
   appNoticeText.textContent = message
@@ -276,9 +298,9 @@ function closeAlert() {
 }
 
 function openPinModal(title, text) {
+  resetPinModalState()
   appPinTitle.textContent = title
   appPinText.textContent = text
-  appPinInput.value = ''
   appPinModal.classList.add('active')
   appPinOverlay.classList.add('active')
 
@@ -1310,6 +1332,7 @@ async function getInternalWalletSigner() {
 
   const deviceVault = getLocalDeviceWalletForPredictions()
   if (!deviceVault?.walletKeystoreLocal) {
+    showAlert('Carteira não encontrada', 'Nenhum PIN cadastrado para esta carteira. Vá até a página de swap e crie um novo.')
     return null
   }
 
@@ -1317,31 +1340,46 @@ async function getInternalWalletSigner() {
   const vaultAddress = String(deviceVault.walletAddress || '').trim().toLowerCase()
 
   if (!expectedAddress || !vaultAddress || expectedAddress !== vaultAddress) {
+    showAlert('Carteira incompatível', 'A carteira local não corresponde à carteira logada. Vá até a página de swap e crie um novo PIN.')
     return null
   }
 
-  const pin = await openPinModal('Confirmar PIN', 'Digite o PIN da carteira para resgatar.')
-  if (pin === null) {
-    return null
+  while (true) {
+    const pin = await openPinModal('Confirmar PIN', 'Digite o PIN da carteira para resgatar.')
+
+    if (pin === null) {
+      return null
+    }
+
+    if (!pin.trim()) {
+      setPinModalError()
+      continue
+    }
+
+    try {
+      appPinInput.disabled = true
+      appPinConfirmBtn.disabled = true
+      appPinConfirmBtn.textContent = 'Validando...'
+
+      const unlockedWallet = await Wallet.fromEncryptedJson(
+        deviceVault.walletKeystoreLocal,
+        pin.trim()
+      )
+
+      const signer = unlockedWallet.connect(state.provider)
+      state.signer = signer
+
+      if (state.predictions) {
+        state.predictions = state.predictions.connect(signer)
+      }
+
+      closePinModal(pin.trim())
+      return signer
+    } catch (error) {
+      console.error('Erro ao desbloquear carteira pelo PIN:', error)
+      setPinModalError()
+    }
   }
-
-  if (!pin.trim()) {
-    throw new Error('PIN inválido.')
-  }
-
-  const unlockedWallet = await Wallet.fromEncryptedJson(
-    deviceVault.walletKeystoreLocal,
-    pin.trim()
-  )
-
-  const signer = unlockedWallet.connect(state.provider)
-  state.signer = signer
-
-  if (state.predictions) {
-    state.predictions = state.predictions.connect(signer)
-  }
-
-  return signer
 }
 
 async function initWalletSession() {
@@ -1828,9 +1866,9 @@ async function boot() {
   appNoticeConfirmBtn.addEventListener('click', closeAlert)
   appNoticeOverlay.addEventListener('click', closeAlert)
 
-  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
+  closeAppPinBtn.addEventListener('click', () => {})
   appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
-  appPinOverlay.addEventListener('click', () => closePinModal(null))
+  appPinOverlay.addEventListener('click', () => {})
 
   appPinInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
