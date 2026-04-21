@@ -1511,9 +1511,8 @@ renderResolvedPositions(nextPositions)
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar o histórico de futures.')
   } finally {
-    setHistoryLoading(false)
-    renderPositions()
-  }
+  setHistoryLoading(false)
+}
 }
 
 const BINARY_KEEPER_URL = '/.netlify/functions/binary-keeper'
@@ -1770,6 +1769,10 @@ function renderPositions() {
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.positions.filter((item) => {
+  // ❌ REMOVE RESOLVIDAS DO TOPO
+  if (Number(item.status) === MarketStatus.RESOLVED) {
+    return false
+  }
     const text = [
       item.assetSymbol,
       item.question,
