@@ -2018,3 +2018,10 @@ body{
     transform:rotate(360deg);
   }
 }
+
+/* fixa altura da tela mesmo sem conteúdo */
+.app-content{
+  min-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
