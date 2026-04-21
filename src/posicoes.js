@@ -124,7 +124,15 @@ document.querySelector('#app').innerHTML = `
           </div>
         </section>
 
-        <section class="card">
+        <section id="historyLoadingCard" class="card market-loading-card">
+          <div class="market-loading-card-inner">
+            <div class="market-loading-spinner"></div>
+            <p class="market-loading-title">Carregando histórico</p>
+            <p class="market-loading-text">Buscando suas apostas e preparando o histórico para você.</p>
+          </div>
+        </section>
+
+        <section id="historySearchCard" class="card" style="display:none;">
           <div class="section-head">
             <div>
               <p class="section-kicker">MINHAS POSIÇÕES</p>
@@ -141,7 +149,7 @@ document.querySelector('#app').innerHTML = `
           />
         </section>
 
-        <section class="card">
+        <section id="historyResultsCard" class="card" style="display:none;">
           <div id="positionsGrid" class="match-grid"></div>
 
           <div id="positionsEmpty" class="empty-state">
@@ -207,6 +215,9 @@ document.querySelector('#app').innerHTML = `
   </div>
 `
 
+const historyLoadingCard = document.getElementById('historyLoadingCard')
+const historySearchCard = document.getElementById('historySearchCard')
+const historyResultsCard = document.getElementById('historyResultsCard')
 const positionsGrid = document.getElementById('positionsGrid')
 const positionsEmpty = document.getElementById('positionsEmpty')
 const positionCount = document.getElementById('positionCount')
@@ -496,6 +507,24 @@ async function saveConfirmedCreditVWalaToFirebase({
 
 function setConnectButtonText(text) {
   if (connectBtn) connectBtn.textContent = text
+}
+
+function setHistoryLoading(isLoading) {
+  if (historyLoadingCard) {
+    historyLoadingCard.style.display = isLoading ? 'block' : 'none'
+  }
+
+  if (historySearchCard) {
+    historySearchCard.style.display = isLoading ? 'none' : 'block'
+  }
+
+  if (historyResultsCard) {
+    historyResultsCard.style.display = isLoading ? 'none' : 'block'
+  }
+
+  if (positionsEmpty) {
+    positionsEmpty.classList.remove('show')
+  }
 }
 
 function createRpcProbeUrl(baseUrl, label = 'posicoes_runtime') {
@@ -1241,6 +1270,8 @@ async function initWalletSession() {
 }
 
 async function loadHistory() {
+  setHistoryLoading(true)
+
   try {
     if (!state.userAddress || !state.betting) {
       state.positions = []
@@ -1339,6 +1370,9 @@ if (isResolved && hasWinner && userOutcome !== winningOutcome) {
   } catch (error) {
     console.error(error)
     showAlert('Erro', 'Não foi possível carregar o histórico de futebol.')
+  } finally {
+    setHistoryLoading(false)
+    renderPositions()
   }
 }
 
@@ -1620,6 +1654,13 @@ function createHistoryCard(item) {
 }
 
 function renderPositions() {
+  if (historyLoadingCard && historyLoadingCard.style.display !== 'none') {
+    positionCount.textContent = '...'
+    positionsGrid.innerHTML = ''
+    positionsEmpty.classList.remove('show')
+    return
+  }
+
   const term = searchInput.value.trim().toLowerCase()
 
   const filtered = state.positions.filter((item) => {
@@ -1648,6 +1689,8 @@ function renderPositions() {
 }
 
 async function boot() {
+  setHistoryLoading(true)
+
   menuBtn.addEventListener('click', openSidebar)
   sidebarOverlay.addEventListener('click', closeSidebar)
 
