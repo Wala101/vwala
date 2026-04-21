@@ -102,7 +102,7 @@ document.querySelector('#app').innerHTML = `
             <p class="eyebrow">VWALA · POLYGON</p>
             <h1>Histórico de Futebol</h1>
             <p class="hero-text">
-              Veja suas apostas, acompanhe se o mercado está aberto, fechado ou resolvido e resgate quando estiver liberado.
+              Veja suas previsões, acompanhe se o mercado está aberto, fechado ou resolvido e resgate quando estiver liberado.
             </p>
           </div>
 
@@ -128,7 +128,7 @@ document.querySelector('#app').innerHTML = `
           <div class="market-loading-card-inner">
             <div class="market-loading-spinner"></div>
             <p class="market-loading-title">Carregando histórico</p>
-            <p class="market-loading-text">Buscando suas apostas e preparando o histórico para você.</p>
+            <p class="market-loading-text">Buscando suas previsões e preparando o histórico para você.</p>
           </div>
         </section>
 
@@ -136,7 +136,7 @@ document.querySelector('#app').innerHTML = `
           <div class="section-head">
             <div>
               <p class="section-kicker">MINHAS POSIÇÕES</p>
-              <h2>Histórico de apostas</h2>
+              <h2>Histórico de previsões</h2>
             </div>
             <span class="section-count" id="positionCount">0</span>
           </div>
@@ -153,7 +153,7 @@ document.querySelector('#app').innerHTML = `
           <div id="positionsGrid" class="match-grid"></div>
 
           <div id="positionsEmpty" class="empty-state">
-            Nenhuma aposta encontrada para esta carteira.
+            Nenhuma previsão encontrada para esta carteira.
           </div>
         </section>
       </main>
@@ -1089,8 +1089,8 @@ function getHistoryStateLabel(item) {
   if (item.claimed) return 'RESGATADA'
   if (isLosingResolved(item)) return 'NÃO VENCEU'
   if (isClaimable(item)) return 'PRONTA PARA RESGATE'
-  if (Number(item.status) === MarketStatus.OPEN) return 'APOSTA ABERTA'
-  if (Number(item.status) === MarketStatus.CLOSED) return 'APOSTA FECHADA'
+  if (Number(item.status) === MarketStatus.OPEN) return 'PREVISÃO ABERTA'
+  if (Number(item.status) === MarketStatus.CLOSED) return 'PREVISÃO FECHADA'
   return '---'
 }
 
@@ -1446,7 +1446,7 @@ async function claimItem(item) {
   originalOutcome !== winningOutcomeAfterSync
 ) {
   await finalizeFootballPositionCleanup(item.fixtureId, item.couponId)
-  showAlert('Aposta perdida', 'Essa aposta não venceu e foi removida da lista.')
+  showAlert('Previsão perdida', 'Essa previsão não venceu e foi removida da lista.')
   renderPositions()
   return
 }
@@ -1586,7 +1586,7 @@ function createHistoryCard(item) {
       </div>
 
       <div class="stat-box">
-        <span class="stat-label">Sua aposta</span>
+        <span class="stat-label">Sua previsão</span>
         <strong class="stat-value">${userPick}</strong>
       </div>
 
@@ -1612,7 +1612,7 @@ function createHistoryCard(item) {
       <div class="bet-top">
         <div class="selected-outcome-chip js-selected-outcome-chip">${userPick}</div>
         <div class="estimated-payout-text js-estimated-payout-text">
-          ${item.claimed ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}` : `Valor apostado: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`}
+          ${item.claimed ? `Resgatado: ${formatNumber(item.claimedAmount, 4)} ${TOKEN_SYMBOL}` : `Valor previsto: ${formatNumber(item.amount, 4)} ${TOKEN_SYMBOL}`}
         </div>
       </div>
 
@@ -1623,9 +1623,9 @@ function createHistoryCard(item) {
             : canClaim
               ? 'Sua posição venceu e já pode ser resgatada.'
               : Number(item.status) === MarketStatus.OPEN
-                ? 'Essa aposta ainda está aberta.'
+                ? 'Essa previsão ainda está aberta.'
                 : Number(item.status) === MarketStatus.CLOSED
-                  ? 'A aposta fechou e aguarda resolução.'
+                  ? 'A previsão fechou e aguarda resolução.'
                   : Number(item.status) === MarketStatus.RESOLVED
                     ? 'Essa posição não venceu.'
                     : 'Aguardando atualização on-chain.'
