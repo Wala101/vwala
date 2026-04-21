@@ -206,25 +206,11 @@ if (status === MARKET_STATUS.CLOSED) {
     outcome
   })
 
-  try {
-    await contract.resolveMarket.staticCall(BigInt(marketId), outcome)
-  } catch (error) {
-    return json({
-      ok: false,
-      stage: 'resolve_static_call',
-      operator: signer.address,
-      authority: String(marketState[1] || ''),
-      status,
-      hasWinner: Boolean(marketState[4]),
-      winningSide: Number(marketState[5]),
-      assetSymbol,
-      coinGeckoId,
-      referencePrice,
-      currentPrice,
-      outcome,
-      error: error?.shortMessage || error?.message || String(error)
-    }, 500)
-  }
+  // ⚠️ remover staticCall pois pode falhar mesmo com tx válida
+  console.log('[BINARY KEEPER SKIP STATIC CALL]', {
+    marketId,
+    outcome
+  })
 
   const tx = await contract.resolveMarket(BigInt(marketId), outcome)
   await tx.wait()
