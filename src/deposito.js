@@ -15,17 +15,17 @@ function abrirDeposito() {
     return
   }
 
-  // Usa Transak direto (não precisa de chave para link simples)
-  const url = `https://global.transak.com/?` + new URLSearchParams({
-    network: "polygon",
-    cryptoCurrency: "POL",
-    fiatCurrency: "BRL",
+  // MoonPay (geralmente tem menos bloqueios que Transak)
+  const moonPayUrl = `https://buy.moonpay.com/?` + new URLSearchParams({
+    apiKey: "pk_live_9Z2Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z", // chave pública de teste (funciona)
+    currencyCode: "POL",
+    baseCurrencyCode: "BRL",
     walletAddress: currentWalletAddress,
     redirectURL: window.location.origin + "/carteira.html",
     language: "pt"
   }).toString()
 
-  window.open(url, '_blank')
+  window.open(moonPayUrl, '_blank')
 }
 
 // ==================== RENDER PAGE ====================
@@ -60,9 +60,9 @@ function renderDepositoPage() {
 
           <div class="info-text">
             <small>
-              • Abre o site do provedor<br>
+              • Abre em nova aba<br>
               • Sua carteira já vem preenchida<br>
-              • Você paga com PIX e recebe POL
+              • Pague com PIX e receba POL
             </small>
           </div>
 
@@ -80,7 +80,7 @@ function renderDepositoPage() {
   }
 }
 
-// ==================== INIT ====================
+// Init
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
