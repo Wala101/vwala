@@ -1,10 +1,9 @@
 import { auth } from './firebase.js'
 import { onAuthStateChanged } from 'firebase/auth'
 
-// ==================== VARIÁVEIS GLOBAIS ====================
+// ==================== VARIÁVEIS ====================
 let currentWalletAddress = ''
 
-// ==================== PEGAR WALLET DA URL ====================
 function getWalletFromUrl() {
   const params = new URLSearchParams(window.location.search)
   return params.get('wallet')
@@ -25,13 +24,13 @@ async function abrirOnramper() {
       apiKey: import.meta.env.VITE_ONRAMPER_PUBLIC_KEY,
       walletAddress: currentWalletAddress,
       network: "polygon",
-      crypto: "POL",           // ou "USDC" se preferir
+      crypto: "POL",
       fiat: "BRL",
-      fiatAmount: 100,         // valor inicial sugerido
+      fiatAmount: 100,
       containerId: "onramper-widget-container",
       theme: "dark",
       language: "pt",
-      
+
       onClose: () => {
         container.style.display = 'none'
       },
@@ -45,26 +44,26 @@ async function abrirOnramper() {
     widget.open()
   } catch (error) {
     console.error("Erro Onramper:", error)
-    alert("Não foi possível carregar o sistema de pagamento. Tente novamente.")
+    alert("Não foi possível carregar o sistema de pagamento.")
   }
 }
 
 function showSuccessMessage() {
   const container = document.getElementById('onramper-widget-container')
   container.innerHTML = `
-    <div style="text-align: center; padding: 50px 20px; color: #22ff88;">
+    <div style="text-align:center; padding:60px 20px; color:#22ff88;">
       <h2>✅ PIX Recebido com Sucesso!</h2>
-      <p>O POL será enviado automaticamente para sua carteira em até 30 minutos.</p>
+      <p>O POL será enviado para sua carteira em até 30 minutos.</p>
       <br>
       <button onclick="window.location.href='carteira.html'" 
-              style="padding: 14px 32px; font-size: 16px; background: #22ff88; color: #000; border: none; border-radius: 8px; font-weight: bold; cursor: pointer;">
+              style="padding:14px 32px; background:#22ff88; color:#000; border:none; border-radius:8px; font-weight:bold;">
         ← Voltar para Carteira
       </button>
     </div>
   `
 }
 
-// ==================== RENDERIZAR PÁGINA ====================
+// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -83,7 +82,7 @@ function renderDepositoPage() {
 
         <section class="deposito-main">
           <h1>Depósito via PIX</h1>
-          <p class="deposito-subtitle">Pague com PIX e receba POL na Polygon automaticamente</p>
+          <p class="deposito-subtitle">Pague com PIX e receba POL automaticamente</p>
 
           <div class="wallet-info-box">
             <strong>Carteira de destino:</strong><br>
@@ -94,7 +93,6 @@ function renderDepositoPage() {
             💰 Fazer Depósito via PIX
           </button>
 
-          <!-- Container do Widget Onramper -->
           <div id="onramper-widget-container" 
                style="display:none; margin-top:30px; background:#1a1a1a; border-radius:12px; padding:15px; min-height:400px;">
           </div>
@@ -103,27 +101,26 @@ function renderDepositoPage() {
             <small>
               • Valor mínimo: R$ 20,00<br>
               • Confirmação em até 30 minutos<br>
-              • Taxa inclusa no valor exibido
+              • Taxa inclusa
             </small>
           </div>
 
           <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar para Carteira
+            ← Voltar
           </button>
         </section>
       </div>
     </div>
   `
 
-  // Preencher endereço da carteira
   const walletEl = document.getElementById('wallet-display')
   if (walletEl && currentWalletAddress) {
-    walletEl.textContent = `${currentWalletAddress.slice(0, 6)}...${currentWalletAddress.slice(-4)}`
+    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
   }
 }
 
-// ==================== INICIALIZAÇÃO ====================
-onAuthStateChanged(auth, (user) => {
+// ==================== INIT ====================
+onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
   if (!currentWalletAddress) {
@@ -135,5 +132,4 @@ onAuthStateChanged(auth, (user) => {
   renderDepositoPage()
 })
 
-// Expor função para o botão HTML
 window.abrirOnramper = abrirOnramper
