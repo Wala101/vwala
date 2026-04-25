@@ -1,7 +1,6 @@
 import { auth } from './firebase.js'
 import { onAuthStateChanged } from 'firebase/auth'
 
-// ==================== VARIÁVEIS ====================
 let currentWalletAddress = ''
 
 function getWalletFromUrl() {
@@ -9,7 +8,6 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR ONRAMPER ====================
 async function abrirOnramper() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
@@ -31,12 +29,10 @@ async function abrirOnramper() {
       theme: "dark",
       language: "pt",
 
-      onClose: () => {
-        container.style.display = 'none'
-      },
+      onClose: () => container.style.display = 'none',
 
       onSuccess: (data) => {
-        console.log("✅ Depósito realizado:", data)
+        console.log("Depósito realizado:", data)
         showSuccessMessage()
       }
     })
@@ -44,7 +40,7 @@ async function abrirOnramper() {
     widget.open()
   } catch (error) {
     console.error("Erro Onramper:", error)
-    alert("Não foi possível carregar o sistema de pagamento.")
+    alert("Erro ao carregar Onramper. Limpe o cache e tente novamente.")
   }
 }
 
@@ -52,8 +48,8 @@ function showSuccessMessage() {
   const container = document.getElementById('onramper-widget-container')
   container.innerHTML = `
     <div style="text-align:center; padding:60px 20px; color:#22ff88;">
-      <h2>✅ PIX Recebido com Sucesso!</h2>
-      <p>O POL será enviado para sua carteira em até 30 minutos.</p>
+      <h2>✅ Depósito em Processamento!</h2>
+      <p>O POL será enviado para sua carteira em breve.</p>
       <br>
       <button onclick="window.location.href='carteira.html'" 
               style="padding:14px 32px; background:#22ff88; color:#000; border:none; border-radius:8px; font-weight:bold;">
@@ -63,7 +59,6 @@ function showSuccessMessage() {
   `
 }
 
-// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -98,11 +93,7 @@ function renderDepositoPage() {
           </div>
 
           <div class="info-text">
-            <small>
-              • Valor mínimo: R$ 20,00<br>
-              • Confirmação em até 30 minutos<br>
-              • Taxa inclusa
-            </small>
+            <small>• Valor mínimo: R$ 20,00<br>• Confirmação em até 30 minutos</small>
           </div>
 
           <button onclick="window.history.back()" class="deposito-btn secondary">
@@ -119,7 +110,7 @@ function renderDepositoPage() {
   }
 }
 
-// ==================== INIT ====================
+// Inicialização
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
