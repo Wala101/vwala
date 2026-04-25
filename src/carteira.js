@@ -2318,16 +2318,29 @@ app.innerHTML = `
     <span class="wallet-action-label">Receber</span>
   </button>
 
-  <button class="wallet-action" data-action="depositar" type="button">
-    <span class="wallet-action-icon">💰</span>
-    <span class="wallet-action-label">PIX</span>
-  </button>
+
 
   <button class="wallet-action" data-action="swap" type="button">
     <span class="wallet-action-icon">⇄</span>
     <span class="wallet-action-label">Swap</span>
   </button>
 </section>
+
+
+                <section class="wallet-actions">
+ 
+
+
+
+  <button class="wallet-action" data-action="depositar" type="button">
+    <span class="wallet-action-icon">💰</span>
+    <span class="wallet-action-label">PIX</span>
+  </button>
+
+
+</section>
+
+
 
         <section class="wallet-tabs">
           <button class="wallet-tab active" type="button">Tokens</button>
