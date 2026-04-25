@@ -8,24 +8,25 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR DEPOSITO (Sem API Key) ====================
+// ==================== ABRIR DEPOSITO (Sem chave API) ====================
 function abrirDeposito() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  // MoonPay (geralmente tem menos bloqueios que Transak)
-  const moonPayUrl = `https://buy.moonpay.com/?` + new URLSearchParams({
-    apiKey: "pk_live_9Z2Z8Z8Z8Z8Z8Z8Z8Z8Z8Z8Z", // chave pública de teste (funciona)
-    currencyCode: "POL",
-    baseCurrencyCode: "BRL",
+  // Link direto para Transak (modo guest)
+  const url = `https://global.transak.com?` + new URLSearchParams({
+    network: "polygon",
+    cryptoCurrency: "POL",
+    fiatCurrency: "BRL",
     walletAddress: currentWalletAddress,
     redirectURL: window.location.origin + "/carteira.html",
-    language: "pt"
+    language: "pt",
+    hideMenu: "true"
   }).toString()
 
-  window.open(moonPayUrl, '_blank')
+  window.open(url, '_blank')
 }
 
 // ==================== RENDER PAGE ====================
@@ -62,7 +63,7 @@ function renderDepositoPage() {
             <small>
               • Abre em nova aba<br>
               • Sua carteira já vem preenchida<br>
-              • Pague com PIX e receba POL
+              • Pague com PIX e receba POL na Polygon
             </small>
           </div>
 
@@ -80,7 +81,7 @@ function renderDepositoPage() {
   }
 }
 
-// Init
+// ==================== INIT ====================
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
