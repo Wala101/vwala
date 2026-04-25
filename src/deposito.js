@@ -8,57 +8,23 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-async function abrirOnramper() {
+// ==================== ABRIR DEPOSITO ONRAMPER ====================
+function abrirOnramper() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  const container = document.getElementById('onramper-widget-container')
-  container.style.display = 'block'
+  const apiKey = import.meta.env.VITE_ONRAMPER_PUBLIC_KEY
 
-  try {
-    const widget = new Onramper.Widget({
-      apiKey: import.meta.env.VITE_ONRAMPER_PUBLIC_KEY,
-      walletAddress: currentWalletAddress,
-      network: "polygon",
-      crypto: "POL",
-      fiat: "BRL",
-      fiatAmount: 100,
-      containerId: "onramper-widget-container",
-      theme: "dark",
-      language: "pt",
+  // Monta a URL oficial do Onramper
+  const url = `https://buy.onramper.com?apiKey=${apiKey}&walletAddress=${currentWalletAddress}&network=polygon&crypto=POL&fiat=BRL&fiatAmount=100&language=pt`
 
-      onClose: () => container.style.display = 'none',
-
-      onSuccess: (data) => {
-        console.log("Depósito realizado:", data)
-        showSuccessMessage()
-      }
-    })
-
-    widget.open()
-  } catch (error) {
-    console.error("Erro Onramper:", error)
-    alert("Erro ao carregar Onramper. Limpe o cache e tente novamente.")
-  }
+  // Abre em nova aba (mais confiável)
+  window.open(url, '_blank')
 }
 
-function showSuccessMessage() {
-  const container = document.getElementById('onramper-widget-container')
-  container.innerHTML = `
-    <div style="text-align:center; padding:60px 20px; color:#22ff88;">
-      <h2>✅ Depósito em Processamento!</h2>
-      <p>O POL será enviado para sua carteira em breve.</p>
-      <br>
-      <button onclick="window.location.href='carteira.html'" 
-              style="padding:14px 32px; background:#22ff88; color:#000; border:none; border-radius:8px; font-weight:bold;">
-        ← Voltar para Carteira
-      </button>
-    </div>
-  `
-}
-
+// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -77,7 +43,7 @@ function renderDepositoPage() {
 
         <section class="deposito-main">
           <h1>Depósito via PIX</h1>
-          <p class="deposito-subtitle">Pague com PIX e receba POL automaticamente</p>
+          <p class="deposito-subtitle">Pague com PIX e receba POL na Polygon automaticamente</p>
 
           <div class="wallet-info-box">
             <strong>Carteira de destino:</strong><br>
@@ -88,16 +54,16 @@ function renderDepositoPage() {
             💰 Fazer Depósito via PIX
           </button>
 
-          <div id="onramper-widget-container" 
-               style="display:none; margin-top:30px; background:#1a1a1a; border-radius:12px; padding:15px; min-height:400px;">
-          </div>
-
           <div class="info-text">
-            <small>• Valor mínimo: R$ 20,00<br>• Confirmação em até 30 minutos</small>
+            <small>
+              • Valor mínimo: R$ 20,00<br>
+              • Confirmação em até 30 minutos<br>
+              • Taxa inclusa no valor
+            </small>
           </div>
 
           <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar
+            ← Voltar para Carteira
           </button>
         </section>
       </div>
@@ -110,7 +76,7 @@ function renderDepositoPage() {
   }
 }
 
-// Inicialização
+// ==================== INIT ====================
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
