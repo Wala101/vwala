@@ -1896,26 +1896,27 @@ async function handleWalletAction(action) {
 
   if (action === 'receber') {
     if (!currentWalletAddress) {
-      await showMessageModal(
-        'Carteira',
-        'Carteira ainda não carregada.'
-      )
+      await showMessageModal('Carteira', 'Carteira ainda não carregada.')
       return
     }
+    await showAddressModal('Receber', currentWalletAddress, 'Copiar')
+    return
+  }
 
-    await showAddressModal(
-      'Receber',
-      currentWalletAddress,
-      'Copiar'
-    )
-
+  if (action === 'depositar') {
+    if (!currentWalletAddress) {
+      await showMessageModal('Carteira', 'Crie sua carteira primeiro para depositar.')
+      return
+    }
+    // Redireciona para a página de depósito com o endereço da carteira
+    window.location.href = `/deposito.html?wallet=${currentWalletAddress}`;
     return
   }
 
   if (action === 'swap') {
-  window.location.href = buildSwapPageUrl()
-  return
-}
+    window.location.href = buildSwapPageUrl()
+    return
+  }
 }
 
 
@@ -2306,23 +2307,27 @@ app.innerHTML = `
         </div>
       </section>
 
-      <section class="wallet-content-card">
-        <section class="wallet-actions">
-          <button class="wallet-action" data-action="enviar" type="button">
-            <span class="wallet-action-icon">↗</span>
-            <span class="wallet-action-label">Enviar</span>
-          </button>
+      <section class="wallet-actions">
+  <button class="wallet-action" data-action="enviar" type="button">
+    <span class="wallet-action-icon">↗</span>
+    <span class="wallet-action-label">Enviar</span>
+  </button>
 
-          <button class="wallet-action" data-action="receber" type="button">
-            <span class="wallet-action-icon">↙</span>
-            <span class="wallet-action-label">Receber</span>
-          </button>
+  <button class="wallet-action" data-action="receber" type="button">
+    <span class="wallet-action-icon">↙</span>
+    <span class="wallet-action-label">Receber</span>
+  </button>
 
-          <button class="wallet-action" data-action="swap" type="button">
-  <span class="wallet-action-icon">⇄</span>
-  <span class="wallet-action-label">Swap</span>
-</button>
-        </section>
+  <button class="wallet-action" data-action="depositar" type="button">
+    <span class="wallet-action-icon">💰</span>
+    <span class="wallet-action-label">PIX</span>
+  </button>
+
+  <button class="wallet-action" data-action="swap" type="button">
+    <span class="wallet-action-icon">⇄</span>
+    <span class="wallet-action-label">Swap</span>
+  </button>
+</section>
 
         <section class="wallet-tabs">
           <button class="wallet-tab active" type="button">Tokens</button>

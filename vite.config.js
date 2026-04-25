@@ -12,6 +12,7 @@ export default defineConfig({
         predicoes: 'predicoes.html',
         historico: 'historico.html',
         whitepaper: 'whitepaper.html',
+        deposito: 'deposito.html',
         token: 'token.html',
       },
     },
