@@ -3,56 +3,94 @@ import { onAuthStateChanged } from 'firebase/auth'
 
 let currentWalletAddress = ''
 
-async function gerarPix() {
+function getWalletFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('wallet')
+}
+
+// ==================== ABRIR DEPOSITO (Sem API Key) ====================
+function abrirDeposito() {
   if (!currentWalletAddress) {
-    alert("Carteira não encontrada")
+    alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  const amount = prompt("Digite o valor em R$ (ex: 50.00)", "100")
+  // Usa Transak direto (não precisa de chave para link simples)
+  const url = `https://global.transak.com/?` + new URLSearchParams({
+    network: "polygon",
+    cryptoCurrency: "POL",
+    fiatCurrency: "BRL",
+    walletAddress: currentWalletAddress,
+    redirectURL: window.location.origin + "/carteira.html",
+    language: "pt"
+  }).toString()
 
-  if (!amount) return
+  window.open(url, '_blank')
+}
 
-  try {
-    const res = await fetch('https://api.openpix.com.br/api/v1/charge', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer SEU_APP_ID_AQUI',   // ← Sua chave OpenPix
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        correlationID: `vwala_${Date.now()}`,
-        value: Number(amount) * 100,           // centavos
-        comment: `Depósito vWALA - ${currentWalletAddress}`,
-        customer: {
-          name: "Usuário vWALA",
-          taxID: "00000000000"
-        }
-      })
-    })
+// ==================== RENDER PAGE ====================
+function renderDepositoPage() {
+  const app = document.querySelector('#app')
 
-    const data = await res.json()
+  app.innerHTML = `
+    <div class="deposito-page">
+      <div class="wallet-shell">
+        <header class="wallet-topbar">
+          <div class="wallet-brand">
+            <div class="wallet-brand-badge">W</div>
+            <div class="wallet-brand-text">
+              <strong>vWALA</strong>
+              <span>Depósito PIX</span>
+            </div>
+          </div>
+        </header>
 
-    if (data.charge) {
-      mostrarQrCode(data.charge)
-    }
-  } catch (err) {
-    alert("Erro ao gerar PIX")
-    console.error(err)
+        <section class="deposito-main">
+          <h1>Depósito via PIX</h1>
+          <p class="deposito-subtitle">Compre POL com PIX</p>
+
+          <div class="wallet-info-box">
+            <strong>Carteira de destino:</strong><br>
+            <span id="wallet-display" class="wallet-address"></span>
+          </div>
+
+          <button onclick="abrirDeposito()" class="deposito-btn primary">
+            💰 Depositar com PIX
+          </button>
+
+          <div class="info-text">
+            <small>
+              • Abre o site do provedor<br>
+              • Sua carteira já vem preenchida<br>
+              • Você paga com PIX e recebe POL
+            </small>
+          </div>
+
+          <button onclick="window.history.back()" class="deposito-btn secondary">
+            ← Voltar para Carteira
+          </button>
+        </section>
+      </div>
+    </div>
+  `
+
+  const walletEl = document.getElementById('wallet-display')
+  if (walletEl && currentWalletAddress) {
+    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
   }
 }
 
-function mostrarQrCode(charge) {
-  const container = document.getElementById('pix-container')
-  container.innerHTML = `
-    <h3>PIX Gerado - R$ ${(charge.value/100).toFixed(2)}</h3>
-    <img src="${charge.qrCode}" width="280" style="margin:15px 0; border-radius:12px;">
-    <input value="${charge.pixKey}" readonly style="width:100%; padding:12px; text-align:center;">
-    <button onclick="navigator.clipboard.writeText('${charge.pixKey}'); alert('Copiado!')">Copiar PIX</button>
-  `
-}
+// ==================== INIT ====================
+onAuthStateChanged(auth, () => {
+  currentWalletAddress = getWalletFromUrl()
 
-// Render básico...
-// ... (resto do código)
+  if (!currentWalletAddress) {
+    alert("Endereço da carteira não informado.")
+    window.location.href = "carteira.html"
+    return
+  }
 
-window.gerarPix = gerarPix
+  renderDepositoPage()
+})
+
+window.abrirDeposito = abrirDeposito
