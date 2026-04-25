@@ -8,46 +8,52 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR ONRAMPER (Iframe) ====================
 function abrirOnramper() {
   if (!currentWalletAddress) {
-    alert("❌ Endereço da carteira não encontrado.")
+    alert('❌ Endereço da carteira não encontrado.')
     return
   }
 
   const container = document.getElementById('onramper-widget-container')
+  if (!container) return
+
   container.style.display = 'block'
 
   const apiKey = import.meta.env.VITE_ONRAMPER_PUBLIC_KEY
 
-  const onramperUrl = `https://buy.onramper.com?apiKey=${apiKey}&walletAddress=${currentWalletAddress}&network=polygon&crypto=POL&fiat=BRL&fiatAmount=100&language=pt&mode=buy`
+  if (!apiKey) {
+    container.innerHTML = `
+      <div class="deposit-alert error">
+        <h3>Configuração incompleta</h3>
+        <p>Chave pública do Onramper não encontrada.</p>
+      </div>
+    `
+    return
+  }
+
+  const onramperUrl = new URL('https://buy.onramper.com')
+  onramperUrl.searchParams.set('apiKey', apiKey)
+  onramperUrl.searchParams.set('walletAddress', currentWalletAddress)
+  onramperUrl.searchParams.set('defaultAddrs', JSON.stringify({ POL: currentWalletAddress }))
+  onramperUrl.searchParams.set('network', 'polygon')
+  onramperUrl.searchParams.set('crypto', 'POL')
+  onramperUrl.searchParams.set('fiat', 'BRL')
+  onramperUrl.searchParams.set('fiatAmount', '100')
+  onramperUrl.searchParams.set('language', 'pt')
+  onramperUrl.searchParams.set('mode', 'buy')
 
   container.innerHTML = `
-    <iframe 
-      src="${onramperUrl}"
-      style="width:100%; height:620px; border:none; border-radius:12px;"
-      allow="accelerometer; autoplay; camera; gyroscope; payment; microphone"
-      title="Onramper Deposit">
-    </iframe>
-  `
-}
-
-function showSuccessMessage() {
-  const container = document.getElementById('onramper-widget-container')
-  container.innerHTML = `
-    <div style="text-align:center; padding:60px 20px; color:#22ff88;">
-      <h2>✅ Depósito em Processamento!</h2>
-      <p>O PIX foi detectado. O POL chegará em sua carteira em breve.</p>
-      <br>
-      <button onclick="window.location.href='carteira.html'" 
-              style="padding:14px 32px; background:#22ff88; color:#000; border:none; border-radius:8px; font-weight:bold;">
-        ← Voltar para Carteira
-      </button>
+    <div class="onramper-frame-wrapper">
+      <iframe
+        src="${onramperUrl.toString()}"
+        class="onramper-frame"
+        allow="accelerometer; autoplay; camera; gyroscope; payment; microphone"
+        title="Comprar POL via PIX">
+      </iframe>
     </div>
   `
 }
 
-// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -59,55 +65,59 @@ function renderDepositoPage() {
             <div class="wallet-brand-badge">W</div>
             <div class="wallet-brand-text">
               <strong>vWALA</strong>
-              <span>Depósito PIX</span>
+              <span>Depósito via PIX</span>
             </div>
           </div>
         </header>
 
-        <section class="deposito-main">
-          <h1>Depósito via PIX</h1>
-          <p class="deposito-subtitle">Pague com PIX • Receba POL automaticamente</p>
+        <main class="deposito-main">
+          <h1>Adicionar saldo</h1>
+          <p class="deposito-subtitle">Compre POL com PIX e receba direto na sua carteira</p>
 
           <div class="wallet-info-box">
-            <strong>Carteira de destino:</strong><br>
-            <span id="wallet-display" class="wallet-address"></span>
+            <span>Carteira de destino</span>
+            <strong id="wallet-display" class="wallet-address"></strong>
           </div>
 
-          <button onclick="abrirOnramper()" class="deposito-btn primary">
-            💰 Fazer Depósito via PIX
+          <button id="deposit-btn" class="deposito-btn primary">
+            💳 Comprar com PIX
           </button>
 
-          <div id="onramper-widget-container" style="display:none; margin-top:25px;"></div>
+          <div id="onramper-widget-container" class="onramper-container"></div>
 
           <div class="info-text">
             <small>
-              • Valor mínimo: R$ 20,00<br>
-              • Confirmação em até 30 minutos<br>
-              • Tudo acontece dentro desta página
+              • Compra processada por parceiro externo<br>
+              • Pagamento via PIX em reais (BRL)<br>
+              • Recebimento automático na sua carteira Polygon
             </small>
           </div>
 
-          <button onclick="window.history.back()" class="deposito-btn secondary">
+          <button id="back-btn" class="deposito-btn secondary">
             ← Voltar para Carteira
           </button>
-        </section>
+        </main>
       </div>
     </div>
   `
 
   const walletEl = document.getElementById('wallet-display')
-  if (walletEl && currentWalletAddress) {
-    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
+  if (walletEl) {
+    walletEl.textContent = `${currentWalletAddress.slice(0, 6)}...${currentWalletAddress.slice(-4)}`
   }
+
+  document.getElementById('deposit-btn')?.addEventListener('click', abrirOnramper)
+  document.getElementById('back-btn')?.addEventListener('click', () => {
+    window.location.href = `carteira.html?wallet=${currentWalletAddress}`
+  })
 }
 
-// ==================== INIT ====================
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
   if (!currentWalletAddress) {
-    alert("Endereço da carteira não informado.")
-    window.location.href = "carteira.html"
+    alert('Endereço da carteira não informado.')
+    window.location.href = 'carteira.html'
     return
   }
 
