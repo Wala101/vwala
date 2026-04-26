@@ -41,18 +41,42 @@ async function copiarEndereco() {
   }
 }
 
-async function abrirChangelly() {
-  if (!addressCopied) {
-    const confirmar = await showMessageModal(
-      '⚠️ Copie seu endereço primeiro',
-      'Para receber seus tokens com segurança, copie primeiro o endereço da sua carteira Polygon. Após isso, o acesso ao Changelly será liberado.',
-      '📋 Copiar Endereço',
-      true
+async async function showCopyWalletRequiredModal() {
+  if (typeof showMessageModal !== 'function') {
+    const confirmed = window.confirm(
+      'Antes de abrir o Changelly, copie primeiro o endereço da sua carteira.'
     )
 
-    if (confirmar) {
+    if (confirmed) {
       await copiarEndereco()
     }
+    return false
+  }
+
+  const confirmed = await showMessageModal(
+    'Atenção',
+    'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
+    '📋 Copiar Endereço',
+    true
+  )
+
+  if (confirmed) {
+    await copiarEndereco()
+    return true
+  }
+
+  return false
+}
+
+async function abrirChangelly() {
+  if (!addressCopied) {
+    const liberado = await showCopyWalletRequiredModal()
+    if (!liberado && !addressCopied) return
+  }
+
+  const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
 
     return
   }
