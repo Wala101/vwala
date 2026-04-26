@@ -1903,13 +1903,21 @@ async function handleWalletAction(action) {
     return
   }
 
-  if (action === 'depositar') {
+   if (action === 'depositar') {
     if (!currentWalletAddress) {
       await showMessageModal('Carteira', 'Crie sua carteira primeiro para depositar.')
       return
     }
-    // Redireciona para a página de depósito com o endereço da carteira
     window.location.href = `/deposito.html?wallet=${currentWalletAddress}`;
+    return
+  }
+
+  if (action === 'saque') {
+    if (!currentWalletAddress) {
+      await showMessageModal('Carteira', 'Crie sua carteira primeiro para sacar.')
+      return
+    }
+    window.location.href = `/saque.html?wallet=${currentWalletAddress}`;
     return
   }
 
@@ -2327,16 +2335,17 @@ app.innerHTML = `
 </section>
 
 
-                <section class="wallet-actions">
+                                <section class="wallet-actions">
  
-
-
-
   <button class="wallet-action" data-action="depositar" type="button">
     <span class="wallet-action-icon">💰</span>
-    <span class="wallet-action-label">PIX</span>
+    <span class="wallet-action-label">Depósito</span>
   </button>
 
+  <button class="wallet-action" data-action="saque" type="button">
+    <span class="wallet-action-icon">💸</span>
+    <span class="wallet-action-label">Saque</span>
+  </button>
 
 </section>
 

@@ -13,6 +13,7 @@ export default defineConfig({
         historico: 'historico.html',
         whitepaper: 'whitepaper.html',
         deposito: 'deposito.html',
+        saque: 'saque.html',
         token: 'token.html',
       },
     },
