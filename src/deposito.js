@@ -17,19 +17,23 @@ async function copiarEndereco() {
     await navigator.clipboard.writeText(currentWalletAddress)
     addressCopied = true
 
-    document.getElementById('btn-copiar').innerHTML = '✅ Copiado!'
+    document.getElementById('btn-copiar').innerHTML = '✅ Endereço Copiado!'
     document.getElementById('btn-comprar').disabled = false
 
-    showMessageModal('Endereço Copiado!', 'Agora você pode abrir o Changelly.', 'Continuar')
+    await showMessageModal(
+      '✅ Copiado com Sucesso!',
+      'Agora você pode abrir o Changelly para fazer o depósito.',
+      'Continuar'
+    )
   } catch (err) {
-    alert('Erro ao copiar endereço. Tente novamente.')
+    await showMessageModal('Erro', 'Não foi possível copiar o endereço. Tente novamente.')
   }
 }
 
 // ==================== ABRIR CHANGELLY ====================
 function abrirChangelly() {
   if (!addressCopied) {
-    showCustomModal()   // Modal personalizado
+    showCustomModal()   // Modal personalizado igual o do app
     return
   }
 
@@ -39,36 +43,17 @@ function abrirChangelly() {
 
 // ==================== MODAL PERSONALIZADO ====================
 function showCustomModal() {
-  const modalHTML = `
-    <div id="customModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; display:flex; align-items:center; justify-content:center;">
-      <div style="background:#1a1a1a; border-radius:16px; width:90%; max-width:380px; padding:24px; text-align:center; border:1px solid #333;">
-        <h2 style="margin:0 0 16px; color:#fff;">⚠️ Atenção</h2>
-        <p style="color:#ccc; line-height:1.5; margin-bottom:24px;">
-          Antes de abrir o Changelly, você precisa copiar sua carteira.
-        </p>
-        <button onclick="copiarEnderecoFromModal()" 
-                style="width:100%; padding:14px; background:#25ff8a; color:#000; border:none; border-radius:12px; font-weight:700; margin-bottom:12px;">
-          📋 Copiar Endereço Agora
-        </button>
-        <button onclick="closeCustomModal()" 
-                style="width:100%; padding:14px; background:transparent; border:1px solid #555; color:#fff; border-radius:12px;">
-          Cancelar
-        </button>
-      </div>
-    </div>
-  `
-
-  document.body.insertAdjacentHTML('beforeend', modalHTML)
-}
-
-window.copiarEnderecoFromModal = () => {
-  copiarEndereco()
-  closeCustomModal()
-}
-
-window.closeCustomModal = () => {
-  const modal = document.getElementById('customModal')
-  if (modal) modal.remove()
+  openUiModal({
+    title: '⚠️ Atenção',
+    text: 'Antes de abrir o Changelly, você precisa copiar sua carteira.',
+    confirmText: '📋 Copiar Endereço',
+    cancelText: 'Cancelar',
+    showCancel: true
+  }).then(result => {
+    if (result) {
+      copiarEndereco()
+    }
+  })
 }
 
 // ==================== RENDER PAGE ====================
@@ -108,13 +93,13 @@ function renderDepositoPage() {
           <div class="info-text">
             <small>
               1. Copie sua carteira<br>
-              2. Abra o Changelly<br>
-              3. Cole o endereço se necessário
+              2. Clique no botão verde para abrir o Changelly<br>
+              3. Pague com PIX
             </small>
           </div>
 
           <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar
+            ← Voltar para Carteira
           </button>
         </section>
       </div>
@@ -132,7 +117,7 @@ onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
   if (!currentWalletAddress) {
-    alert("Endereço da carteira não informado.")
+    showMessageModal('Atenção', 'Endereço da carteira não informado.')
     window.location.href = "carteira.html"
     return
   }
