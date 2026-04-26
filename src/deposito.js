@@ -101,9 +101,7 @@ function renderDepositoPage() {
             </small>
           </div>
 
-          <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar para Carteira
-          </button>
+          
         </section>
       </div>
     </div>
