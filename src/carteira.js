@@ -2319,7 +2319,7 @@ app.innerHTML = `
 
 <!-- ====================== SEPARADOR CRYPTO ====================== -->
 <div class="wallet-actions-separator" style="margin-bottom: 24px;">
-  <span>Transações Crypto</span>
+  <strong>Transações Crypto</strong>
 </div>
 
 <!-- ====================== AÇÕES CRYPTO ====================== -->
