@@ -8,32 +8,21 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR CHANGELLY ====================
+// ==================== ABRIR CHANGELLY (Nova Aba) ====================
 function abrirChangelly() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  const container = document.getElementById('changelly-container')
-  container.style.display = 'block'
-
-  // URL do Changelly para comprar POL (Polygon)
-  const changellyUrl = `https://changelly.com/pt/buy/pol?` + new URLSearchParams({
+  const url = `https://changelly.com/pt/buy/pol?` + new URLSearchParams({
     from: "BRL",
     to: "POL",
-    address: currentWalletAddress,      // carteira pré-preenchida
+    address: currentWalletAddress,   // carteira pré-preenchida
     amount: "100"
   }).toString()
 
-  container.innerHTML = `
-    <iframe 
-      src="${changellyUrl}"
-      style="width:100%; height:680px; border:none; border-radius:12px; background:#1a1a1a;"
-      allow="accelerometer; autoplay; camera; gyroscope; payment; microphone"
-      title="Changelly - Comprar POL">
-    </iframe>
-  `
+  window.open(url, '_blank')
 }
 
 // ==================== RENDER PAGE ====================
@@ -66,13 +55,11 @@ function renderDepositoPage() {
             💰 Comprar POL com PIX
           </button>
 
-          <div id="changelly-container" style="display:none; margin-top:25px; min-height:700px;"></div>
-
           <div class="info-text">
             <small>
-              • Aceita PIX, cartão e transferência<br>
-              • Carteira já preenchida automaticamente<br>
-              • Tudo dentro da página
+              • Abre em nova aba<br>
+              • Sua carteira já vem preenchida<br>
+              • Aceita PIX, cartão e boleto
             </small>
           </div>
 
