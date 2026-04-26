@@ -85,9 +85,10 @@ function renderDepositoPage() {
           <p class="deposito-subtitle">Compre POL com Changelly</p>
 
           <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
-            1. Copie sua carteira<br>
-            2. O acesso ao Changelly será liberado<br>
-            3. Pague com PIX
+1. Copie sua carteira para liberar o botão de depósito<br>
+2. É necessário fazer verificação KYC apenas uma única vez<br>
+3. Você será redirecionado para o Changelly para finalizar a compra via PIX<br>
+4. Valor mínimo: R$ 25,00 | Valor máximo: R$ 10.000,00
           </div>
 
           <div class="wallet-info-box" style="display: none;">
@@ -100,7 +101,7 @@ function renderDepositoPage() {
           </button>
 
           <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
-             Abrir Changelly
+             Depositar
           </button>
         </section>
       </div>
