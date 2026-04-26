@@ -15,7 +15,7 @@ function abrirChangelly() {
     return
   }
 
-  const url = `https://changelly.com/pt/buy/pol?` + new URLSearchParams({
+  const url = `https://changelly.com/pt/buy` + new URLSearchParams({
     from: "BRL",
     to: "POL",
     address: currentWalletAddress,   // carteira pré-preenchida
