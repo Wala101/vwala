@@ -84,7 +84,7 @@ function renderDepositoPage() {
         
 
           <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
-1. Copie sua carteira para liberar o botão de depósito<br>
+1. Copie o endereço da sua carteira para liberar o botão de depósito<br>
 2. É necessário fazer verificação KYC apenas uma única vez<br>
 3. Você será redirecionado para o Changelly para finalizar a compra via PIX<br>
 4. Valor mínimo: R$ 25,00 | Valor máximo: R$ 10.000,00
