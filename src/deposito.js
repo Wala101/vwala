@@ -9,7 +9,6 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== COPIAR ENDEREÇO ====================
 async function copiarEndereco() {
   if (!currentWalletAddress) return
 
@@ -18,13 +17,20 @@ async function copiarEndereco() {
     addressCopied = true
 
     const btnCopiar = document.getElementById('btn-copiar')
+    const btnComprar = document.getElementById('btn-comprar')
+
     if (btnCopiar) {
       btnCopiar.innerHTML = '✅ Endereço Copiado!'
     }
 
+    if (btnComprar) {
+      btnComprar.disabled = false
+      btnComprar.classList.remove('disabled')
+    }
+
     await showMessageModal(
-      '✅ Copiado com Sucesso!',
-      'Agora você pode abrir o Changelly para fazer o depósito.',
+      '✅ Endereço Copiado',
+      'Agora você pode abrir o Changelly e concluir sua compra via PIX.',
       'Continuar'
     )
   } catch (err) {
@@ -35,24 +41,19 @@ async function copiarEndereco() {
   }
 }
 
-// ==================== MODAL PADRÃO DO SITE ====================
-async function showCopyWalletRequiredModal() {
-  const confirmed = await showMessageModal(
-    'Atenção',
-    'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
-    '📋 Copiar Endereço',
-    true
-  )
-
-  if (confirmed) {
-    await copiarEndereco()
-  }
-}
-
-// ==================== ABRIR CHANGELLY ====================
-function abrirChangelly() {
+async function abrirChangelly() {
   if (!addressCopied) {
-    showCopyWalletRequiredModal()
+    const confirmar = await showMessageModal(
+      '⚠️ Copie seu endereço primeiro',
+      'Para receber seus tokens com segurança, copie primeiro o endereço da sua carteira Polygon. Após isso, o acesso ao Changelly será liberado.',
+      '📋 Copiar Endereço',
+      true
+    )
+
+    if (confirmar) {
+      await copiarEndereco()
+    }
+
     return
   }
 
@@ -60,7 +61,6 @@ function abrirChangelly() {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -90,14 +90,14 @@ function renderDepositoPage() {
             📋 Copiar Endereço da Carteira
           </button>
 
-          <button onclick="abrirChangelly()" class="deposito-btn primary" id="btn-comprar">
+          <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
             💰 Abrir Changelly
           </button>
 
           <div class="info-text">
             <small>
               1. Copie sua carteira<br>
-              2. Clique em Abrir Changelly<br>
+              2. O acesso ao Changelly será liberado<br>
               3. Pague com PIX
             </small>
           </div>
@@ -112,7 +112,6 @@ function renderDepositoPage() {
   }
 }
 
-// ==================== INIT ====================
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
