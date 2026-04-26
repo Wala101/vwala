@@ -2,43 +2,73 @@ import { auth } from './firebase.js'
 import { onAuthStateChanged } from 'firebase/auth'
 
 let currentWalletAddress = ''
-let copied = false
+let addressCopied = false
 
 function getWalletFromUrl() {
   const params = new URLSearchParams(window.location.search)
   return params.get('wallet')
 }
 
-// Copiar endereço
+// ==================== COPIAR ENDEREÇO ====================
 async function copiarEndereco() {
   if (!currentWalletAddress) return
 
   try {
     await navigator.clipboard.writeText(currentWalletAddress)
-    copied = true
+    addressCopied = true
 
-    const btn = document.getElementById('btn-comprar')
-    if (btn) {
-      btn.disabled = false
-      btn.textContent = "✅ Endereço Copiado! Abrir Changelly"
-    }
+    document.getElementById('btn-copiar').innerHTML = '✅ Copiado!'
+    document.getElementById('btn-comprar').disabled = false
 
-    alert("✅ Endereço copiado com sucesso!\n\nAgora clique no botão abaixo para abrir o Changelly.")
+    showMessageModal('Endereço Copiado!', 'Agora você pode abrir o Changelly.', 'Continuar')
   } catch (err) {
-    alert("Erro ao copiar. Tente novamente.")
+    alert('Erro ao copiar endereço. Tente novamente.')
   }
 }
 
-// Abrir Changelly
+// ==================== ABRIR CHANGELLY ====================
 function abrirChangelly() {
-  if (!copied) {
-    alert("Por favor, copie o endereço da carteira primeiro.")
+  if (!addressCopied) {
+    showCustomModal()   // Modal personalizado
     return
   }
 
-  const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&currency=POL&fiatCurrency=BRL`
-
+  const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
   window.open(url, '_blank')
+}
+
+// ==================== MODAL PERSONALIZADO ====================
+function showCustomModal() {
+  const modalHTML = `
+    <div id="customModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:9999; display:flex; align-items:center; justify-content:center;">
+      <div style="background:#1a1a1a; border-radius:16px; width:90%; max-width:380px; padding:24px; text-align:center; border:1px solid #333;">
+        <h2 style="margin:0 0 16px; color:#fff;">⚠️ Atenção</h2>
+        <p style="color:#ccc; line-height:1.5; margin-bottom:24px;">
+          Antes de abrir o Changelly, você precisa copiar sua carteira.
+        </p>
+        <button onclick="copiarEnderecoFromModal()" 
+                style="width:100%; padding:14px; background:#25ff8a; color:#000; border:none; border-radius:12px; font-weight:700; margin-bottom:12px;">
+          📋 Copiar Endereço Agora
+        </button>
+        <button onclick="closeCustomModal()" 
+                style="width:100%; padding:14px; background:transparent; border:1px solid #555; color:#fff; border-radius:12px;">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  `
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML)
+}
+
+window.copiarEnderecoFromModal = () => {
+  copiarEndereco()
+  closeCustomModal()
+}
+
+window.closeCustomModal = () => {
+  const modal = document.getElementById('customModal')
+  if (modal) modal.remove()
 }
 
 // ==================== RENDER PAGE ====================
@@ -72,22 +102,19 @@ function renderDepositoPage() {
           </button>
 
           <button onclick="abrirChangelly()" class="deposito-btn primary" id="btn-comprar" disabled>
-            💰 Abrir Changelly para Depositar
+            💰 Abrir Changelly
           </button>
 
           <div class="info-text">
             <small>
-              <strong>Como fazer o depósito:</strong><br><br>
-              1. Clique em "Copiar Endereço da Carteira"<br>
-              2. Clique no botão verde "Abrir Changelly"<br>
-              3. No Changelly, cole o endereço se necessário<br>
-              4. Escolha PIX como método de pagamento<br><br>
-              Valor mínimo: R$ 25,00
+              1. Copie sua carteira<br>
+              2. Abra o Changelly<br>
+              3. Cole o endereço se necessário
             </small>
           </div>
 
           <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar para Carteira
+            ← Voltar
           </button>
         </section>
       </div>
@@ -96,7 +123,7 @@ function renderDepositoPage() {
 
   const walletEl = document.getElementById('wallet-display')
   if (walletEl && currentWalletAddress) {
-    walletEl.textContent = currentWalletAddress
+    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
   }
 }
 
