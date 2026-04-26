@@ -26,3 +26,38 @@ schedule = "*/30 * * * *"
   to = "/.netlify/functions/sync-football"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/carteira"
+  to = "/carteira.html"
+  status = 200
+
+[[redirects]]
+  from = "/token"
+  to = "/token.html"
+  status = 200
+
+[[redirects]]
+  from = "/futebol"
+  to = "/futeboll.html"
+  status = 200
+
+[[redirects]]
+  from = "/predicoes"
+  to = "/predicoes.html"
+  status = 200
+
+[[redirects]]
+  from = "/posicoes"
+  to = "/posicoes.html"
+  status = 200
+
+[[redirects]]
+  from = "/historico"
+  to = "/historico.html"
+  status = 200
+
+[[redirects]]
+  from = "/whitepaper"
+  to = "/whitepaper.html"
+  status = 200
