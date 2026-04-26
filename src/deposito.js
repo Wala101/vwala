@@ -1,5 +1,5 @@
 import { auth } from './firebase.js'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 
 let currentWalletAddress = ''
 let addressCopied = false
@@ -9,6 +9,7 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
+// ==================== COPIAR ENDEREÇO ====================
 async function copiarEndereco() {
   if (!currentWalletAddress) return
 
@@ -19,10 +20,7 @@ async function copiarEndereco() {
     const btnCopiar = document.getElementById('btn-copiar')
     const btnComprar = document.getElementById('btn-comprar')
 
-    if (btnCopiar) {
-      btnCopiar.innerHTML = '✅ Endereço Copiado!'
-    }
-
+    if (btnCopiar) btnCopiar.innerHTML = '✅ Endereço Copiado!'
     if (btnComprar) {
       btnComprar.disabled = false
       btnComprar.classList.remove('disabled')
@@ -34,25 +32,12 @@ async function copiarEndereco() {
       'Continuar'
     )
   } catch (err) {
-    await showMessageModal(
-      'Erro',
-      'Não foi possível copiar o endereço. Tente novamente.'
-    )
+    await showMessageModal('Erro', 'Não foi possível copiar o endereço. Tente novamente.')
   }
 }
 
+// ==================== MODAL DE AVISO ====================
 async function showCopyWalletRequiredModal() {
-  if (typeof showMessageModal !== 'function') {
-    const confirmed = window.confirm(
-      'Antes de abrir o Changelly, copie primeiro o endereço da sua carteira.'
-    )
-
-    if (confirmed) {
-      await copiarEndereco()
-    }
-    return false
-  }
-
   const confirmed = await showMessageModal(
     'Atenção',
     'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
@@ -64,10 +49,10 @@ async function showCopyWalletRequiredModal() {
     await copiarEndereco()
     return true
   }
-
   return false
 }
 
+// ==================== ABRIR CHANGELLY ====================
 async function abrirChangelly() {
   if (!addressCopied) {
     const liberado = await showCopyWalletRequiredModal()
@@ -78,9 +63,7 @@ async function abrirChangelly() {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-
-
-
+// ==================== RENDER PAGE ====================
 function renderDepositoPage() {
   const app = document.querySelector('#app')
 
@@ -101,14 +84,11 @@ function renderDepositoPage() {
           <h1>Depósito via PIX</h1>
           <p class="deposito-subtitle">Compre POL com Changelly</p>
 
-
- <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
-  1. Copie sua carteira<br>
-  2. O acesso ao Changelly será liberado<br>
-  3. Pague com PIX
-</div>
-
-
+          <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
+            1. Copie sua carteira<br>
+            2. O acesso ao Changelly será liberado<br>
+            3. Pague com PIX
+          </div>
 
           <div class="wallet-info-box" style="display: none;">
             <strong>Sua carteira Polygon:</strong><br>
@@ -122,7 +102,6 @@ function renderDepositoPage() {
           <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
              Abrir Changelly
           </button>
-
         </section>
       </div>
     </div>
@@ -134,19 +113,29 @@ function renderDepositoPage() {
   }
 }
 
-onAuthStateChanged(auth, () => {
-  currentWalletAddress = getWalletFromUrl()
-
-  if (!currentWalletAddress) {
-    showMessageModal('Atenção', 'Endereço da carteira não informado.')
-    setTimeout(() => {
-      window.location.href = 'carteira.html'
-    }, 1500)
-    return
+// ==================== INIT ====================
+async function initDeposito() {
+  // 🔥 ESSA LINHA RESOLVE O PROBLEMA DE PEDIR LOGIN NOVAMENTE
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+  } catch (e) {
+    console.warn("Erro ao definir persistência:", e)
   }
 
-  renderDepositoPage()
-})
+  onAuthStateChanged(auth, () => {
+    currentWalletAddress = getWalletFromUrl()
+
+    if (!currentWalletAddress) {
+      showMessageModal('Atenção', 'Endereço da carteira não informado.')
+      setTimeout(() => window.location.href = 'carteira.html', 1500)
+      return
+    }
+
+    renderDepositoPage()
+  })
+}
+
+initDeposito()
 
 window.copiarEndereco = copiarEndereco
 window.abrirChangelly = abrirChangelly
