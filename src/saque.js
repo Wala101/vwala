@@ -41,13 +41,24 @@ function renderSaquePage() {
           <h1>Saque via PIX</h1>
           <p class="deposito-subtitle">Venda POL e receba em Reais</p>
 
-          <div class="wallet-info-box">
+                    <!-- Carteira oculta -->
+          <div class="wallet-info-box" style="display: none;">
             <strong>Carteira de origem (Polygon):</strong><br>
             <span id="wallet-display" class="wallet-address"></span>
           </div>
 
+<div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
+            
+              • Valor mínimo: R$ 98,00 (aprox.)<br>
+              • O MoonPay fará a venda automática do seu POL<br>
+              • Dinheiro cai na conta via PIX<br>
+              • Taxas do MoonPay aplicadas
+            
+          </div>
+
+
           <button onclick="abrirMoonpaySaque()" class="deposito-btn primary">
-            💸 Abrir MoonPay e Sacar via PIX
+            Abrir MoonPay e Sacar via PIX
           </button>
 
           <div class="info-text">
