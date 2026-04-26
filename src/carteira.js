@@ -2319,7 +2319,7 @@ app.innerHTML = `
 
 <!-- ====================== SEPARADOR CRYPTO ====================== -->
 <div class="wallet-actions-separator" style="margin-bottom: 24px;">
-  <span>Transações CRYPTO</span>
+  <span>Transações Crypto</span>
 </div>
 
 <!-- ====================== AÇÕES CRYPTO ====================== -->
@@ -2342,7 +2342,7 @@ app.innerHTML = `
 
 <!-- ====================== SEPARADOR FIAT ====================== -->
 <div class="wallet-actions-separator" style="margin: 32px 0 24px;">
-  <span>Transações FIAT / PIX</span>
+  <span>Transações Fiat / Pix</span>
 </div>
 
 <!-- ====================== AÇÕES PIX ====================== -->

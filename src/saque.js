@@ -1,5 +1,5 @@
 import { auth } from './firebase.js'
-import { onAuthStateChanged } from 'firebase/auth'
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 
 let currentWalletAddress = ''
 
@@ -41,51 +41,49 @@ function renderSaquePage() {
           <h1>Saque via PIX</h1>
           <p class="deposito-subtitle">Venda POL e receba em Reais</p>
 
-                    <!-- Carteira oculta -->
-          <div class="wallet-info-box" style="display: none;">
-            <strong>Carteira de origem (Polygon):</strong><br>
-            <span id="wallet-display" class="wallet-address"></span>
-          </div>
-
-<div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
-            
-              • Valor mínimo: R$ 98,00 (aprox.)<br>
-              • O MoonPay fará a venda automática do seu POL<br>
-              • Dinheiro cai na conta via PIX<br>
-              • Taxas do MoonPay aplicadas
-            
-          </div>
-
-
           <button onclick="abrirMoonpaySaque()" class="deposito-btn primary">
-         Sacar via PIX
+            💸 Sacar via PIX
           </button>
 
-        
+          <div class="info-text" style="margin-top: 30px;">
+            <small>
+              • Valor mínimo: R$ 98,00 (aprox.)<br>
+              • Venda automática de POL<br>
+              • Recebimento via PIX<br>
+              • Taxas do MoonPay aplicadas
+            </small>
+          </div>
 
-          
+          <button onclick="window.history.back()" class="deposito-btn secondary" style="margin-top: 20px;">
+            ← Voltar para Carteira
+          </button>
         </section>
       </div>
     </div>
   `
-
-  const walletEl = document.getElementById('wallet-display')
-  if (walletEl && currentWalletAddress) {
-    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
-  }
 }
 
 // ==================== INIT ====================
-onAuthStateChanged(auth, () => {
-  currentWalletAddress = getWalletFromUrl()
-
-  if (!currentWalletAddress) {
-    showMessageModal('Atenção', 'Endereço da carteira não informado.')
-    setTimeout(() => window.location.href = 'carteira.html', 1500)
-    return
+async function initSaque() {
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+  } catch (e) {
+    console.warn("Erro ao definir persistência", e)
   }
 
-  renderSaquePage()
-})
+  onAuthStateChanged(auth, (user) => {
+    currentWalletAddress = getWalletFromUrl()
+
+    if (!currentWalletAddress) {
+      showMessageModal('Atenção', 'Endereço da carteira não informado.')
+      setTimeout(() => window.location.href = 'carteira.html', 1500)
+      return
+    }
+
+    renderSaquePage()
+  })
+}
+
+initSaque()
 
 window.abrirMoonpaySaque = abrirMoonpaySaque
