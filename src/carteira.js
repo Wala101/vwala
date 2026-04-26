@@ -2324,11 +2324,6 @@ app.innerHTML = `
 
 <!-- ====================== AÇÕES CRYPTO ====================== -->
 <section class="wallet-actions">
-
-<div class="wallet-actions-separator">
-  <span>Transações CRYPTO</span>
-</div>
-
   <button class="wallet-action" data-action="enviar" type="button">
     <span class="wallet-action-icon">↗</span>
     <span class="wallet-action-label">Enviar</span>
