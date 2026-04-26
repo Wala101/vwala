@@ -8,17 +8,32 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR DEPOSITO SIMPLES ====================
-function abrirDeposito() {
+// ==================== ABRIR CHANGELLY ====================
+function abrirChangelly() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  // Versão mais estável atual (Transak direto)
-  const url = `https://global.transak.com?network=polygon&cryptoCurrency=POL&fiatCurrency=BRL&walletAddress=${currentWalletAddress}&language=pt`
+  const container = document.getElementById('changelly-container')
+  container.style.display = 'block'
 
-  window.open(url, '_blank')
+  // URL do Changelly para comprar POL (Polygon)
+  const changellyUrl = `https://changelly.com/pt/buy/pol?` + new URLSearchParams({
+    from: "BRL",
+    to: "POL",
+    address: currentWalletAddress,      // carteira pré-preenchida
+    amount: "100"
+  }).toString()
+
+  container.innerHTML = `
+    <iframe 
+      src="${changellyUrl}"
+      style="width:100%; height:680px; border:none; border-radius:12px; background:#1a1a1a;"
+      allow="accelerometer; autoplay; camera; gyroscope; payment; microphone"
+      title="Changelly - Comprar POL">
+    </iframe>
+  `
 }
 
 // ==================== RENDER PAGE ====================
@@ -40,22 +55,24 @@ function renderDepositoPage() {
 
         <section class="deposito-main">
           <h1>Depósito via PIX</h1>
-          <p class="deposito-subtitle">Compre POL com PIX</p>
+          <p class="deposito-subtitle">Compre POL com Changelly</p>
 
           <div class="wallet-info-box">
             <strong>Carteira de destino:</strong><br>
             <span id="wallet-display" class="wallet-address"></span>
           </div>
 
-          <button onclick="abrirDeposito()" class="deposito-btn primary">
-            💰 Depositar com PIX
+          <button onclick="abrirChangelly()" class="deposito-btn primary">
+            💰 Comprar POL com PIX
           </button>
+
+          <div id="changelly-container" style="display:none; margin-top:25px; min-height:700px;"></div>
 
           <div class="info-text">
             <small>
-              • Abre em nova aba<br>
-              • Carteira já preenchida<br>
-              • Pague com PIX e receba POL
+              • Aceita PIX, cartão e transferência<br>
+              • Carteira já preenchida automaticamente<br>
+              • Tudo dentro da página
             </small>
           </div>
 
@@ -86,4 +103,4 @@ onAuthStateChanged(auth, () => {
   renderDepositoPage()
 })
 
-window.abrirDeposito = abrirDeposito
+window.abrirChangelly = abrirChangelly
