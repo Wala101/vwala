@@ -38,7 +38,7 @@ schedule = "*/30 * * * *"
   status = 200
 
 [[redirects]]
-  from = "/futebol"
+  from = "/futeboll"
   to = "/futeboll.html"
   status = 200
 
