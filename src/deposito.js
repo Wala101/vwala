@@ -16,12 +16,13 @@ function abrirChangelly() {
   }
 
   const url = `https://changelly.com/buy-crypto?` + new URLSearchParams({
-    from: "BRL",           // Moeda de origem
-    to: "POL",             // Moeda de destino (Polygon)
-    amount: "25",          // Valor mínimo: R$ 25
-    address: currentWalletAddress,   // Sua carteira Polygon
+    from: "BRL",
+    to: "POL",
+    amount: "25",
+    address: currentWalletAddress,
     currency: "POL",
-    fiatCurrency: "BRL"
+    fiatCurrency: "BRL",
+    network: "polygon"
   }).toString()
 
   window.open(url, '_blank')
@@ -60,8 +61,8 @@ function renderDepositoPage() {
           <div class="info-text">
             <small>
               • Valor mínimo: R$ 25,00<br>
-              • Carteira já preenchida automaticamente<br>
-              • Aceita PIX, cartão e transferência
+              • Abre em nova aba<br>
+              • Se não preencher a carteira, cole manualmente no site
             </small>
           </div>
 
@@ -79,7 +80,7 @@ function renderDepositoPage() {
   }
 }
 
-// ==================== INIT ====================
+// Init
 onAuthStateChanged(auth, () => {
   currentWalletAddress = getWalletFromUrl()
 
