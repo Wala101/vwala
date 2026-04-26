@@ -22,14 +22,4 @@ export async function carregarJogos(limitCount = 100) {
   }))
 }
 
-export async function carregarJogosPorLiga(leagueCode, limitCount = 20) {
-  const jogos = await carregarJogos(200)
-
-  return jogos
-    .filter(jogo => jogo.competitionCode === leagueCode)
-    .slice(0, limitCount)
-}
-
-export function formatarProbabilidade(bps) {
-  return ((Number(bps || 0) / 100).toFixed(1)) + '%'
-}
+window.carregarJogos = carregarJogos
