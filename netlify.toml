@@ -4,6 +4,10 @@ publish = "dist"
 
 [functions]
 directory = "netlify/functions"
+node_bundler = "esbuild"
+
+[functions."sync-football"]
+schedule = "*/30 * * * *"
 
 [[redirects]]
   from = "/api/rpc"
@@ -14,5 +18,11 @@ directory = "netlify/functions"
 [[redirects]]
   from = "/api/rpc-fallback"
   to = "/.netlify/functions/rpc-fallback"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sync-football"
+  to = "/.netlify/functions/sync-football"
   status = 200
   force = true

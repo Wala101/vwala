@@ -2,20 +2,16 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
 const COMPETITIONS = [
-  { code: 'BSA', fallbackName: 'Campeonato Brasileiro Série A', maxMatches: 10 },
+  { code: 'BSA', fallbackName: 'Brasileirão Série A', maxMatches: 10 },
   { code: 'PL', fallbackName: 'Premier League', maxMatches: 10 },
-  { code: 'CL', fallbackName: 'UEFA Champions League', maxMatches: 10 },
-  { code: 'PD', fallbackName: 'La Liga', maxMatches: 10 },
-  { code: 'SA', fallbackName: 'Serie A', maxMatches: 10 },
-  { code: 'BL1', fallbackName: 'Bundesliga', maxMatches: 10 },
-  { code: 'FL1', fallbackName: 'Ligue 1', maxMatches: 10 },
-  { code: 'CLI', fallbackName: 'Copa Libertadores', maxMatches: 10 },
-  { code: 'CSA', fallbackName: 'Copa Sul-Americana', maxMatches: 10 }
+  { code: 'CL', fallbackName: 'Champions League', maxMatches: 10 }
 ]
 
 if (!getApps().length) {
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+
   initializeApp({
-    credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT))
+    credential: cert(serviceAccount)
   })
 }
 
@@ -27,6 +23,8 @@ function formatDateYMD(date) {
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 async function footballDataGetJson(url, token) {
   const response = await fetch(url, {
@@ -45,13 +43,13 @@ async function footballDataGetJson(url, token) {
 
 function sortByUtcDateAsc(list = []) {
   return [...list].sort(
-    (a, b) => new Date(a?.utcDate || 0) - new Date(b?.utcDate || 0)
+    (a, b) => new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime()
   )
 }
 
 function sortByUtcDateDesc(list = []) {
   return [...list].sort(
-    (a, b) => new Date(b?.utcDate || 0) - new Date(a?.utcDate || 0)
+    (a, b) => new Date(b?.utcDate || 0).getTime() - new Date(a?.utcDate || 0).getTime()
   )
 }
 
@@ -131,16 +129,16 @@ function buildThreeWayProbabilities(homeForm, awayForm) {
 }
 
 export default async function handler() {
-  const headers = { 'Content-Type': 'application/json' }
+  const headers = {
+    'Content-Type': 'application/json',
+    'Cache-Control': 'no-store'
+  }
 
   try {
     const token = process.env.FOOTBALL_DATA_TOKEN
 
     if (!token) {
-      return new Response(JSON.stringify({ error: 'FOOTBALL_DATA_TOKEN não configurado.' }), {
-        status: 500,
-        headers
-      })
+      throw new Error('FOOTBALL_DATA_TOKEN não configurado.')
     }
 
     const now = new Date()
@@ -154,6 +152,7 @@ export default async function handler() {
     const allMatches = []
 
     async function getTeamRecentMatches(teamId) {
+  await delay(300)
       const cacheKey = String(teamId)
 
       if (teamRecentMatchesCache.has(cacheKey)) {
@@ -174,6 +173,7 @@ export default async function handler() {
     }
 
     for (const competition of COMPETITIONS) {
+  await delay(1000)
       try {
         const data = await footballDataGetJson(
           `https://api.football-data.org/v4/competitions/${competition.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
@@ -186,6 +186,8 @@ export default async function handler() {
                 ['SCHEDULED', 'TIMED'].includes(match?.status) &&
                 match?.homeTeam?.id &&
                 match?.awayTeam?.id &&
+                match?.homeTeam?.name &&
+                match?.awayTeam?.name &&
                 match?.utcDate
               )
               .slice(0, competition.maxMatches)
@@ -224,6 +226,10 @@ export default async function handler() {
             homeTeamId,
             awayTeamId,
             utcDate: match.utcDate,
+            time: new Date(match.utcDate).toLocaleString('pt-BR', {
+              dateStyle: 'short',
+              timeStyle: 'short'
+            }),
             status: match.status,
             homeProbBps: probabilities.homeProbBps,
             drawProbBps: probabilities.drawProbBps,
@@ -248,13 +254,18 @@ export default async function handler() {
     return new Response(JSON.stringify({
       success: true,
       syncedMatches: allMatches.length,
-      competitions: COMPETITIONS.length
+      competitions: COMPETITIONS.length,
+      dateFrom,
+      dateTo
     }), {
       status: 200,
       headers
     })
   } catch (error) {
+    console.error('Erro geral:', error)
+
     return new Response(JSON.stringify({
+      success: false,
       error: error.message || 'Erro interno.'
     }), {
       status: 500,
