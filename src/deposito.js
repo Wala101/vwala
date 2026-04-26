@@ -8,21 +8,19 @@ function getWalletFromUrl() {
   return params.get('wallet')
 }
 
-// ==================== ABRIR CHANGELLY (Nova Aba) ====================
+// ==================== ABRIR CHANGELLY ====================
 function abrirChangelly() {
   if (!currentWalletAddress) {
     alert("❌ Endereço da carteira não encontrado.")
     return
   }
 
-  const url = `https://changelly.com/pt/buy` + new URLSearchParams({
-    from: "BRL",
-    to: "POL",
-    address: currentWalletAddress,   // carteira pré-preenchida
-    amount: "100"
-  }).toString()
+  // Link que você encontrou + carteira preenchida
+  const baseUrl = "https://changelly.com/?utm_camapign=tp-main-button&source_caller=ui&shortlink=jgsf58ul&c=tp-main-button&pid=trustpilot&af_xp=custom"
 
-  window.open(url, '_blank')
+  const finalUrl = baseUrl + `&address=${currentWalletAddress}&currency=POL&fiat=BRL`
+
+  window.open(finalUrl, '_blank')
 }
 
 // ==================== RENDER PAGE ====================
@@ -59,7 +57,7 @@ function renderDepositoPage() {
             <small>
               • Abre em nova aba<br>
               • Sua carteira já vem preenchida<br>
-              • Aceita PIX, cartão e boleto
+              • Aceita PIX e outros métodos
             </small>
           </div>
 
