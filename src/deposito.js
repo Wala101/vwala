@@ -101,26 +101,30 @@ function renderDepositoPage() {
           <h1>Depósito via PIX</h1>
           <p class="deposito-subtitle">Compre POL com Changelly</p>
 
-          <div class="wallet-info-box">
-            <strong>Sua carteira Polygon:</strong><br>
-            <span id="wallet-display" class="wallet-address"></span>
-          </div>
 
-          <button onclick="copiarEndereco()" class="deposito-btn secondary" id="btn-copiar">
-            📋 Copiar Endereço da Carteira
-          </button>
-
-          <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
-            💰 Abrir Changelly
-          </button>
-
-          <div class="info-text">
+ <div class="info-text">
             <small>
               1. Copie sua carteira<br>
               2. O acesso ao Changelly será liberado<br>
               3. Pague com PIX
             </small>
           </div>
+
+
+
+          <div class="wallet-info-box" style="display: none;">
+            <strong>Sua carteira Polygon:</strong><br>
+            <span id="wallet-display" class="wallet-address"></span>
+          </div>
+
+          <button onclick="copiarEndereco()" class="deposito-btn secondary" id="btn-copiar">
+             Copiar Endereço da Carteira
+          </button>
+
+          <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
+             Abrir Changelly
+          </button>
+
         </section>
       </div>
     </div>
