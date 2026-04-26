@@ -15,7 +15,7 @@ function abrirMoonpaySaque() {
     return
   }
 
-  const url = `https://sell.moonpay.com/v2/sell?apiKey=pk_live_PrcGnaQchlCHiQknBR8HrkNw6tD3J1Q&baseCurrencyCode=pol&quoteCurrencyCode=brl&paymentMethod=pix_instant_payment&refundWalletAddress=${currentWalletAddress}&showWalletAddressForm=false&lockAmount=true`
+  const url = `https://sell.moonpay.com/v2/sell?apiKey=pk_live_PrcGnaQchlCHiQknBR8HrkNw6tD3J1Q&baseCurrencyCode=pol_polygon&quoteCurrencyCode=brl&paymentMethod=pix_instant_payment&refundWalletAddress=${currentWalletAddress}&showWalletAddressForm=false&lockAmount=true`
 
   window.open(url, '_blank', 'noopener,noreferrer')
 }
@@ -52,7 +52,7 @@ function renderSaquePage() {
 
           <div class="info-text">
             <small>
-              • Valor mínimo: R$ 50,00 (aprox.)<br>
+              • Valor mínimo: R$ 98,00 (aprox.)<br>
               • O MoonPay fará a venda automática do seu POL<br>
               • Dinheiro cai na conta via PIX<br>
               • Taxas do MoonPay aplicadas
