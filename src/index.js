@@ -436,7 +436,7 @@ app.innerHTML = `
       <aside id="sidebar" class="side-menu">
   <a href="/carteira">Carteira</a>
   <a href="/token">Criar Token</a>
-  <a href="/futebol">Futebol</a>
+  <a href="/futeboll">Futebol</a>
   <a href="/predicoes">Predições</a>
   <a href="/posicoes">H/Futebol</a>
   <a href="/historico">H/Futures</a>
