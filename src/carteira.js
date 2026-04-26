@@ -2342,7 +2342,7 @@ app.innerHTML = `
 
 <!-- ====================== SEPARADOR FIAT ====================== -->
 <div class="wallet-actions-separator" style="margin: 32px 0 24px;">
-  <span>Transações Fiat / Pix</span>
+  <strong>Transações Fiat / Pix</strong>
 </div>
 
 <!-- ====================== AÇÕES PIX ====================== -->
