@@ -81,8 +81,7 @@ function renderDepositoPage() {
         </header>
 
         <section class="deposito-main">
-          <h1>Depósito via PIX</h1>
-          <p class="deposito-subtitle">Compre POL com Changelly</p>
+        
 
           <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
 1. Copie sua carteira para liberar o botão de depósito<br>
