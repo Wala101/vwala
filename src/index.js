@@ -436,7 +436,7 @@ app.innerHTML = `
       <aside id="sidebar" class="side-menu">
   <a href="/carteira">Carteira</a>
   <a href="/token">Criar Token</a>
-  <a href="/futebol">Futebol</a>
+  <a href="/futeboll">Futebol</a>
   <a href="/predicoes">Predições</a>
   <a href="/posicoes">H/Futebol</a>
   <a href="/historico">H/Futures</a>
@@ -480,7 +480,7 @@ app.innerHTML = `
         <section class="cards-list">
           <article
             class="feature-card clickable-card"
-            data-href="/futebol"
+            data-href="/futeboll"
             role="button"
             tabindex="0"
             aria-label="Abrir página Futebol"
@@ -578,7 +578,7 @@ app.innerHTML = `
         </section>
 
         <section class="shortcut-grid">
-          <a class="shortcut-card" href="/futebol">
+          <a class="shortcut-card" href="/futeboll">
             <span class="shortcut-icon">⚽</span>
             <strong>Futebol</strong>
             <small>Mercado esportivo</small>

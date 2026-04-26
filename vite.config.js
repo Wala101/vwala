@@ -14,7 +14,7 @@ export default defineConfig({
         whitepaper: 'whitepaper.html',
         deposito: 'deposito.html',
         saque: 'saque.html',
-        ver: 'ver.html',
+        futeboll: 'futeboll.html',
         token: 'token.html',
       },
     },
