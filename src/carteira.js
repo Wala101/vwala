@@ -2314,8 +2314,8 @@ app.innerHTML = `
           ${formatWalletAddress(currentWalletAddress)}
         </div>
       </section>
-
-      <section class="wallet-actions">
+<!-- ====================== AÇÕES CRYPTO ====================== -->
+<section class="wallet-actions">
   <button class="wallet-action" data-action="enviar" type="button">
     <span class="wallet-action-icon">↗</span>
     <span class="wallet-action-label">Enviar</span>
@@ -2326,17 +2326,19 @@ app.innerHTML = `
     <span class="wallet-action-label">Receber</span>
   </button>
 
-
-
   <button class="wallet-action" data-action="swap" type="button">
     <span class="wallet-action-icon">⇄</span>
     <span class="wallet-action-label">Swap</span>
   </button>
 </section>
 
+<!-- ====================== SEPARADOR ====================== -->
+<div class="wallet-actions-separator">
+  <span>Transações PIX</span>
+</div>
 
-                                <section class="wallet-actions">
- 
+<!-- ====================== AÇÕES PIX ====================== -->
+<section class="wallet-actions">
   <button class="wallet-action" data-action="depositar" type="button">
     <span class="wallet-action-icon">💰</span>
     <span class="wallet-action-label">Depósito</span>
@@ -2347,7 +2349,8 @@ app.innerHTML = `
     <span class="wallet-action-label">Saque</span>
   </button>
 
-</section>
+  </section>
+
 
 
 
