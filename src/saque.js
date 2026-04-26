@@ -58,21 +58,12 @@ function renderSaquePage() {
 
 
           <button onclick="abrirMoonpaySaque()" class="deposito-btn primary">
-            Abrir MoonPay e Sacar via PIX
+         Sacar via PIX
           </button>
 
-          <div class="info-text">
-            <small>
-              • Valor mínimo: R$ 98,00 (aprox.)<br>
-              • O MoonPay fará a venda automática do seu POL<br>
-              • Dinheiro cai na conta via PIX<br>
-              • Taxas do MoonPay aplicadas
-            </small>
-          </div>
+        
 
-          <button onclick="window.history.back()" class="deposito-btn secondary">
-            ← Voltar para Carteira
-          </button>
+          
         </section>
       </div>
     </div>
