@@ -2348,14 +2348,20 @@ app.innerHTML = `
 <!-- ====================== AÇÕES PIX ====================== -->
 <section class="wallet-actions">
   <button class="wallet-action" data-action="depositar" type="button">
-    <span class="wallet-action-icon">💰</span>
+    <span class="wallet-action-icon">↙</span>
     <span class="wallet-action-label">Depósito</span>
   </button>
 
   <button class="wallet-action" data-action="saque" type="button">
-    <span class="wallet-action-icon">💸</span>
+    <span class="wallet-action-icon">↗</span>
     <span class="wallet-action-label">Saque</span>
   </button>
+
+  <button class="wallet-action" data-action="swap" type="button">
+    <span class="wallet-action-icon">⇄</span>
+    <span class="wallet-action-label">Swap</span>
+  </button>
+
 </section>
 
 
