@@ -17,8 +17,10 @@ async function copiarEndereco() {
     await navigator.clipboard.writeText(currentWalletAddress)
     addressCopied = true
 
-    document.getElementById('btn-copiar').innerHTML = '✅ Endereço Copiado!'
-    document.getElementById('btn-comprar').disabled = false
+    const btnCopiar = document.getElementById('btn-copiar')
+    if (btnCopiar) {
+      btnCopiar.innerHTML = '✅ Endereço Copiado!'
+    }
 
     await showMessageModal(
       '✅ Copiado com Sucesso!',
@@ -35,7 +37,7 @@ async function copiarEndereco() {
 
 // ==================== MODAL PADRÃO DO SITE ====================
 function showCopyWalletRequiredModal() {
-  openUiModal({
+  return openUiModal({
     title: 'Atenção',
     text: 'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
     confirmText: '📋 Copiar Endereço',
@@ -56,7 +58,7 @@ function abrirChangelly() {
   }
 
   const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
-  window.open(url, '_blank')
+  window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 // ==================== RENDER PAGE ====================
@@ -86,11 +88,11 @@ function renderDepositoPage() {
           </div>
 
           <button onclick="copiarEndereco()" class="deposito-btn secondary" id="btn-copiar">
-            📋 Copiar Endereço da Carteira
+            Copiar Endereço da Carteira
           </button>
 
-          <button onclick="abrirChangelly()" class="deposito-btn primary" id="btn-comprar" disabled>
-            💰 Abrir Changelly
+          <button onclick="abrirChangelly()" class="deposito-btn primary" id="btn-comprar">
+             Abrir Changelly
           </button>
 
           <div class="info-text">
@@ -100,8 +102,6 @@ function renderDepositoPage() {
               3. Pague com PIX
             </small>
           </div>
-
-          
         </section>
       </div>
     </div>
@@ -119,7 +119,9 @@ onAuthStateChanged(auth, () => {
 
   if (!currentWalletAddress) {
     showMessageModal('Atenção', 'Endereço da carteira não informado.')
-    window.location.href = 'carteira.html'
+    setTimeout(() => {
+      window.location.href = 'carteira.html'
+    }, 1500)
     return
   }
 
