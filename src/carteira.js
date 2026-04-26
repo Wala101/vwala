@@ -2317,8 +2317,8 @@ app.innerHTML = `
 
 
 
-<!-- ====================== SEPARADOR ====================== -->
-<div class="wallet-actions-separator">
+<!-- ====================== SEPARADOR CRYPTO ====================== -->
+<div class="wallet-actions-separator" style="margin-bottom: 24px;">
   <span>Transações CRYPTO</span>
 </div>
 
@@ -2340,9 +2340,9 @@ app.innerHTML = `
   </button>
 </section>
 
-<!-- ====================== SEPARADOR ====================== -->
-<div class="wallet-actions-separator">
-  <span>Transações FIAT</span>
+<!-- ====================== SEPARADOR FIAT ====================== -->
+<div class="wallet-actions-separator" style="margin: 32px 0 24px;">
+  <span>Transações FIAT / PIX</span>
 </div>
 
 <!-- ====================== AÇÕES PIX ====================== -->
@@ -2356,9 +2356,7 @@ app.innerHTML = `
     <span class="wallet-action-icon">💸</span>
     <span class="wallet-action-label">Saque</span>
   </button>
-
-  </section>
-
+</section>
 
 
 
