@@ -8,7 +8,19 @@ const COMPETITIONS = [
     code: 'PL',
     fallbackName: 'Premier League',
     maxMatches: 10
-  }
+  },
+
+{
+  code: 'CLI',
+  fallbackName: 'Copa Libertadores',
+  maxMatches: 10
+},
+{
+  code: 'CSA',
+  fallbackName: 'Copa Sul-Americana',
+  maxMatches: 10
+}
+
 ]
 
 function formatDateYMD(date) {
