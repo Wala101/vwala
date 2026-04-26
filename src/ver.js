@@ -15,7 +15,6 @@ async function sincronizarSeNecessario() {
   if (!snapshot.empty) return
 
   const response = await fetch('/api/sync-football')
-
   if (!response.ok) {
     throw new Error('Falha ao sincronizar jogos.')
   }
@@ -38,4 +37,32 @@ export async function carregarJogos(limitCount = 100) {
   }))
 }
 
+export async function renderizarJogos(containerId = 'jogos-lista') {
+  const container = document.getElementById(containerId)
+  if (!container) return
+
+  try {
+    container.innerHTML = '<p>Carregando jogos...</p>'
+
+    const jogos = await carregarJogos()
+
+    if (!jogos.length) {
+      container.innerHTML = '<p>Nenhum jogo disponível.</p>'
+      return
+    }
+
+    container.innerHTML = jogos.map(jogo => `
+      <div class="jogo-card">
+        <h3>${jogo.teamA} × ${jogo.teamB}</h3>
+        <p>${jogo.league}</p>
+        <p>${jogo.time}</p>
+      </div>
+    `).join('')
+  } catch (error) {
+    console.error(error)
+    container.innerHTML = `<p>Erro: ${error.message}</p>`
+  }
+}
+
 window.carregarJogos = carregarJogos
+window.renderizarJogos = renderizarJogos
