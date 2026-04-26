@@ -15,12 +15,16 @@ function abrirChangelly() {
     return
   }
 
-  // Link que você encontrou + carteira preenchida
-  const baseUrl = "https://changelly.com/?utm_camapign=tp-main-button&source_caller=ui&shortlink=jgsf58ul&c=tp-main-button&pid=trustpilot&af_xp=custom"
+  const url = `https://changelly.com/buy-crypto?` + new URLSearchParams({
+    from: "BRL",           // Moeda de origem
+    to: "POL",             // Moeda de destino (Polygon)
+    amount: "25",          // Valor mínimo: R$ 25
+    address: currentWalletAddress,   // Sua carteira Polygon
+    currency: "POL",
+    fiatCurrency: "BRL"
+  }).toString()
 
-  const finalUrl = baseUrl + `&address=${currentWalletAddress}&currency=POL&fiat=BRL`
-
-  window.open(finalUrl, '_blank')
+  window.open(url, '_blank')
 }
 
 // ==================== RENDER PAGE ====================
@@ -50,14 +54,14 @@ function renderDepositoPage() {
           </div>
 
           <button onclick="abrirChangelly()" class="deposito-btn primary">
-            💰 Comprar POL com PIX
+            💰 Depositar a partir de R$ 25
           </button>
 
           <div class="info-text">
             <small>
-              • Abre em nova aba<br>
-              • Sua carteira já vem preenchida<br>
-              • Aceita PIX e outros métodos
+              • Valor mínimo: R$ 25,00<br>
+              • Carteira já preenchida automaticamente<br>
+              • Aceita PIX, cartão e transferência
             </small>
           </div>
 
