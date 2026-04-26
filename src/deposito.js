@@ -36,18 +36,17 @@ async function copiarEndereco() {
 }
 
 // ==================== MODAL PADRÃO DO SITE ====================
-function showCopyWalletRequiredModal() {
-  return openUiModal({
-    title: 'Atenção',
-    text: 'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
-    confirmText: '📋 Copiar Endereço',
-    cancelText: 'Cancelar',
-    showCancel: true
-  }).then(async (result) => {
-    if (result) {
-      await copiarEndereco()
-    }
-  })
+async function showCopyWalletRequiredModal() {
+  const confirmed = await showMessageModal(
+    'Atenção',
+    'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
+    '📋 Copiar Endereço',
+    true
+  )
+
+  if (confirmed) {
+    await copiarEndereco()
+  }
 }
 
 // ==================== ABRIR CHANGELLY ====================
@@ -88,11 +87,11 @@ function renderDepositoPage() {
           </div>
 
           <button onclick="copiarEndereco()" class="deposito-btn secondary" id="btn-copiar">
-            Copiar Endereço da Carteira
+            📋 Copiar Endereço da Carteira
           </button>
 
           <button onclick="abrirChangelly()" class="deposito-btn primary" id="btn-comprar">
-             Abrir Changelly
+            💰 Abrir Changelly
           </button>
 
           <div class="info-text">
