@@ -44,7 +44,7 @@ function renderSaquePage() {
 <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
             
               • Valor mínimo: R$ 98,00 (aprox.)<br>
-              • Venda automática de POL<br>
+              • KYC necessário apenas uma única vez<br>
               • Recebimento via PIX<br>
               • Taxas do MoonPay aplicadas
             
