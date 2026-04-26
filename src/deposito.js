@@ -102,13 +102,11 @@ function renderDepositoPage() {
           <p class="deposito-subtitle">Compre POL com Changelly</p>
 
 
- <div class="info-text">
-            <small>
-              1. Copie sua carteira<br>
-              2. O acesso ao Changelly será liberado<br>
-              3. Pague com PIX
-            </small>
-          </div>
+ <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
+  1. Copie sua carteira<br>
+  2. O acesso ao Changelly será liberado<br>
+  3. Pague com PIX
+</div>
 
 
 
