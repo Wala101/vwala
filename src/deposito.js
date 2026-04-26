@@ -26,34 +26,37 @@ async function copiarEndereco() {
       'Continuar'
     )
   } catch (err) {
-    await showMessageModal('Erro', 'Não foi possível copiar o endereço. Tente novamente.')
+    await showMessageModal(
+      'Erro',
+      'Não foi possível copiar o endereço. Tente novamente.'
+    )
   }
+}
+
+// ==================== MODAL PADRÃO DO SITE ====================
+function showCopyWalletRequiredModal() {
+  openUiModal({
+    title: 'Atenção',
+    text: 'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
+    confirmText: '📋 Copiar Endereço',
+    cancelText: 'Cancelar',
+    showCancel: true
+  }).then(async (result) => {
+    if (result) {
+      await copiarEndereco()
+    }
+  })
 }
 
 // ==================== ABRIR CHANGELLY ====================
 function abrirChangelly() {
   if (!addressCopied) {
-    showCustomModal()   // Modal personalizado igual o do app
+    showCopyWalletRequiredModal()
     return
   }
 
   const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
   window.open(url, '_blank')
-}
-
-// ==================== MODAL PERSONALIZADO ====================
-function showCustomModal() {
-  openUiModal({
-    title: '⚠️ Atenção',
-    text: 'Antes de abrir o Changelly, você precisa copiar sua carteira.',
-    confirmText: '📋 Copiar Endereço',
-    cancelText: 'Cancelar',
-    showCancel: true
-  }).then(result => {
-    if (result) {
-      copiarEndereco()
-    }
-  })
 }
 
 // ==================== RENDER PAGE ====================
@@ -93,7 +96,7 @@ function renderDepositoPage() {
           <div class="info-text">
             <small>
               1. Copie sua carteira<br>
-              2. Clique no botão verde para abrir o Changelly<br>
+              2. Clique em Abrir Changelly<br>
               3. Pague com PIX
             </small>
           </div>
@@ -108,7 +111,7 @@ function renderDepositoPage() {
 
   const walletEl = document.getElementById('wallet-display')
   if (walletEl && currentWalletAddress) {
-    walletEl.textContent = `${currentWalletAddress.slice(0,6)}...${currentWalletAddress.slice(-4)}`
+    walletEl.textContent = `${currentWalletAddress.slice(0, 6)}...${currentWalletAddress.slice(-4)}`
   }
 }
 
@@ -118,7 +121,7 @@ onAuthStateChanged(auth, () => {
 
   if (!currentWalletAddress) {
     showMessageModal('Atenção', 'Endereço da carteira não informado.')
-    window.location.href = "carteira.html"
+    window.location.href = 'carteira.html'
     return
   }
 
