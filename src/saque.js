@@ -41,22 +41,22 @@ function renderSaquePage() {
           <h1>Saque via PIX</h1>
           <p class="deposito-subtitle">Venda POL e receba em Reais</p>
 
-          <button onclick="abrirMoonpaySaque()" class="deposito-btn primary">
-            💸 Sacar via PIX
-          </button>
-
-          <div class="info-text" style="margin-top: 30px;">
-            <small>
+<div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
+            
               • Valor mínimo: R$ 98,00 (aprox.)<br>
               • Venda automática de POL<br>
               • Recebimento via PIX<br>
               • Taxas do MoonPay aplicadas
-            </small>
+            
           </div>
 
-          <button onclick="window.history.back()" class="deposito-btn secondary" style="margin-top: 20px;">
-            ← Voltar para Carteira
+
+          <button onclick="abrirMoonpaySaque()" class="deposito-btn primary">
+             Sacar via PIX
           </button>
+
+         
+
         </section>
       </div>
     </div>
