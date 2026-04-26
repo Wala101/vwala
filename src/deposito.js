@@ -41,7 +41,7 @@ async function copiarEndereco() {
   }
 }
 
-async async function showCopyWalletRequiredModal() {
+async function showCopyWalletRequiredModal() {
   if (typeof showMessageModal !== 'function') {
     const confirmed = window.confirm(
       'Antes de abrir o Changelly, copie primeiro o endereço da sua carteira.'
@@ -78,12 +78,8 @@ async function abrirChangelly() {
   window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-    return
-  }
 
-  const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
-  window.open(url, '_blank', 'noopener,noreferrer')
-}
+
 
 function renderDepositoPage() {
   const app = document.querySelector('#app')
