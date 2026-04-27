@@ -2,20 +2,19 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
 const COMPETITIONS = [
-  { code: 'BSA', fallbackName: 'Brasileirão Série A', maxMatches: 10 },
-  { code: 'PD', fallbackName: 'Primera Division', maxMatches: 10 },
-  { code: 'BL1', fallbackName: 'Bundesliga', maxMatches: 10 },
-  { code: 'SA', fallbackName: 'Serie A', maxMatches: 10 },
-  { code: 'PL', fallbackName: 'Premier League', maxMatches: 10 },
-  { code: 'CL', fallbackName: 'Champions League', maxMatches: 10 }
+  { code: 'BSA', fallbackName: 'Brasileirão Série A', maxMatches: 15 },
+  { code: 'PL',  fallbackName: 'Premier League',        maxMatches: 12 },
+  { code: 'PD',  fallbackName: 'Primera Division',      maxMatches: 12 },
+  { code: 'BL1', fallbackName: 'Bundesliga',            maxMatches: 12 },
+  { code: 'SA',  fallbackName: 'Serie A',               maxMatches: 12 },
+  { code: 'FL1', fallbackName: 'Ligue 1',               maxMatches: 10 },
+  { code: 'CL',  fallbackName: 'Champions League',      maxMatches: 10 },
+  { code: 'PPL', fallbackName: 'Primeira Liga',         maxMatches: 8 }
 ]
 
 if (!getApps().length) {
   const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-
-  initializeApp({
-    credential: cert(serviceAccount)
-  })
+  initializeApp({ credential: cert(serviceAccount) })
 }
 
 const db = getFirestore()
@@ -31,9 +30,7 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
 async function footballDataGetJson(url, token) {
   const response = await fetch(url, {
-    headers: {
-      'X-Auth-Token': token
-    }
+    headers: { 'X-Auth-Token': token }
   })
 
   if (!response.ok) {
@@ -45,14 +42,14 @@ async function footballDataGetJson(url, token) {
 }
 
 function sortByUtcDateAsc(list = []) {
-  return [...list].sort(
-    (a, b) => new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime()
+  return [...list].sort((a, b) => 
+    new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime()
   )
 }
 
 function sortByUtcDateDesc(list = []) {
-  return [...list].sort(
-    (a, b) => new Date(b?.utcDate || 0).getTime() - new Date(a?.utcDate || 0).getTime()
+  return [...list].sort((a, b) => 
+    new Date(b?.utcDate || 0).getTime() - new Date(a?.utcDate || 0).getTime()
   )
 }
 
@@ -63,30 +60,20 @@ function getTeamGoalsFromMatch(match, teamId) {
   const homeGoals = Number(match?.score?.fullTime?.home ?? match?.score?.fullTime?.homeTeam ?? 0)
   const awayGoals = Number(match?.score?.fullTime?.away ?? match?.score?.fullTime?.awayTeam ?? 0)
 
-  if (teamId === homeId) {
-    return { goalsFor: homeGoals, goalsAgainst: awayGoals }
-  }
-
-  if (teamId === awayId) {
-    return { goalsFor: awayGoals, goalsAgainst: homeGoals }
-  }
-
+  if (teamId === homeId) return { goalsFor: homeGoals, goalsAgainst: awayGoals }
+  if (teamId === awayId) return { goalsFor: awayGoals, goalsAgainst: homeGoals }
   return { goalsFor: 0, goalsAgainst: 0 }
 }
 
 function getRecentFormScore(matches = [], teamId) {
-  const recentMatches = sortByUtcDateDesc(matches).slice(0, 3)
+  const recentMatches = sortByUtcDateDesc(matches).slice(0, 5)
 
-  let points = 0
-  let goalDiff = 0
-  let goalsFor = 0
+  let points = 0, goalDiff = 0, goalsFor = 0
 
   for (const match of recentMatches) {
     const { goalsFor: gf, goalsAgainst: ga } = getTeamGoalsFromMatch(match, teamId)
-
     goalsFor += gf
     goalDiff += gf - ga
-
     if (gf > ga) points += 3
     else if (gf === ga) points += 1
   }
@@ -112,19 +99,10 @@ function buildThreeWayProbabilities(homeForm, awayForm) {
     return { homeProbBps: 4000, drawProbBps: 2000, awayProbBps: 4000 }
   }
 
-  let favoriteBps = 7500
-  let drawBps = 1000
-  let underdogBps = 1500
+  let favoriteBps = 7500, drawBps = 1000, underdogBps = 1500
 
-  if (absDiff >= 360) {
-    favoriteBps = 8000
-    drawBps = 800
-    underdogBps = 1200
-  } else if (absDiff >= 220) {
-    favoriteBps = 7800
-    drawBps = 900
-    underdogBps = 1300
-  }
+  if (absDiff >= 360) { favoriteBps = 8000; drawBps = 800; underdogBps = 1200 }
+  else if (absDiff >= 220) { favoriteBps = 7800; drawBps = 900; underdogBps = 1300 }
 
   return diff > 0
     ? { homeProbBps: favoriteBps, drawProbBps: drawBps, awayProbBps: underdogBps }
@@ -139,85 +117,79 @@ export default async function handler() {
 
   try {
     const token = process.env.FOOTBALL_DATA_TOKEN
-
-    if (!token) {
-      throw new Error('FOOTBALL_DATA_TOKEN não configurado.')
-    }
+    if (!token) throw new Error('FOOTBALL_DATA_TOKEN não configurado.')
 
     const now = new Date()
     const dateFrom = formatDateYMD(now)
-
     const limitDate = new Date(now)
-    limitDate.setDate(limitDate.getDate() + 7)
+    limitDate.setDate(limitDate.getDate() + 14)
     const dateTo = formatDateYMD(limitDate)
 
     const teamRecentMatchesCache = new Map()
     const allMatches = []
 
+    console.log(`🔄 Iniciando sync: ${dateFrom} até ${dateTo}`)
+
     async function getTeamRecentMatches(teamId) {
-  await delay(300)
+      await delay(250)
       const cacheKey = String(teamId)
+      if (teamRecentMatchesCache.has(cacheKey)) return teamRecentMatchesCache.get(cacheKey)
 
-      if (teamRecentMatchesCache.has(cacheKey)) {
-        return teamRecentMatchesCache.get(cacheKey)
+      try {
+        const teamData = await footballDataGetJson(
+          `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`,
+          token
+        )
+        const recent = Array.isArray(teamData?.matches) 
+          ? sortByUtcDateDesc(teamData.matches).slice(0, 5) 
+          : []
+        teamRecentMatchesCache.set(cacheKey, recent)
+        return recent
+      } catch (e) {
+        console.warn(`⚠️ Forma recente falhou para time ${teamId}`)
+        return []
       }
-
-      const teamData = await footballDataGetJson(
-        `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=3`,
-        token
-      )
-
-      const recentMatches = Array.isArray(teamData?.matches)
-        ? sortByUtcDateDesc(teamData.matches).slice(0, 3)
-        : []
-
-      teamRecentMatchesCache.set(cacheKey, recentMatches)
-      return recentMatches
     }
 
     for (const competition of COMPETITIONS) {
-  await delay(1000)
+      await delay(800)
+
       try {
         const data = await footballDataGetJson(
           `https://api.football-data.org/v4/competitions/${competition.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
           token
         )
 
-        const matches = Array.isArray(data?.matches)
-          ? sortByUtcDateAsc(data.matches)
-              .filter(match =>
-                ['SCHEDULED', 'TIMED'].includes(match?.status) &&
-                match?.homeTeam?.id &&
-                match?.awayTeam?.id &&
-                match?.homeTeam?.name &&
-                match?.awayTeam?.name &&
-                match?.utcDate
-              )
-              .slice(0, competition.maxMatches)
-          : []
+        let matches = Array.isArray(data?.matches) ? data.matches : []
 
-        for (const match of matches) {
+        matches = sortByUtcDateAsc(matches).filter(match =>
+          ['SCHEDULED', 'TIMED'].includes(match?.status) &&
+          match?.homeTeam?.id && match?.awayTeam?.id &&
+          match?.homeTeam?.name && match?.awayTeam?.name &&
+          match?.utcDate
+        )
+
+        console.log(`✅ ${competition.code} → ${matches.length} jogos encontrados`)
+
+        const limitedMatches = matches.slice(0, competition.maxMatches)
+
+        for (const match of limitedMatches) {
           const homeTeamId = Number(match.homeTeam.id)
           const awayTeamId = Number(match.awayTeam.id)
 
-          let probabilities = {
-            homeProbBps: 4000,
-            drawProbBps: 2000,
-            awayProbBps: 4000
-          }
+          let probabilities = { homeProbBps: 4000, drawProbBps: 2000, awayProbBps: 4000 }
 
           try {
             const [homeRecent, awayRecent] = await Promise.all([
               getTeamRecentMatches(homeTeamId),
               getTeamRecentMatches(awayTeamId)
             ])
-
             probabilities = buildThreeWayProbabilities(
               getRecentFormScore(homeRecent, homeTeamId),
               getRecentFormScore(awayRecent, awayTeamId)
             )
-          } catch (error) {
-            console.error(`Erro ao calcular probabilidades do jogo ${match.id}:`, error)
+          } catch (e) {
+            console.warn(`Probabilidades falharam para jogo ${match.id}`)
           }
 
           const matchDoc = {
@@ -229,6 +201,7 @@ export default async function handler() {
             homeTeamId,
             awayTeamId,
             utcDate: match.utcDate,
+            kickoffAt: match.utcDate,                    // Campo extra útil
             time: new Date(match.utcDate).toLocaleString('pt-BR', {
               dateStyle: 'short',
               timeStyle: 'short'
@@ -240,39 +213,38 @@ export default async function handler() {
             updatedAt: FieldValue.serverTimestamp()
           }
 
-          await db.collection('football_matches').doc(String(match.id)).set(matchDoc, { merge: true })
+          await db.collection('football_matches')
+            .doc(String(match.id))
+            .set(matchDoc, { merge: true })
+
           allMatches.push(matchDoc)
         }
       } catch (error) {
-        console.error(`Erro na competição ${competition.code}:`, error)
+        console.error(`❌ Erro na competição ${competition.code}:`, error.message)
       }
     }
 
     await db.collection('football_metadata').doc('sync_status').set({
       lastSyncAt: FieldValue.serverTimestamp(),
       totalMatches: allMatches.length,
-      competitions: COMPETITIONS.length
+      dateFrom,
+      dateTo
     }, { merge: true })
+
+    console.log(`🎉 SYNC FINALIZADO! Total de jogos salvos: ${allMatches.length}`)
 
     return new Response(JSON.stringify({
       success: true,
       syncedMatches: allMatches.length,
-      competitions: COMPETITIONS.length,
       dateFrom,
       dateTo
-    }), {
-      status: 200,
-      headers
-    })
-  } catch (error) {
-    console.error('Erro geral:', error)
+    }), { status: 200, headers })
 
-    return new Response(JSON.stringify({
-      success: false,
-      error: error.message || 'Erro interno.'
-    }), {
-      status: 500,
-      headers
-    })
+  } catch (error) {
+    console.error('Erro geral no sync:', error)
+    return new Response(JSON.stringify({ 
+      success: false, 
+      error: error.message 
+    }), { status: 500, headers })
   }
 }
