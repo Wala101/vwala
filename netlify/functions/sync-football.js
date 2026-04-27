@@ -3,6 +3,9 @@ import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
 const COMPETITIONS = [
   { code: 'BSA', fallbackName: 'Brasileirão Série A', maxMatches: 10 },
+  { code: 'PD', fallbackName: 'Primera Division', maxMatches: 10 },
+  { code: 'BL1', fallbackName: 'Bundesliga', maxMatches: 10 },
+  { code: 'SA', fallbackName: 'Serie A', maxMatches: 10 },
   { code: 'PL', fallbackName: 'Premier League', maxMatches: 10 },
   { code: 'CL', fallbackName: 'Champions League', maxMatches: 10 }
 ]
@@ -145,7 +148,7 @@ export default async function handler() {
     const dateFrom = formatDateYMD(now)
 
     const limitDate = new Date(now)
-    limitDate.setDate(limitDate.getDate() + 5)
+    limitDate.setDate(limitDate.getDate() + 7)
     const dateTo = formatDateYMD(limitDate)
 
     const teamRecentMatchesCache = new Map()
