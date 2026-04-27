@@ -1239,59 +1239,51 @@ async function refreshWalletBalance() {
   await loadUserTokenBalance()
 }
 
-// ==================== NOVA FUNÇÃO - LER DO FIREBASE ====================
-// ==================== FUNÇÃO ATUALIZADA - CHAMA A API ====================
+//================== FUNÇÃO OTIMIZADA - FRONTEND ====================
 async function fetchMatches() {
   try {
-    console.log("📡 Chamando sync-football (API)...")
+    console.log("📡 Verificando jogos no Firebase...");
 
-    const response = await fetch(`${API_BASE}/sync-football`)
-
-    if (!response.ok) {
-      console.error(`Erro na API: ${response.status}`)
-      throw new Error(`HTTP ${response.status}`)
-    }
-
-    const payload = await response.json()
-    
-    console.log(`✅ API retornou ${payload.syncedMatches || 0} jogos sincronizados`)
-
-    // Agora carrega do Firebase (mais confiável)
-    const agora = new Date().toISOString()
+    const agora = new Date().toISOString();
 
     const q = query(
       collection(db, 'football_matches'),
       where('utcDate', '>=', agora),
       orderBy('utcDate', 'asc'),
-      limit(100)
-    )
+      limit(120)
+    );
 
-    const snapshot = await getDocs(q)
-
-    console.log(`📥 ${snapshot.size} jogos carregados do Firebase para exibição`)
-
-    return snapshot.docs.map(doc => ({
+    const snapshot = await getDocs(q);
+    let firebaseMatches = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
-    }))
+    }));
+
+    console.log(`📥 Firebase retornou ${firebaseMatches.length} jogos`);
+
+    // Se tiver menos de 15 jogos, força o sync
+    if (firebaseMatches.length < 15) {
+      console.log("🔄 Poucos jogos no Firebase, chamando sync...");
+      
+      const syncResponse = await fetch(`${API_BASE}/sync-football`);
+      if (syncResponse.ok) {
+        const syncResult = await syncResponse.json();
+        console.log(`✅ Sync executado: ${syncResult.syncedMatches || 0} jogos`);
+      }
+
+      // Recarrega do Firebase após sync
+      const newSnapshot = await getDocs(q);
+      firebaseMatches = newSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+    }
+
+    return firebaseMatches;
 
   } catch (error) {
-    console.error('Erro ao carregar jogos:', error)
-
-    // Fallback: tenta carregar direto do Firebase se a API falhar
-    try {
-      const agora = new Date().toISOString()
-      const q = query(
-        collection(db, 'football_matches'),
-        where('utcDate', '>=', agora),
-        orderBy('utcDate', 'asc'),
-        limit(80)
-      )
-      const snapshot = await getDocs(q)
-      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
-    } catch (e) {
-      return []
-    }
+    console.error('Erro ao carregar jogos:', error);
+    return [];
   }
 }
 
