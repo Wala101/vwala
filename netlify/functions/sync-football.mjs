@@ -22,31 +22,7 @@ const COMPETITIONS = [
     code: 'PD',
     fallbackName: 'La Liga',
     maxMatches: 10
-  },
-  {
-    code: 'SA',
-    fallbackName: 'Serie A',
-    maxMatches: 10
-  },
-  {
-    code: 'BL1',
-    fallbackName: 'Bundesliga',
-    maxMatches: 10
-  },
-  {
-    code: 'FL1',
-    fallbackName: 'Ligue 1',
-    maxMatches: 10
-  },
-  {
-    code: 'CLI',
-    fallbackName: 'Copa Libertadores',
-    maxMatches: 10
-  },
-  {
-    code: 'CSA',
-    fallbackName: 'Copa Sul-Americana',
-    maxMatches: 10
+    
   }
 ]
 
