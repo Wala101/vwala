@@ -3,11 +3,7 @@ import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
 const COMPETITIONS = [
-  { code: 'BSA', fallbackName: 'Campeonato Brasileiro Série A', maxMatches: 12 },
-  { code: 'PL',  fallbackName: 'Premier League', maxMatches: 10 },
-  { code: 'CL',  fallbackName: 'UEFA Champions League', maxMatches: 10 },
-  { code: 'PD',  fallbackName: 'La Liga', maxMatches: 10 },
-  { code: 'SA',  fallbackName: 'Serie A', maxMatches: 10 }
+  { code: 'BSA', fallbackName: 'Campeonato Brasileiro Série A', maxMatches: 20 }
 ]
 
 if (!getApps().length) {
@@ -45,90 +41,42 @@ function getTeamGoalsFromMatch(match, teamId) {
   return { goalsFor: 0, goalsAgainst: 0 }
 }
 
-// ====================== MELHORIA AQUI ======================
 function getRecentFormScore(matches = [], teamId) {
-  const recent = matches.slice(0, 5) // últimos 5 jogos
-  let points = 0
-  let goalDiff = 0
-  let goalsFor = 0
-  let wins = 0
+  const recent = matches.slice(0, 5)
+  let points = 0, goalDiff = 0
 
   for (const match of recent) {
     const { goalsFor: gf, goalsAgainst: ga } = getTeamGoalsFromMatch(match, teamId)
-    goalsFor += gf
     goalDiff += gf - ga
-
-    if (gf > ga) {
-      points += 3
-      wins += 1
-    } else if (gf === ga) {
-      points += 1
-    }
+    if (gf > ga) points += 3
+    else if (gf === ga) points += 1
   }
-
-  return {
-    points,
-    goalDiff,
-    goalsFor,
-    wins,
-    score: points * 110 + goalDiff * 18 + wins * 80   // pontuação mais equilibrada
-  }
+  return { score: points * 110 + goalDiff * 18 }
 }
 
-// ====================== MELHORIA AQUI ======================
 function buildThreeWayProbabilities(homeForm, awayForm) {
-  const homeScore = homeForm?.score || 3800
-  const awayScore = awayForm?.score || 3800
-
-  let diff = homeScore - awayScore
-
-  // Vantagem de mandante (importante no futebol)
-  diff += 220
+  let diff = (homeForm?.score || 3800) - (awayForm?.score || 3800)
+  diff += 220 // vantagem de mandante
 
   const absDiff = Math.abs(diff)
 
-  let homeProb = 4000
-  let drawProb = 2400
-  let awayProb = 3600
-
   if (absDiff >= 650) {
-    // Jogo muito desequilibrado
-    homeProb = diff > 0 ? 7200 : 1600
-    awayProb = diff > 0 ? 1600 : 7200
-    drawProb = 1200
-  } 
-  else if (absDiff >= 350) {
-    // Favorito claro
-    homeProb = diff > 0 ? 6200 : 2200
-    awayProb = diff > 0 ? 2200 : 6200
-    drawProb = 1600
-  } 
-  else if (absDiff >= 120) {
-    // Leve favorito
-    homeProb = diff > 0 ? 5200 : 3000
-    awayProb = diff > 0 ? 3000 : 5200
-    drawProb = 1800
-  } 
-  else {
-    // Jogo equilibrado
-    homeProb = 4600
-    awayProb = 3200
-    drawProb = 2200
+    return diff > 0 
+      ? { homeProbBps: 7200, drawProbBps: 1400, awayProbBps: 1400 }
+      : { homeProbBps: 1600, drawProbBps: 1400, awayProbBps: 7000 }
+  }
+  if (absDiff >= 350) {
+    return diff > 0 
+      ? { homeProbBps: 6200, drawProbBps: 1600, awayProbBps: 2200 }
+      : { homeProbBps: 2300, drawProbBps: 1600, awayProbBps: 6100 }
+  }
+  if (absDiff >= 120) {
+    return diff > 0 
+      ? { homeProbBps: 5300, drawProbBps: 1900, awayProbBps: 2800 }
+      : { homeProbBps: 2900, drawProbBps: 1900, awayProbBps: 5200 }
   }
 
-  // Normaliza para exatamente 10000
-  const total = homeProb + drawProb + awayProb
-  const factor = 10000 / total
-
-  homeProb = Math.round(homeProb * factor)
-  drawProb = Math.round(drawProb * factor)
-  awayProb = 10000 - homeProb - drawProb
-
-  return {
-    homeProbBps: homeProb,
-    drawProbBps: drawProb,
-    awayProbBps: awayProb
-  }
+  return { homeProbBps: 4600, drawProbBps: 2200, awayProbBps: 3200 }
 }
 
 export default async () => {
@@ -138,69 +86,75 @@ export default async () => {
 
     const now = new Date()
     const dateFrom = formatDateYMD(now)
-    const dateTo = new Date(now.getTime() + 12*86400000).toISOString().split('T')[0]
+    const dateTo = new Date(now.getTime() + 14*86400000).toISOString().split('T')[0]
 
-    console.log(`🔄 Sync iniciado: ${dateFrom} → ${dateTo}`)
+    console.log(`🔄 Sync Brasileirão iniciado: ${dateFrom} → ${dateTo}`)
 
     let totalSaved = 0
-    const teamCache = new Map()
 
-    for (const comp of COMPETITIONS) {
-      try {
-        const data = await footballDataGetJson(
-          `https://api.football-data.org/v4/competitions/${comp.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
-          token
-        )
+    const comp = COMPETITIONS[0]
 
-        const matches = sortByUtcDateAsc(data?.matches || []).filter(m =>
-          ['SCHEDULED', 'TIMED'].includes(m?.status) && m.homeTeam?.id && m.awayTeam?.id
-        )
+    try {
+      const data = await footballDataGetJson(
+        `https://api.football-data.org/v4/competitions/${comp.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
+        token
+      )
 
-        console.log(`✅ ${comp.code} → ${matches.length} jogos`)
+      const matches = sortByUtcDateAsc(data?.matches || []).filter(m =>
+        ['SCHEDULED', 'TIMED'].includes(m?.status) && m.homeTeam?.id && m.awayTeam?.id
+      )
 
-        for (const match of matches.slice(0, comp.maxMatches)) {
-          const homeId = Number(match.homeTeam.id)
-          const awayId = Number(match.awayTeam.id)
+      console.log(`✅ ${comp.code} → ${matches.length} jogos encontrados`)
 
-          let probabilities = { homeProbBps: 4000, drawProbBps: 2000, awayProbBps: 4000 }
+      for (const match of matches) {
+        const homeId = Number(match.homeTeam.id)
+        const awayId = Number(match.awayTeam.id)
 
-          try {
-            const [homeRecent, awayRecent] = await Promise.all([
-              getRecentForm(homeId),
-              getRecentForm(awayId)
-            ])
-            probabilities = buildThreeWayProbabilities(homeRecent, awayRecent)
-          } catch {}
+        let probabilities = { homeProbBps: 4000, drawProbBps: 2000, awayProbBps: 4000 }
 
-          const matchData = {
-            fixtureId: Number(match.id),
-            competitionCode: comp.code,
-            league: match.competition?.name || comp.fallbackName,
-            teamA: match.homeTeam.name,
-            teamB: match.awayTeam.name,
-            utcDate: match.utcDate,
-            time: new Date(match.utcDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
-            status: match.status,
-            homeProbBps: probabilities.homeProbBps,
-            drawProbBps: probabilities.drawProbBps,
-            awayProbBps: probabilities.awayProbBps,
-            updatedAt: FieldValue.serverTimestamp()
-          }
+        // Calcula probabilidades (só se tiver dados de forma)
+        try {
+          // Aqui você pode adicionar cache de rodada se quiser limitar atualização a cada 2 rodadas
+          const [homeRecent, awayRecent] = await Promise.all([
+            getRecentForm(homeId),
+            getRecentForm(awayId)
+          ])
+          probabilities = buildThreeWayProbabilities(homeRecent, awayRecent)
+        } catch {}
 
-          await db.collection('football_matches').doc(String(match.id)).set(matchData, { merge: true })
-          totalSaved++
+        const matchData = {
+          fixtureId: Number(match.id),
+          competitionCode: comp.code,
+          league: match.competition?.name || comp.fallbackName,
+          teamA: match.homeTeam.name,
+          teamB: match.awayTeam.name,
+          utcDate: match.utcDate,
+          time: new Date(match.utcDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+          status: match.status,
+          matchday: match.matchday || null,           // ← importante para filtrar por rodada
+          homeProbBps: probabilities.homeProbBps,
+          drawProbBps: probabilities.drawProbBps,
+          awayProbBps: probabilities.awayProbBps,
+          updatedAt: FieldValue.serverTimestamp()
         }
-      } catch (e) {
-        console.error(`❌ ${comp.code}:`, e.message)
+
+        await db.collection('football_matches')
+          .doc(String(match.id))
+          .set(matchData, { merge: true })
+
+        totalSaved++
       }
+    } catch (e) {
+      console.error(`❌ BSA:`, e.message)
     }
 
     await db.collection('football_metadata').doc('sync_status').set({
       lastSyncAt: FieldValue.serverTimestamp(),
-      totalMatches: totalSaved
+      totalMatches: totalSaved,
+      competition: 'BSA'
     }, { merge: true })
 
-    console.log(`🎉 SYNC FINALIZADO → ${totalSaved} jogos salvos`)
+    console.log(`🎉 SYNC FINALIZADO → ${totalSaved} jogos do Brasileirão salvos`)
 
     return new Response(JSON.stringify({ success: true, syncedMatches: totalSaved }), { status: 200 })
 
@@ -210,17 +164,12 @@ export default async () => {
   }
 
   async function getRecentForm(teamId) {
-    const key = String(teamId)
-    if (teamCache.has(key)) return teamCache.get(key)
-
     try {
       const data = await footballDataGetJson(
         `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`,
         process.env.FOOTBALL_DATA_TOKEN
       )
-      const form = getRecentFormScore(data?.matches || [], teamId)
-      teamCache.set(key, form)
-      return form
+      return getRecentFormScore(data?.matches || [], teamId)
     } catch {
       return { score: 3800 }
     }
