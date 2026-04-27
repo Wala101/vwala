@@ -45,30 +45,89 @@ function getTeamGoalsFromMatch(match, teamId) {
   return { goalsFor: 0, goalsAgainst: 0 }
 }
 
+// ====================== MELHORIA AQUI ======================
 function getRecentFormScore(matches = [], teamId) {
-  const recent = matches.slice(0, 4)
-  let points = 0, goalDiff = 0
+  const recent = matches.slice(0, 5) // últimos 5 jogos
+  let points = 0
+  let goalDiff = 0
+  let goalsFor = 0
+  let wins = 0
 
   for (const match of recent) {
     const { goalsFor: gf, goalsAgainst: ga } = getTeamGoalsFromMatch(match, teamId)
+    goalsFor += gf
     goalDiff += gf - ga
-    if (gf > ga) points += 3
-    else if (gf === ga) points += 1
+
+    if (gf > ga) {
+      points += 3
+      wins += 1
+    } else if (gf === ga) {
+      points += 1
+    }
   }
-  return { score: points * 100 + goalDiff * 10 }
+
+  return {
+    points,
+    goalDiff,
+    goalsFor,
+    wins,
+    score: points * 110 + goalDiff * 18 + wins * 80   // pontuação mais equilibrada
+  }
 }
 
+// ====================== MELHORIA AQUI ======================
 function buildThreeWayProbabilities(homeForm, awayForm) {
-  const diff = (homeForm?.score || 0) - (awayForm?.score || 0)
+  const homeScore = homeForm?.score || 3800
+  const awayScore = awayForm?.score || 3800
+
+  let diff = homeScore - awayScore
+
+  // Vantagem de mandante (importante no futebol)
+  diff += 220
+
   const absDiff = Math.abs(diff)
 
-  if (absDiff <= 50) return { homeProbBps: 4000, drawProbBps: 2200, awayProbBps: 3800 }
+  let homeProb = 4000
+  let drawProb = 2400
+  let awayProb = 3600
 
-  let favorite = diff > 0 ? 7200 : 2800
+  if (absDiff >= 650) {
+    // Jogo muito desequilibrado
+    homeProb = diff > 0 ? 7200 : 1600
+    awayProb = diff > 0 ? 1600 : 7200
+    drawProb = 1200
+  } 
+  else if (absDiff >= 350) {
+    // Favorito claro
+    homeProb = diff > 0 ? 6200 : 2200
+    awayProb = diff > 0 ? 2200 : 6200
+    drawProb = 1600
+  } 
+  else if (absDiff >= 120) {
+    // Leve favorito
+    homeProb = diff > 0 ? 5200 : 3000
+    awayProb = diff > 0 ? 3000 : 5200
+    drawProb = 1800
+  } 
+  else {
+    // Jogo equilibrado
+    homeProb = 4600
+    awayProb = 3200
+    drawProb = 2200
+  }
+
+  // Normaliza para exatamente 10000
+  const total = homeProb + drawProb + awayProb
+  const factor = 10000 / total
+
+  homeProb = Math.round(homeProb * factor)
+  drawProb = Math.round(drawProb * factor)
+  awayProb = 10000 - homeProb - drawProb
+
   return {
-    homeProbBps: diff > 0 ? favorite : 10000 - favorite - 1800,
-    drawProbBps: 1800,
-    awayProbBps: diff > 0 ? 10000 - favorite - 1800 : favorite
+    homeProbBps: homeProb,
+    drawProbBps: drawProb,
+    awayProbBps: awayProb
   }
 }
 
@@ -156,14 +215,14 @@ export default async () => {
 
     try {
       const data = await footballDataGetJson(
-        `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=4`,
+        `https://api.football-data.org/v4/teams/${teamId}/matches?status=FINISHED&limit=5`,
         process.env.FOOTBALL_DATA_TOKEN
       )
       const form = getRecentFormScore(data?.matches || [], teamId)
       teamCache.set(key, form)
       return form
     } catch {
-      return { score: 0 }
+      return { score: 3800 }
     }
   }
 }
