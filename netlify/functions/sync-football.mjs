@@ -7,9 +7,7 @@ const COMPETITIONS = [
   { code: 'PL',  fallbackName: 'Premier League', maxMatches: 12 },
   { code: 'CL',  fallbackName: 'UEFA Champions League', maxMatches: 10 },
   { code: 'PD',  fallbackName: 'La Liga', maxMatches: 12 },
-  { code: 'SA',  fallbackName: 'Serie A', maxMatches: 12 },
-  { code: 'BL1', fallbackName: 'Bundesliga', maxMatches: 10 },
-  { code: 'FL1', fallbackName: 'Ligue 1', maxMatches: 10 }
+  { code: 'SA',  fallbackName: 'Serie A', maxMatches: 12 }
 ]
 
 if (!getApps().length) {
@@ -42,128 +40,74 @@ function sortByUtcDateAsc(list = []) {
   return [...list].sort((a, b) => new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime())
 }
 
-function sortByUtcDateDesc(list = []) {
-  return [...list].sort((a, b) => new Date(b?.utcDate || 0).getTime() - new Date(a?.utcDate || 0).getTime())
-}
-
-// Funções originais mantidas
-function getTeamGoalsFromMatch(match, teamId) { /* ... sua função original */ }
-function getRecentFormScore(matches = [], teamId) { /* ... sua função original */ }
-function buildThreeWayProbabilities(homeForm, awayForm) { /* ... sua função original */ }
-
 export default async () => {
-  const jsonHeaders = {
-    'content-type': 'application/json',
-    'cache-control': 'public, max-age=180, s-maxage=180'
-  }
-
   try {
     const token = process.env.FOOTBALL_DATA_TOKEN
-    if (!token) {
-      return new Response(JSON.stringify({ error: 'FOOTBALL_DATA_TOKEN não configurado.' }), { status: 500, headers: jsonHeaders })
-    }
+    if (!token) throw new Error('Token não configurado')
 
     const now = new Date()
     const dateFrom = formatDateYMD(now)
     const limitDate = new Date(now)
-    limitDate.setDate(limitDate.getDate() + 10)   // Aumentado para ter mais jogos
+    limitDate.setDate(limitDate.getDate() + 14)   // 14 dias
     const dateTo = formatDateYMD(limitDate)
-
-    const teamRecentMatchesCache = new Map()
-    const matches = []
 
     console.log(`🔄 Sync iniciado: ${dateFrom} até ${dateTo}`)
 
-    for (const competition of COMPETITIONS) {
-      let competitionData
+    let totalSaved = 0
 
+    for (const comp of COMPETITIONS) {
       try {
-        competitionData = await footballDataGetJson(
-          `https://api.football-data.org/v4/competitions/${competition.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
+        const data = await footballDataGetJson(
+          `https://api.football-data.org/v4/competitions/${comp.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
           token
         )
-      } catch (error) {
-        console.error(`Erro ao buscar ${competition.code}:`, error)
-        continue
-      }
 
-      const scheduledMatches = Array.isArray(competitionData?.matches)
-        ? sortByUtcDateAsc(competitionData.matches)
-            .filter((match) =>
-              ['SCHEDULED', 'TIMED'].includes(match?.status) &&
-              match?.homeTeam?.id &&
-              match?.awayTeam?.id &&
-              match?.homeTeam?.name &&
-              match?.awayTeam?.name &&
-              match?.utcDate
-            )
-            .slice(0, competition.maxMatches)
-        : []
+        const matches = sortByUtcDateAsc(data?.matches || []).filter(m =>
+          ['SCHEDULED', 'TIMED'].includes(m?.status) &&
+          m?.homeTeam?.id && m?.awayTeam?.id &&
+          m?.homeTeam?.name && m?.awayTeam?.name
+        )
 
-      console.log(`✅ ${competition.code} → ${scheduledMatches.length} jogos encontrados`)
+        console.log(`✅ ${comp.code} → ${matches.length} jogos encontrados`)
 
-      for (const match of scheduledMatches) {
-        const homeTeamId = Number(match.homeTeam.id)
-        const awayTeamId = Number(match.awayTeam.id)
-
-        let probabilities = { homeProbBps: 4000, drawProbBps: 2000, awayProbBps: 4000 }
-
-        try {
-          const [homeRecentMatches, awayRecentMatches] = await Promise.all([
-            getTeamRecentMatches(homeTeamId),
-            getTeamRecentMatches(awayTeamId)
-          ])
-
-          const homeForm = getRecentFormScore(homeRecentMatches, homeTeamId)
-          const awayForm = getRecentFormScore(awayRecentMatches, awayTeamId)
-
-          probabilities = buildThreeWayProbabilities(homeForm, awayForm)
-        } catch (error) {
-          console.error(`Erro ao calcular favorito do jogo ${match.id}:`, error)
-        }
-
-        const matchData = {
-          fixtureId: Number(match.id),
-          league: match.competition?.name || competition.fallbackName,
-          teamA: match.homeTeam?.name || 'Time A',
-          teamB: match.awayTeam?.name || 'Time B',
-          time: new Date(match.utcDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
-          utcDate: match.utcDate,
-          status: match.status,
-          homeProbBps: probabilities.homeProbBps,
-          drawProbBps: probabilities.drawProbBps,
-          awayProbBps: probabilities.awayProbBps
-        }
-
-        // 🔥 SALVA NO FIREBASE
-        await db.collection('football_matches')
-          .doc(String(match.id))
-          .set({
-            ...matchData,
-            competitionCode: competition.code,
+        for (const match of matches.slice(0, comp.maxMatches)) {
+          const matchData = {
+            fixtureId: Number(match.id),
+            competitionCode: comp.code,
+            league: match.competition?.name || comp.fallbackName,
+            teamA: match.homeTeam.name,
+            teamB: match.awayTeam.name,
+            utcDate: match.utcDate,
+            time: new Date(match.utcDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
+            status: match.status,
+            homeProbBps: 4000,
+            drawProbBps: 2000,
+            awayProbBps: 4000,
             updatedAt: FieldValue.serverTimestamp()
-          }, { merge: true })
+          }
 
-        matches.push(matchData)
+          await db.collection('football_matches')
+            .doc(String(match.id))
+            .set(matchData, { merge: true })
+
+          totalSaved++
+        }
+      } catch (e) {
+        console.error(`❌ ${comp.code}:`, e.message)
       }
     }
 
-    console.log(`✅ ${matches.length} jogos salvos no Firebase`)
+    await db.collection('football_metadata').doc('sync_status').set({
+      lastSyncAt: FieldValue.serverTimestamp(),
+      totalMatches: totalSaved
+    }, { merge: true })
 
-    return new Response(
-      JSON.stringify({ matches }),
-      { status: 200, headers: jsonHeaders }
-    )
+    console.log(`🎉 SYNC FINALIZADO → ${totalSaved} jogos salvos no Firebase`)
+
+    return new Response(JSON.stringify({ success: true, syncedMatches: totalSaved }), { status: 200 })
+
   } catch (error) {
-    console.error('Erro geral:', error)
-    return new Response(
-      JSON.stringify({ error: error.message || 'Erro interno.' }),
-      { status: 500, headers: jsonHeaders }
-    )
+    console.error('Erro sync:', error)
+    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 })
   }
-}
-
-// Função auxiliar (mantida)
-async function getTeamRecentMatches(teamId) {
-  // ... (sua função original)
 }
