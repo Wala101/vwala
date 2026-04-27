@@ -131,7 +131,7 @@ export default async function handler() {
     console.log(`🔄 Iniciando sync: ${dateFrom} até ${dateTo}`)
 
     async function getTeamRecentMatches(teamId) {
-      await delay(250)
+      await delay(150)
       const cacheKey = String(teamId)
       if (teamRecentMatchesCache.has(cacheKey)) return teamRecentMatchesCache.get(cacheKey)
 
@@ -152,7 +152,8 @@ export default async function handler() {
     }
 
     for (const competition of COMPETITIONS) {
-      await delay(800)
+       await delay(300)
+
 
       try {
         const data = await footballDataGetJson(
