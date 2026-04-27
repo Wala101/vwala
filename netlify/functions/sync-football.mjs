@@ -1,11 +1,15 @@
-// netlify/functions/sync-football.js
+// netlify/functions/sync-football.mjs
 import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
 const COMPETITIONS = [
-  { code: 'BSA', fallbackName: 'Brasileirão Série A', maxMatches: 12 },
+  { code: 'BSA', fallbackName: 'Campeonato Brasileiro Série A', maxMatches: 12 },
   { code: 'PL',  fallbackName: 'Premier League', maxMatches: 10 },
-  { code: 'CL',  fallbackName: 'Champions League', maxMatches: 8 }
+  { code: 'CL',  fallbackName: 'UEFA Champions League', maxMatches: 10 },
+  { code: 'PD',  fallbackName: 'La Liga', maxMatches: 10 },
+  { code: 'SA',  fallbackName: 'Serie A', maxMatches: 10 },
+  { code: 'BL1', fallbackName: 'Bundesliga', maxMatches: 10 },
+  { code: 'FL1', fallbackName: 'Ligue 1', maxMatches: 8 }
 ]
 
 if (!getApps().length) {
@@ -22,9 +26,11 @@ async function footballDataGetJson(url, token) {
   return res.json()
 }
 
-export default async function handler() {
-  const headers = { 'Content-Type': 'application/json' }
+function sortByUtcDateAsc(list = []) {
+  return [...list].sort((a, b) => new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime())
+}
 
+export default async function handler() {
   try {
     const token = process.env.FOOTBALL_DATA_TOKEN
     if (!token) throw new Error('Token não configurado')
@@ -38,7 +44,7 @@ export default async function handler() {
     let totalSaved = 0
 
     for (const comp of COMPETITIONS) {
-      await delay(200)
+      await delay(150)
 
       try {
         const data = await footballDataGetJson(
@@ -46,8 +52,8 @@ export default async function handler() {
           token
         )
 
-        const matches = (data?.matches || []).filter(m => 
-          ['SCHEDULED', 'TIMED'].includes(m.status) && m.homeTeam?.id && m.awayTeam?.id
+        const matches = sortByUtcDateAsc(data?.matches || []).filter(m =>
+          ['SCHEDULED', 'TIMED'].includes(m?.status) && m.homeTeam?.id && m.awayTeam?.id
         )
 
         console.log(`✅ ${comp.code} → ${matches.length} jogos`)
@@ -67,10 +73,7 @@ export default async function handler() {
             updatedAt: FieldValue.serverTimestamp()
           }
 
-          await db.collection('football_matches')
-            .doc(String(match.id))
-            .set(docData, { merge: true })
-
+          await db.collection('football_matches').doc(String(match.id)).set(docData, { merge: true })
           totalSaved++
         }
       } catch (e) {
@@ -83,15 +86,12 @@ export default async function handler() {
       totalMatches: totalSaved
     }, { merge: true })
 
-    console.log(`🎉 SYNC FINALIZADO - ${totalSaved} jogos salvos`)
+    console.log(`🎉 FINALIZADO → ${totalSaved} jogos salvos`)
 
-    return new Response(JSON.stringify({
-      success: true,
-      syncedMatches: totalSaved
-    }), { status: 200, headers })
+    return new Response(JSON.stringify({ success: true, syncedMatches: totalSaved }), { status: 200 })
 
   } catch (error) {
     console.error('Erro sync:', error)
-    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers })
+    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 })
   }
 }
