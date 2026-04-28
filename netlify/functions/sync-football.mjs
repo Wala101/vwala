@@ -2,10 +2,6 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app'
 import { getFirestore, FieldValue } from 'firebase-admin/firestore'
 
-const COMPETITIONS = [
-  { code: 'BSA', fallbackName: 'Campeonato Brasileiro Série A', maxMatches: 20 }
-]
-
 if (!getApps().length) {
   initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)) })
 }
@@ -21,7 +17,10 @@ function formatDateYMD(date) {
 
 async function footballDataGetJson(url, token) {
   const response = await fetch(url, { headers: { 'X-Auth-Token': token } })
-  if (!response.ok) throw new Error(`API Error ${response.status}`)
+  if (!response.ok) {
+    console.error(`❌ API Error ${response.status} - ${url}`)
+    throw new Error(`API Error ${response.status}`)
+  }
   return response.json()
 }
 
@@ -29,7 +28,7 @@ function sortByUtcDateAsc(list = []) {
   return [...list].sort((a, b) => new Date(a?.utcDate || 0).getTime() - new Date(b?.utcDate || 0).getTime())
 }
 
-// ==================== NOVAS FUNÇÕES ====================
+// ==================== ÚLTIMOS 3 JOGOS ====================
 async function getLast3Matches(teamId, token) {
   try {
     const data = await footballDataGetJson(
@@ -38,32 +37,23 @@ async function getLast3Matches(teamId, token) {
     )
     return data.matches || []
   } catch (e) {
-    console.warn(`⚠️ Erro ao buscar últimos jogos do time ${teamId}:`, e.message)
+    console.warn(`⚠️ Erro últimos jogos ${teamId}:`, e.message)
     return []
   }
 }
 
 function calculateFormProb(lastMatches = []) {
-  if (lastMatches.length === 0) {
-    return { wins: 33, draws: 34, losses: 33 }
-  }
+  if (lastMatches.length === 0) return { wins: 33, draws: 34, losses: 33 }
 
   let wins = 0, draws = 0
 
   lastMatches.forEach(m => {
     if (!m.score?.fullTime) return
+    const hg = m.score.fullTime.homeTeam ?? 0
+    const ag = m.score.fullTime.awayTeam ?? 0
 
-    const homeG = m.score.fullTime.homeTeam ?? 0
-    const awayG = m.score.fullTime.awayTeam ?? 0
-
-    // Verifica se o time em questão ganhou ou empatou
-    if (homeG > awayG) {
-      if (m.homeTeam.id === m.homeTeam.id) wins++ // time da casa
-      else if (m.awayTeam.id === m.homeTeam.id) draws++ // time visitante (empate)
-    } else if (homeG === awayG) {
-      draws++
-    }
-    // perda não precisa contar (fica no losses)
+    if (hg > ag) wins++
+    else if (hg === ag) draws++
   })
 
   const played = lastMatches.length
@@ -86,32 +76,32 @@ export default async () => {
     const now = new Date()
     const dateFrom = formatDateYMD(now)
     const limitDate = new Date(now)
-    limitDate.setDate(limitDate.getDate() + 20)
+    limitDate.setDate(limitDate.getDate() + 25)   // pega até 25 dias pra frente
     const dateTo = formatDateYMD(limitDate)
 
-    console.log(`🔄 Sync Brasileirão iniciado: ${dateFrom} → ${dateTo}`)
+    console.log(`🔄 Sync Brasileirão Série A iniciado: ${dateFrom} → ${dateTo}`)
 
     let totalSaved = 0
-    const comp = COMPETITIONS[0]
 
-    try {
-      const data = await footballDataGetJson(
-        `https://api.football-data.org/v4/competitions/${comp.code}/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
-        token
-      )
+    // === BUSCA APENAS BSA ===
+    const data = await footballDataGetJson(
+      `https://api.football-data.org/v4/competitions/BSA/matches?status=SCHEDULED,TIMED&dateFrom=${dateFrom}&dateTo=${dateTo}`,
+      token
+    )
 
-      const matches = sortByUtcDateAsc(data?.matches || []).filter(m =>
-        ['SCHEDULED', 'TIMED'].includes(m?.status) && 
-        m?.homeTeam?.id && 
-        m?.awayTeam?.id &&
-        m?.homeTeam?.name && 
-        m?.awayTeam?.name
-      )
+    let matches = data?.matches || []
+    console.log(`📊 Jogos brutos da API (BSA): ${matches.length}`)
 
-      console.log(`✅ ${comp.code} → ${matches.length} jogos encontrados na API`)
+    matches = sortByUtcDateAsc(matches).filter(m =>
+      ['SCHEDULED', 'TIMED'].includes(m?.status) &&
+      m?.homeTeam?.id && m?.awayTeam?.id &&
+      m?.homeTeam?.name && m?.awayTeam?.name
+    )
 
-      for (const match of matches) {
-        // === CÁLCULO DAS PROBABILIDADES BASEADO NOS ÚLTIMOS 3 JOGOS ===
+    console.log(`✅ Após filtro: ${matches.length} jogos válidos do Brasileirão`)
+
+    for (const match of matches) {
+      try {
         const [homeLast3, awayLast3] = await Promise.all([
           getLast3Matches(match.homeTeam.id, token),
           getLast3Matches(match.awayTeam.id, token)
@@ -120,7 +110,6 @@ export default async () => {
         const homeForm = calculateFormProb(homeLast3)
         const awayForm = calculateFormProb(awayLast3)
 
-        // Combinação: forma recente + vantagem de casa
         let homeProb = (homeForm.wins * 1.35) + (homeForm.draws * 0.65)
         let drawProb = (homeForm.draws * 0.75) + (awayForm.draws * 0.75)
         let awayProb = (awayForm.wins * 0.85) + (awayForm.draws * 0.45)
@@ -131,30 +120,26 @@ export default async () => {
         let drawProbBps = Math.round((drawProb / total) * 10000)
         let awayProbBps = 10000 - homeProbBps - drawProbBps
 
-        // Limites mínimos para evitar extremos absurdos
+        // Limites razoáveis
         homeProbBps = Math.max(2600, Math.min(6800, homeProbBps))
         awayProbBps = Math.max(1800, Math.min(5200, awayProbBps))
         drawProbBps = 10000 - homeProbBps - awayProbBps
 
         const matchData = {
           fixtureId: Number(match.id),
-          competitionCode: comp.code,
-          league: match.competition?.name || comp.fallbackName,
+          competitionCode: 'BSA',
+          league: 'Campeonato Brasileiro Série A',
           teamA: match.homeTeam.name,
           teamB: match.awayTeam.name,
           utcDate: match.utcDate,
           time: new Date(match.utcDate).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }),
           status: match.status,
           matchday: match.matchday || null,
-          
           homeProbBps,
           drawProbBps,
           awayProbBps,
-          
-          // Informações extras úteis
           homeRecentForm: `${homeForm.wins}V-${homeForm.draws}E-${homeForm.losses}D`,
           awayRecentForm: `${awayForm.wins}V-${awayForm.draws}E-${awayForm.losses}D`,
-          
           updatedAt: FieldValue.serverTimestamp()
         }
 
@@ -163,29 +148,33 @@ export default async () => {
           .set(matchData, { merge: true })
 
         totalSaved++
+        console.log(`💾 Salvo: ${match.homeTeam.name} x ${match.awayTeam.name}`)
+
+      } catch (err) {
+        console.error(`❌ Erro no jogo ${match.id}:`, err.message)
       }
-    } catch (e) {
-      console.error(`❌ BSA:`, e.message)
     }
 
+    // Atualiza status
     await db.collection('football_metadata').doc('sync_status').set({
       lastSyncAt: FieldValue.serverTimestamp(),
       totalMatches: totalSaved,
-      competition: 'BSA'
+      matchesFound: matches.length,
+      competition: 'BSA',
+      success: true,
+      lastSyncType: 'only_brasileirao'
     }, { merge: true })
 
-    console.log(`🎉 SYNC FINALIZADO → ${totalSaved} jogos salvos`)
+    console.log(`🎉 SYNC BRASILEIRÃO FINALIZADO → ${totalSaved} jogos salvos`)
 
     return new Response(JSON.stringify({ 
       success: true, 
-      syncedMatches: totalSaved 
+      syncedMatches: totalSaved,
+      foundMatches: matches.length 
     }), { status: 200 })
 
   } catch (error) {
-    console.error('Erro sync:', error)
-    return new Response(JSON.stringify({ 
-      success: false, 
-      error: error.message 
-    }), { status: 500 })
+    console.error('🚨 Erro no sync:', error)
+    return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500 })
   }
 }
