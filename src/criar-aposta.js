@@ -46,9 +46,7 @@ window.showAlert = (title, message, type = 'success') => {
 
   modal.innerHTML = `
     <div class="modal-content">
-      <div class="modal-icon">
-        ${type === 'success' ? '🎉' : '⚠️'}
-      </div>
+      <div class="modal-icon">${type === 'success' ? '🎉' : '⚠️'}</div>
       <h2 class="modal-title">${title}</h2>
       <p class="modal-message">${message}</p>
       <button class="modal-btn" onclick="this.closest('.modal-overlay').remove()">FECHAR</button>
@@ -80,6 +78,125 @@ window.showLoadingModal = (title = 'Processando', message = 'Enviando transaçã
 window.hideLoadingModal = () => {
   const modal = document.getElementById('loading-modal')
   if (modal) modal.remove()
+}
+
+// ==================== CARTEIRA INTERNA ====================
+async function syncWalletProfileFromFirebase() {
+  if (!currentGoogleUser?.uid) {
+    state.userAddress = ''
+    return
+  }
+
+  const userRef = doc(db, 'users', currentGoogleUser.uid)
+  const userSnap = await getDoc(userRef)
+
+  if (!userSnap.exists()) {
+    state.userAddress = ''
+    localStorage.removeItem('vwala_wallet_profile')
+    return
+  }
+
+  const userData = userSnap.data()
+  let walletAddress = String(userData.walletAddress || '').trim()
+
+  if (!walletAddress && userData.walletKeystoreCloud) {
+    try {
+      const unlocked = await Wallet.fromEncryptedJson(
+        userData.walletKeystoreCloud,
+        `vwala_google_device_pin_v1:${currentGoogleUser.uid}`
+      )
+      walletAddress = unlocked.address
+    } catch (e) {
+      console.error('Erro ao descriptografar keystore cloud:', e)
+    }
+  }
+
+  if (walletAddress) {
+    localStorage.setItem('vwala_wallet_profile', JSON.stringify({
+      uid: currentGoogleUser.uid,
+      walletAddress,
+      chainId: POLYGON_CHAIN_ID,
+      network: 'polygon'
+    }))
+    state.userAddress = walletAddress
+  }
+}
+
+async function initFirebaseSession() {
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+
+    await new Promise(resolve => {
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        currentGoogleUser = user
+        if (user) await syncWalletProfileFromFirebase()
+        unsubscribe()
+        resolve()
+      })
+    })
+  } catch (error) {
+    console.error('Erro initFirebaseSession:', error)
+  }
+}
+
+async function getInternalWalletSigner() {
+  if (state.signer) return state.signer
+
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+
+  if (!deviceVault?.walletKeystoreLocal) {
+    showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error')
+    return null
+  }
+
+  const expectedAddress = state.userAddress.toLowerCase()
+  const vaultAddress = String(deviceVault.walletAddress || '').toLowerCase()
+
+  if (expectedAddress !== vaultAddress) {
+    showAlert('Carteira incompatível', 'A carteira local não bate com a logada.', 'error')
+    return null
+  }
+
+  while (true) {
+    const pin = await new Promise(resolve => {
+      if (typeof window.showPinModal === 'function') {
+        window.showPinModal('Confirmar PIN', 'Digite o PIN para criar a aposta').then(resolve)
+      } else {
+        const p = prompt('Digite o PIN da carteira:')
+        resolve(p)
+      }
+    })
+
+    if (!pin) return null
+
+    try {
+      const unlockedWallet = await Wallet.fromEncryptedJson(deviceVault.walletKeystoreLocal, pin.trim())
+      const signer = unlockedWallet.connect(state.provider)
+      state.signer = signer
+      return signer
+    } catch (error) {
+      showAlert('PIN Inválido', 'PIN incorreto. Tente novamente.', 'error')
+    }
+  }
+}
+
+// ==================== SALDO ====================
+async function loadUserTokenBalance() {
+  if (!currentGoogleUser?.uid || !state.userAddress) return '0'
+
+  try {
+    const balanceRef = doc(db, 'users', currentGoogleUser.uid, 'swap_balances', 'vwala')
+    const snap = await getDoc(balanceRef)
+
+    if (snap.exists()) {
+      const data = snap.data()
+      return String(data.balanceFormatted || data.balance || '0')
+    }
+    return '0'
+  } catch (e) {
+    console.error(e)
+    return '0'
+  }
 }
 
 // ==================== CARREGAR MINHAS APOSTAS ====================
@@ -168,47 +285,39 @@ async function createMarket() {
     )
 
     const receipt = await tx.wait()
-
     hideLoadingModal()
 
-    // ==================== SALVAR NO FIREBASE ====================
+    // Salvar no Firebase
     if (currentGoogleUser?.uid) {
       const marketData = {
         marketId: receipt.transactionHash,
-        title: title,
-        optionA: optionA,
-        optionB: optionB,
-        closeAt: closeAt,
+        title,
+        optionA,
+        optionB,
+        closeAt,
         closeAtDate: new Date(closeAt * 1000),
-        probA: probA,
-        probB: probB,
+        probA,
+        probB,
         feeBps: 300,
         creator: state.userAddress,
         txHash: receipt.transactionHash,
         createdAt: serverTimestamp(),
         status: 'active',
-        resolved: false,
-        winningOption: null
+        resolved: false
       }
 
-      const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', receipt.transactionHash)
-      await setDoc(marketRef, marketData)
+      await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myMarkets', receipt.transactionHash), marketData)
     }
 
-    showAlert(
-      'Mercado Criado com Sucesso!', 
-      `Transação confirmada!<br>Hash: <small>${receipt.transactionHash}</small>`,
-      'success'
-    )
+    showAlert('Mercado Criado com Sucesso!', `Hash: <small>${receipt.transactionHash}</small>`, 'success')
 
-    // Limpar formulário
+    // Limpar e atualizar lista
     document.getElementById('title').value = ''
     document.getElementById('optionA').value = ''
     document.getElementById('optionB').value = ''
     document.getElementById('probA').value = '50'
     document.getElementById('probB').value = '50'
 
-    // Atualiza a lista de "Minhas Apostas"
     await loadMyMarkets()
 
   } catch (error) {
@@ -221,7 +330,7 @@ async function createMarket() {
   }
 }
 
-// ==================== RENDER PAGE ====================
+// ==================== RENDER ====================
 function renderPage() {
   document.querySelector('#app').innerHTML = `
     <div class="page-shell">
@@ -239,8 +348,6 @@ function renderPage() {
 
         <main class="app-content">
           <div class="create-page">
-
-            <!-- Criar Mercado -->
             <div class="create-header">
               <h1>🚀 Criar Mercado</h1>
               <p>Crie sua própria aposta • Apenas você pode resolver</p>
@@ -254,24 +361,16 @@ function renderPage() {
               </div>
               <input type="datetime-local" id="closeAt" class="input" />
               <div class="prob-row">
-                <div>
-                  <label>Probabilidade A (%)</label>
-                  <input type="number" id="probA" value="50" min="1" max="99" class="input" />
-                </div>
-                <div>
-                  <label>Probabilidade B (%)</label>
-                  <input type="number" id="probB" value="50" min="1" max="99" class="input" />
-                </div>
+                <div><label>Probabilidade A (%)</label><input type="number" id="probA" value="50" min="1" max="99" class="input" /></div>
+                <div><label>Probabilidade B (%)</label><input type="number" id="probB" value="50" min="1" max="99" class="input" /></div>
               </div>
               <button id="createBtn" class="launch-btn">🚀 Criar Mercado</button>
             </div>
 
-            <!-- MINHAS APOSTAS -->
             <div class="my-markets-section">
               <h2>📋 Minhas Apostas</h2>
               <div id="myMarketsList" class="markets-list"></div>
             </div>
-
           </div>
         </main>
       </div>
@@ -293,7 +392,6 @@ async function boot() {
   const balance = await loadUserTokenBalance()
   document.getElementById('connectBtn').textContent = `${balance} ${TOKEN_SYMBOL}`
 
-  // Carrega as apostas do usuário
   await loadMyMarkets()
 }
 
