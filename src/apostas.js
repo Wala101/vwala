@@ -1301,8 +1301,19 @@ async function loadMatches() {
   try {
     await ensureFootballCouponsLoaded()
 
-    const fetchedMatches = await fetchMatches()
+    const response = await fetch(`${API_BASE}/football-matches`)
+    if (!response.ok) throw new Error('Falha ao carregar jogos')
 
+    const payload = await response.json()
+    let fetchedMatches = Array.isArray(payload.matches) ? payload.matches : []
+
+    // Filtra apenas jogos abertos
+    fetchedMatches = fetchedMatches.filter(match => {
+      const status = String(match.status || '').toUpperCase().trim()
+      return status === 'SCHEDULED' || status === 'TIMED'
+    })
+
+    // Ordena por prioridade (Brasileirão primeiro) + data
     const rawMatches = fetchedMatches.map((match) => ({
       ...match,
       teamA: cleanTeamName(match.teamA),
@@ -1318,24 +1329,23 @@ async function loadMatches() {
       return
     }
 
-    const hydrated = await Promise.all(
-      baseMatches.map((match) => hydrateMatch(match))
-    )
+    const hydrated = await Promise.all(baseMatches.map(m => hydrateMatch(m)))
 
     state.matches = sortMatchesForDisplay(loadCouponsForMatches(hydrated))
+
     await refreshAllPositions()
     await reconcileLocalFootballPositionsToFirebase()
     await flushPendingFootballPositionsToFirebase()
+
     renderMatches()
+
   } catch (error) {
     console.error(error)
-    showAlert('Erro', 'Não foi possível carregar os mercados.')
+    showAlert('Erro', 'Não foi possível carregar os mercados no momento.')
   } finally {
     setMarketLoading(false)
-    renderMatches()
   }
 }
-
 async function refreshAllPositions() {
   if (!state.userAddress || !state.betting) return
 
@@ -2290,12 +2300,19 @@ function renderMatches() {
   })
 
   marketGrid.innerHTML = ''
-  filtered.forEach((match) => {
-    marketGrid.appendChild(createCard(match))
-  })
+  filtered.forEach((match) => marketGrid.appendChild(createCard(match)))
 
   marketCount.textContent = String(filtered.length)
-  marketEmpty.classList.toggle('show', filtered.length === 0)
+
+  if (filtered.length === 0) {
+    marketEmpty.innerHTML = `
+      <p>Nenhum mercado aberto no momento.</p>
+      <small>Os próximos jogos do Brasileirão aparecerão automaticamente alguns dias antes da rodada.</small>
+    `
+    marketEmpty.classList.add('show')
+  } else {
+    marketEmpty.classList.remove('show')
+  }
 }
 
 async function boot() {
