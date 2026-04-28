@@ -219,29 +219,27 @@
   font-size: 22px;
   color: #fff;
   margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
 }
 
 .markets-list {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .market-item {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
-  padding: 18px 20px;
+  padding: 20px;
   transition: all 0.2s;
+  position: relative;
 }
 
 .market-item:hover {
   background: rgba(255,255,255,0.09);
-  border-color: rgba(37, 255, 138, 0.2);
-  transform: translateY(-2px);
+  border-color: rgba(37, 255, 138, 0.25);
+  transform: translateY(-3px);
 }
 
 .market-title {
@@ -355,10 +353,74 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .market-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
   flex: 1;
+  padding-right: 12px;
+  line-height: 1.35;
+}
+
+.status {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.status.active {
+  background: rgba(37, 255, 138, 0.18);
+  color: #25ff8a;
+  border: 1px solid rgba(37, 255, 138, 0.4);
+}
+
+.status.finalizada,
+.status.inactive {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff8080;
+  border: 1px solid rgba(255, 80, 80, 0.4);
+}
+
+/* ==================== RESTO ==================== */
+.market-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  color: #b0b7c4;
+  margin-bottom: 12px;
+}
+
+.market-info {
+  font-size: 14px;
+  color: #8c95a0;
+  margin-bottom: 16px;
+}
+
+.market-actions {
+  margin-top: 12px;
+}
+
+.copy-market-btn {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(37, 255, 138, 0.15);
+  color: #25ff8a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-market-btn:hover {
+  background: rgba(37, 255, 138, 0.25);
+  color: #fff;
 }
