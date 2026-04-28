@@ -438,6 +438,7 @@ app.innerHTML = `
   <a href="/token">Criar Token</a>
   <a href="/futeboll">Futebol</a>
   <a href="/predicoes">Predições</a>
+  <a href="/criar-apostas">Criar Apostas</a>
   <a href="/posicoes">H/Futebol</a>
   <a href="/historico">H/Futures</a>
 </aside>

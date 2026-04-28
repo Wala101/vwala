@@ -15,6 +15,7 @@ export default defineConfig({
         deposito: 'deposito.html',
         saque: 'saque.html',
         futeboll: 'futeboll.html',
+        "criar-apostas": 'criar-apostas.html',
         token: 'token.html',
       },
     },
