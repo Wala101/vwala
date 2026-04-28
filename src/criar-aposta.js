@@ -258,17 +258,16 @@ function renderPage() {
   document.querySelector('#app').innerHTML = `
     <div class="page-shell">
       <div class="app-frame">
-        <header class="topbar">
-          
-          <div class="brand-wrap">
-            <div class="brand-badge premium">W</div>
-            <div class="brand-text">
-              <strong>Wala</strong>
-              <span>Predictions</span>
-            </div>
-          </div>
-          <button id="connectBtn" class="connect-btn">Carregando...</button>
-        </header>
+<header class="topbar" style="display: none !important;">
+  <div class="brand-wrap">
+    <div class="brand-badge premium">W</div>
+    <div class="brand-text">
+      <strong>Wala</strong>
+      <span>Predictions</span>
+    </div>
+  </div>
+  <button id="connectBtn" class="connect-btn">Carregando...</button>
+</header>
 
         <main class="app-content">
           <div class="create-page">
