@@ -2131,3 +2131,47 @@ body{
   font-weight:800;
   box-shadow:0 12px 28px rgba(37,255,138,.18);
 }
+
+
+
+.view-market-page {
+  max-width: 620px;
+  margin: 0 auto;
+  padding: 40px 20px;
+}
+
+.header-view {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.search-card {
+  background: rgba(17,22,31,0.95);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 30px;
+  margin-bottom: 30px;
+}
+
+.market-detail-card {
+  background: linear-gradient(180deg, rgba(17,22,31,0.96), rgba(11,15,24,0.98));
+  border: 1px solid rgba(37,255,138,0.2);
+  border-radius: 20px;
+  padding: 32px;
+  color: #fff;
+}
+
+.options {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.option {
+  background: rgba(255,255,255,0.06);
+  padding: 14px 18px;
+  border-radius: 14px;
+  display: flex;
+  justify-content: space-between;
+}

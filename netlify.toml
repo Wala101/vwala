@@ -38,6 +38,12 @@ schedule = "*/30 * * * *"
   status = 200
 
 [[redirects]]
+  from = "/view-market"
+  to = "/view-market.html"
+  status = 200
+
+
+[[redirects]]
   from = "/token"
   to = "/token.html"
   status = 200

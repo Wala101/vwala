@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ver Aposta - Wala Predictions</title>
+  <link rel="stylesheet" href="style/style.css">
+</head>
+<body>
+  <div class="page-shell">
+    <div class="app-frame">
+      <main class="app-content">
+        <div class="view-market-page">
+
+          <div class="header-view">
+            <h1>🔍 Ver Aposta Compartilhada</h1>
+            <p>Digite o ID da aposta (Tx Hash) que alguém compartilhou com você</p>
+          </div>
+
+          <div class="search-card">
+            <input type="text" id="marketId" class="input" placeholder="Cole o Tx Hash aqui..." />
+            <button id="searchBtn" class="launch-btn">Buscar Aposta</button>
+          </div>
+
+          <div id="marketContent" class="market-content" style="display: none;">
+            <!-- Conteúdo carregado via JS -->
+          </div>
+
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="view-market.js"></script>
+</body>
+</html>
