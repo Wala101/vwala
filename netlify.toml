@@ -32,9 +32,9 @@ schedule = "*/30 * * * *"
   to = "/carteira.html"
   status = 200
 
-  [[redirects]]
+[[redirects]]
   from = "/criar"
-  to = "/criar-aposta.html"
+  to = "/criar-apostas.html"
   status = 200
 
 [[redirects]]
