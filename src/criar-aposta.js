@@ -287,12 +287,11 @@ async function loadMyMarkets() {
   <div class="market-item">
 
       <div class="market-info">
-      <span>Fecha: ${date}</span>
       <span class="status ${m.status || 'active'}">
         ${m.status === 'active' ? 'Ativa' : 'Finalizada'}
       </span>
     </div>
-    
+
     <div class="market-title">${m.title || 'Sem título'}</div>
 
     <div class="market-options">
