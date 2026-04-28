@@ -366,32 +366,40 @@ async function createMarket() {
     hideLoadingModal()
 
     // Salvar no Firebase
-    if (currentGoogleUser?.uid) {
-      const marketData = {
-        marketId: receipt.transactionHash,
-        title,
-        optionA,
-        optionB,
-        closeAt,
-        closeAtDate: closeAtDate,
-        probA,
-        probB,
-        feeBps: 300,
-        creator: state.userAddress,
-        txHash: receipt.transactionHash,
-        createdAt: serverTimestamp(),
-        status: 'active',
-        resolved: false
-      }
+const receipt = await tx.wait()
+hideLoadingModal()
 
-      await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myMarkets', receipt.transactionHash), marketData)
-    }
+if (currentGoogleUser?.uid) {
+  const txHash = tx.hash
 
-    showAlert(
-      '✅ Mercado Criado com Sucesso!', 
-      `Transação confirmada!<br>Hash: <small>${receipt.transactionHash}</small>`,
-      'success'
-    )
+  const marketData = {
+    marketId: txHash,
+    title,
+    optionA,
+    optionB,
+    closeAt,
+    closeAtDate,
+    probA,
+    probB,
+    feeBps: 300,
+    creator: state.userAddress,
+    txHash,
+    createdAt: serverTimestamp(),
+    status: 'active',
+    resolved: false
+  }
+
+  await setDoc(
+    doc(db, 'users', currentGoogleUser.uid, 'myMarkets', txHash),
+    marketData
+  )
+}
+
+showAlert(
+  '✅ Mercado Criado com Sucesso!',
+  `Transação confirmada!<br>Hash: <small>${tx.hash}</small>`,
+  'success'
+)
 
     // Limpar formulário
     document.getElementById('title').value = ''
