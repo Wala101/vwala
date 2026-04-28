@@ -4,7 +4,16 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { 
+  doc, 
+  getDoc, 
+  setDoc, 
+  serverTimestamp,
+  collection,
+  query,
+  getDocs,
+  orderBy 
+} from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract } from 'ethers'
 
 const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
@@ -73,122 +82,53 @@ window.hideLoadingModal = () => {
   if (modal) modal.remove()
 }
 
-// ==================== CARTEIRA INTERNA ====================
-async function syncWalletProfileFromFirebase() {
-  if (!currentGoogleUser?.uid) {
-    state.userAddress = ''
-    return
-  }
+// ==================== CARREGAR MINHAS APOSTAS ====================
+async function loadMyMarkets() {
+  if (!currentGoogleUser?.uid) return
 
-  const userRef = doc(db, 'users', currentGoogleUser.uid)
-  const userSnap = await getDoc(userRef)
+  const container = document.getElementById('myMarketsList')
+  if (!container) return
 
-  if (!userSnap.exists()) {
-    state.userAddress = ''
-    localStorage.removeItem('vwala_wallet_profile')
-    return
-  }
+  container.innerHTML = '<p class="loading-text">Carregando suas apostas...</p>'
 
-  const userData = userSnap.data()
-  let walletAddress = String(userData.walletAddress || '').trim()
-
-  if (!walletAddress && userData.walletKeystoreCloud) {
-    try {
-      const unlocked = await Wallet.fromEncryptedJson(
-        userData.walletKeystoreCloud,
-        `vwala_google_device_pin_v1:${currentGoogleUser.uid}`
-      )
-      walletAddress = unlocked.address
-    } catch (e) {
-      console.error('Erro ao descriptografar keystore cloud:', e)
-    }
-  }
-
-  if (walletAddress) {
-    localStorage.setItem('vwala_wallet_profile', JSON.stringify({
-      uid: currentGoogleUser.uid,
-      walletAddress,
-      chainId: POLYGON_CHAIN_ID,
-      network: 'polygon'
-    }))
-    state.userAddress = walletAddress
-  }
-}
-
-async function initFirebaseSession() {
   try {
-    await setPersistence(auth, browserLocalPersistence)
+    const marketsRef = collection(db, 'users', currentGoogleUser.uid, 'myMarkets')
+    const q = query(marketsRef, orderBy('createdAt', 'desc'))
+    const snapshot = await getDocs(q)
 
-    await new Promise(resolve => {
-      const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        currentGoogleUser = user
-        if (user) await syncWalletProfileFromFirebase()
-        unsubscribe()
-        resolve()
-      })
+    if (snapshot.empty) {
+      container.innerHTML = `<p class="empty-state">Você ainda não criou nenhuma aposta.</p>`
+      return
+    }
+
+    let html = ''
+    snapshot.forEach((docSnap) => {
+      const m = docSnap.data()
+      const date = m.closeAtDate 
+        ? new Date(m.closeAtDate.seconds * 1000).toLocaleDateString('pt-BR') 
+        : '—'
+
+      html += `
+        <div class="market-item">
+          <div class="market-title">${m.title}</div>
+          <div class="market-options">
+            <span>A: ${m.optionA} (${m.probA}%)</span>
+            <span>B: ${m.optionB} (${m.probB}%)</span>
+          </div>
+          <div class="market-info">
+            <span>Fecha: ${date}</span>
+            <span class="status ${m.status || 'active'}">
+              ${m.status === 'active' ? 'Ativa' : 'Finalizada'}
+            </span>
+          </div>
+        </div>
+      `
     })
+
+    container.innerHTML = html
   } catch (error) {
-    console.error('Erro initFirebaseSession:', error)
-  }
-}
-
-async function getInternalWalletSigner() {
-  if (state.signer) return state.signer
-
-  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
-
-  if (!deviceVault?.walletKeystoreLocal) {
-    showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    return null
-  }
-
-  const expectedAddress = state.userAddress.toLowerCase()
-  const vaultAddress = String(deviceVault.walletAddress || '').toLowerCase()
-
-  if (expectedAddress !== vaultAddress) {
-    showAlert('Carteira incompatível', 'A carteira local não bate com a logada.', 'error')
-    return null
-  }
-
-  while (true) {
-    const pin = await new Promise(resolve => {
-      if (typeof window.showPinModal === 'function') {
-        window.showPinModal('Confirmar PIN', 'Digite o PIN para criar a aposta').then(resolve)
-      } else {
-        const p = prompt('Digite o PIN da carteira:')
-        resolve(p)
-      }
-    })
-
-    if (!pin) return null
-
-    try {
-      const unlockedWallet = await Wallet.fromEncryptedJson(deviceVault.walletKeystoreLocal, pin.trim())
-      const signer = unlockedWallet.connect(state.provider)
-      state.signer = signer
-      return signer
-    } catch (error) {
-      showAlert('PIN Inválido', 'PIN incorreto. Tente novamente.', 'error')
-    }
-  }
-}
-
-// ==================== SALDO ====================
-async function loadUserTokenBalance() {
-  if (!currentGoogleUser?.uid || !state.userAddress) return '0'
-
-  try {
-    const balanceRef = doc(db, 'users', currentGoogleUser.uid, 'swap_balances', 'vwala')
-    const snap = await getDoc(balanceRef)
-
-    if (snap.exists()) {
-      const data = snap.data()
-      return String(data.balanceFormatted || data.balance || '0')
-    }
-    return '0'
-  } catch (e) {
-    console.error(e)
-    return '0'
+    console.error(error)
+    container.innerHTML = `<p class="error-text">Erro ao carregar apostas.</p>`
   }
 }
 
@@ -227,12 +167,37 @@ async function createMarket() {
       title, optionA, optionB, closeAt, 300, probA * 100, probB * 100
     )
 
-    await tx.wait()
+    const receipt = await tx.wait()
 
     hideLoadingModal()
+
+    // ==================== SALVAR NO FIREBASE ====================
+    if (currentGoogleUser?.uid) {
+      const marketData = {
+        marketId: receipt.transactionHash,
+        title: title,
+        optionA: optionA,
+        optionB: optionB,
+        closeAt: closeAt,
+        closeAtDate: new Date(closeAt * 1000),
+        probA: probA,
+        probB: probB,
+        feeBps: 300,
+        creator: state.userAddress,
+        txHash: receipt.transactionHash,
+        createdAt: serverTimestamp(),
+        status: 'active',
+        resolved: false,
+        winningOption: null
+      }
+
+      const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', receipt.transactionHash)
+      await setDoc(marketRef, marketData)
+    }
+
     showAlert(
       'Mercado Criado com Sucesso!', 
-      `Transação confirmada!<br><br>Hash: <small>${tx.hash}</small>`,
+      `Transação confirmada!<br>Hash: <small>${receipt.transactionHash}</small>`,
       'success'
     )
 
@@ -242,6 +207,9 @@ async function createMarket() {
     document.getElementById('optionB').value = ''
     document.getElementById('probA').value = '50'
     document.getElementById('probB').value = '50'
+
+    // Atualiza a lista de "Minhas Apostas"
+    await loadMyMarkets()
 
   } catch (error) {
     hideLoadingModal()
@@ -253,24 +221,26 @@ async function createMarket() {
   }
 }
 
-// ==================== RENDER PREMIUM ====================
+// ==================== RENDER PAGE ====================
 function renderPage() {
   document.querySelector('#app').innerHTML = `
     <div class="page-shell">
       <div class="app-frame">
-<header class="topbar" style="display: none !important;">
-  <div class="brand-wrap">
-    <div class="brand-badge premium">W</div>
-    <div class="brand-text">
-      <strong>Wala</strong>
-      <span>Predictions</span>
-    </div>
-  </div>
-  <button id="connectBtn" class="connect-btn">Carregando...</button>
-</header>
+        <header class="topbar" style="display: none !important;">
+          <div class="brand-wrap">
+            <div class="brand-badge premium">W</div>
+            <div class="brand-text">
+              <strong>Wala</strong>
+              <span>Predictions</span>
+            </div>
+          </div>
+          <button id="connectBtn" class="connect-btn">Carregando...</button>
+        </header>
 
         <main class="app-content">
           <div class="create-page">
+
+            <!-- Criar Mercado -->
             <div class="create-header">
               <h1>🚀 Criar Mercado</h1>
               <p>Crie sua própria aposta • Apenas você pode resolver</p>
@@ -278,14 +248,11 @@ function renderPage() {
 
             <div class="form-card">
               <input type="text" id="title" class="input" placeholder="Título da Aposta" maxlength="120" />
-
               <div class="options-grid">
                 <input type="text" id="optionA" class="input" placeholder="Opção A (Ex: Sim)" />
                 <input type="text" id="optionB" class="input" placeholder="Opção B (Ex: Não)" />
               </div>
-
               <input type="datetime-local" id="closeAt" class="input" />
-
               <div class="prob-row">
                 <div>
                   <label>Probabilidade A (%)</label>
@@ -296,9 +263,15 @@ function renderPage() {
                   <input type="number" id="probB" value="50" min="1" max="99" class="input" />
                 </div>
               </div>
-
               <button id="createBtn" class="launch-btn">🚀 Criar Mercado</button>
             </div>
+
+            <!-- MINHAS APOSTAS -->
+            <div class="my-markets-section">
+              <h2>📋 Minhas Apostas</h2>
+              <div id="myMarketsList" class="markets-list"></div>
+            </div>
+
           </div>
         </main>
       </div>
@@ -319,8 +292,11 @@ async function boot() {
 
   const balance = await loadUserTokenBalance()
   document.getElementById('connectBtn').textContent = `${balance} ${TOKEN_SYMBOL}`
+
+  // Carrega as apostas do usuário
+  await loadMyMarkets()
 }
 
 boot()
 
-console.log("📄 Página Criar Aposta v2 - Premium carregada")
+console.log("📄 Página Criar Aposta v2 - Premium + Minhas Apostas")

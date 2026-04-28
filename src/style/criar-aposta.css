@@ -207,3 +207,84 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* ==================== MINHAS APOSTAS ==================== */
+
+.my-markets-section {
+  margin-top: 52px;
+}
+
+.my-markets-section h2 {
+  font-size: 22px;
+  color: #fff;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.markets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.market-item {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 18px 20px;
+  transition: all 0.2s;
+}
+
+.market-item:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(37, 255, 138, 0.2);
+  transform: translateY(-2px);
+}
+
+.market-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.market-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14.5px;
+  color: #b0b7c4;
+  margin-bottom: 12px;
+}
+
+.market-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  color: #8c95a0;
+}
+
+.status {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.status.active {
+  background: rgba(37, 255, 138, 0.15);
+  color: #25ff8a;
+  border: 1px solid rgba(37, 255, 138, 0.3);
+}
+
+.loading-text, .empty-state, .error-text {
+  text-align: center;
+  color: #8c95a0;
+  padding: 30px 20px;
+  font-style: italic;
+}
