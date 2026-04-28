@@ -299,6 +299,12 @@ async function loadMyMarkets() {
       </span>
     </div>
 
+    <div class="market-actions">
+  <button class="copy-market-btn" onclick="navigator.clipboard.writeText('${m.txHash || m.marketId || ''}'); showAlert('ID Copiado', 'ID da aposta copiado para a área de transferência.', 'success')">
+    📋 Copiar ID da Aposta
+  </button>
+</div>
+
     <div class="market-hash">
       TX: ${String(m.txHash || m.marketId || '').slice(0, 12)}...${String(m.txHash || m.marketId || '').slice(-8)}
     </div>
