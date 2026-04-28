@@ -288,3 +288,27 @@
   padding: 30px 20px;
   font-style: italic;
 }
+
+
+.pin-modal {
+  max-width: 340px;
+}
+
+.pin-input {
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 8px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.pin-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cancel-btn {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}

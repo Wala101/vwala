@@ -80,6 +80,53 @@ window.hideLoadingModal = () => {
   if (modal) modal.remove()
 }
 
+
+// ==================== MODAL DE PIN (Premium) ====================
+window.showPinModal = (title = 'Confirmar PIN', message = 'Digite seu PIN para continuar') => {
+  return new Promise((resolve) => {
+    const existing = document.getElementById('pin-modal')
+    if (existing) existing.remove()
+
+    const modal = document.createElement('div')
+    modal.id = 'pin-modal'
+    modal.className = 'modal-overlay'
+
+    modal.innerHTML = `
+      <div class="modal-content pin-modal">
+        <div class="modal-icon">🔑</div>
+        <h2 class="modal-title">${title}</h2>
+        <p class="modal-message">${message}</p>
+        
+        <input type="password" id="pin-input" class="input pin-input" 
+               placeholder="••••••" maxlength="6" autocomplete="off" autofocus>
+        
+        <div class="pin-buttons">
+          <button class="modal-btn cancel-btn" onclick="this.closest('.modal-overlay').remove(); resolve(null)">Cancelar</button>
+          <button class="modal-btn confirm-btn" id="confirm-pin-btn">Confirmar</button>
+        </div>
+      </div>
+    `
+
+    document.body.appendChild(modal)
+    modal.style.display = 'flex'
+
+    const pinInput = document.getElementById('pin-input')
+    const confirmBtn = document.getElementById('confirm-pin-btn')
+
+    setTimeout(() => pinInput.focus(), 150)
+
+    pinInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') confirmBtn.click()
+    })
+
+    confirmBtn.addEventListener('click', () => {
+      const pin = pinInput.value.trim()
+      modal.remove()
+      resolve(pin)
+    })
+  })
+}
+
 // ==================== CARTEIRA INTERNA ====================
 async function syncWalletProfileFromFirebase() {
   if (!currentGoogleUser?.uid) {
