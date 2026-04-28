@@ -248,52 +248,47 @@ async function loadUserTokenBalance() {
 
 // ==================== CARREGAR MINHAS APOSTAS ====================
 async function loadMyMarkets() {
-  if (!currentGoogleUser?.uid) return
+  if (!currentGoogleUser?.uid) {
+    console.log("Usuário ainda não carregado, pulando lista de mercados");
+    return;
+  }
 
   const container = document.getElementById('myMarketsList')
-  if (!container) return
+  if (!container) return;
 
-  container.innerHTML = '<p class="loading-text">Carregando suas apostas...</p>'
+  container.innerHTML = '<p class="loading-text">Carregando suas apostas...</p>';
 
   try {
-    const marketsRef = collection(db, 'users', currentGoogleUser.uid, 'myMarkets')
-    
-    // Query mais segura (sem orderBy primeiro)
-    const q = query(marketsRef)
-    const snapshot = await getDocs(q)
+    const marketsRef = collection(db, 'users', currentGoogleUser.uid, 'myMarkets');
+    const snapshot = await getDocs(marketsRef);
 
     if (snapshot.empty) {
-      container.innerHTML = `<p class="empty-state">Você ainda não criou nenhuma aposta.</p>`
-      return
+      container.innerHTML = `<p class="empty-state">Você ainda não criou nenhuma aposta.</p>`;
+      return;
     }
 
-    // Ordenar manualmente no JavaScript (mais estável)
-    const markets = []
+    const markets = [];
     snapshot.forEach((docSnap) => {
-      markets.push({ id: docSnap.id, ...docSnap.data() })
-    })
+      if (docSnap.exists()) {
+        markets.push({ id: docSnap.id, ...docSnap.data() });
+      }
+    });
 
-    // Ordenar por data de criação (descendente)
-    markets.sort((a, b) => {
-      const timeA = a.createdAt?.seconds || 0
-      const timeB = b.createdAt?.seconds || 0
-      return timeB - timeA
-    })
+    // Ordenar por data (mais recente primeiro)
+    markets.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-    let html = ''
+    let html = '';
     markets.forEach((m) => {
       const date = m.closeAtDate 
-        ? new Date(m.closeAtDate.seconds * 1000).toLocaleDateString('pt-BR') 
-        : m.closeAt 
-          ? new Date(m.closeAt * 1000).toLocaleDateString('pt-BR')
-          : '—'
+        ? new Date(m.closeAtDate.seconds * 1000).toLocaleDateString('pt-BR')
+        : '—';
 
       html += `
         <div class="market-item">
           <div class="market-title">${m.title || 'Sem título'}</div>
           <div class="market-options">
-            <span>A: ${m.optionA} (${m.probA}%)</span>
-            <span>B: ${m.optionB} (${m.probB}%)</span>
+            <span>A: ${m.optionA || '?'} (${m.probA || 50}%)</span>
+            <span>B: ${m.optionB || '?'} (${m.probB || 50}%)</span>
           </div>
           <div class="market-info">
             <span>Fecha: ${date}</span>
@@ -302,14 +297,14 @@ async function loadMyMarkets() {
             </span>
           </div>
         </div>
-      `
-    })
+      `;
+    });
 
-    container.innerHTML = html
+    container.innerHTML = html;
 
   } catch (error) {
-    console.error("Erro ao carregar mercados:", error)
-    container.innerHTML = `<p class="error-text">Erro ao carregar suas apostas. Tente recarregar a página.</p>`
+    console.error("Erro ao carregar mercados:", error);
+    container.innerHTML = `<p class="error-text">Erro ao carregar apostas.<br><small>Tente recarregar a página.</small></p>`;
   }
 }
 
@@ -469,18 +464,22 @@ function renderPage() {
 
 // ==================== BOOT ====================
 async function boot() {
-  await initFirebaseSession()
+  await initFirebaseSession();
 
-  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
+  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID);
 
-  renderPage()
+  renderPage();
 
-  const balance = await loadUserTokenBalance()
-  document.getElementById('connectBtn').textContent = `${balance} ${TOKEN_SYMBOL}`
+  const balance = await loadUserTokenBalance();
+  const connectBtn = document.getElementById('connectBtn');
+  if (connectBtn) connectBtn.textContent = `${balance} ${TOKEN_SYMBOL}`;
 
-  await loadMyMarkets()
+  // Pequeno delay para garantir que o usuário esteja carregado
+  setTimeout(async () => {
+    await loadMyMarkets();
+  }, 800);
 }
 
-boot()
+boot();
 
 console.log("📄 Página Criar Aposta v2 - Premium + Minhas Apostas")
