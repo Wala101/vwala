@@ -257,7 +257,9 @@ async function loadMyMarkets() {
 
   try {
     const marketsRef = collection(db, 'users', currentGoogleUser.uid, 'myMarkets')
-    const q = query(marketsRef, orderBy('createdAt', 'desc'))
+    
+    // Query mais segura (sem orderBy primeiro)
+    const q = query(marketsRef)
     const snapshot = await getDocs(q)
 
     if (snapshot.empty) {
@@ -265,16 +267,30 @@ async function loadMyMarkets() {
       return
     }
 
-    let html = ''
+    // Ordenar manualmente no JavaScript (mais estável)
+    const markets = []
     snapshot.forEach((docSnap) => {
-      const m = docSnap.data()
+      markets.push({ id: docSnap.id, ...docSnap.data() })
+    })
+
+    // Ordenar por data de criação (descendente)
+    markets.sort((a, b) => {
+      const timeA = a.createdAt?.seconds || 0
+      const timeB = b.createdAt?.seconds || 0
+      return timeB - timeA
+    })
+
+    let html = ''
+    markets.forEach((m) => {
       const date = m.closeAtDate 
         ? new Date(m.closeAtDate.seconds * 1000).toLocaleDateString('pt-BR') 
-        : '—'
+        : m.closeAt 
+          ? new Date(m.closeAt * 1000).toLocaleDateString('pt-BR')
+          : '—'
 
       html += `
         <div class="market-item">
-          <div class="market-title">${m.title}</div>
+          <div class="market-title">${m.title || 'Sem título'}</div>
           <div class="market-options">
             <span>A: ${m.optionA} (${m.probA}%)</span>
             <span>B: ${m.optionB} (${m.probB}%)</span>
@@ -290,9 +306,10 @@ async function loadMyMarkets() {
     })
 
     container.innerHTML = html
+
   } catch (error) {
-    console.error(error)
-    container.innerHTML = `<p class="error-text">Erro ao carregar apostas.</p>`
+    console.error("Erro ao carregar mercados:", error)
+    container.innerHTML = `<p class="error-text">Erro ao carregar suas apostas. Tente recarregar a página.</p>`
   }
 }
 
