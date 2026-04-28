@@ -259,7 +259,7 @@ function renderPage() {
     <div class="page-shell">
       <div class="app-frame">
         <header class="topbar">
-          <button class="menu-btn" id="menuBtn">☰</button>
+          
           <div class="brand-wrap">
             <div class="brand-badge premium">W</div>
             <div class="brand-text">
