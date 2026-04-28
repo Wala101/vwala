@@ -1,4 +1,3 @@
-// src/criar-aposta.js
 import './style/style.css'
 import { auth, db } from './firebase'
 import {
@@ -31,7 +30,6 @@ const state = {
   decimals: 18
 }
 
-// ==================== UI GLOBALS (reaproveitados) ====================
 const showAlert = window.showAlert || ((t, m) => alert(t + '\n\n' + m))
 const showLoadingModal = window.showLoadingModal || (() => {})
 const hideLoadingModal = window.hideLoadingModal || (() => {})
