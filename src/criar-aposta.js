@@ -365,9 +365,7 @@ async function createMarket() {
     const receipt = await tx.wait()
     hideLoadingModal()
 
-    // Salvar no Firebase
-const receipt = await tx.wait()
-hideLoadingModal()
+
 
 if (currentGoogleUser?.uid) {
   const txHash = tx.hash
