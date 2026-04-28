@@ -1475,7 +1475,7 @@ async function loadHistory() {
   }
 }
 
-// ==================== SYNC RESULTADO COM CACHE (VERSÃO MELHORADA) ====================
+// ==================== SYNC RESULTADO COM CACHE (VERSÃO FINAL) ====================
 async function syncFixtureBeforeClaim(fixtureId) {
   const fixtureStr = String(fixtureId || '').trim()
   if (!fixtureStr) throw new Error('Fixture ID inválido')
@@ -1486,16 +1486,15 @@ async function syncFixtureBeforeClaim(fixtureId) {
   const matchSnap = await getDoc(matchRef)
   let matchData = matchSnap.exists() ? matchSnap.data() : null
 
-  // Se já temos resultado final no Firebase → retorna direto (cache)
+  // Cache hit → já tem resultado
   if (matchData?.status === 'FINISHED' && 
       (matchData.homeScore != null || matchData.awayScore != null)) {
-    console.log(`✅ [syncFixture] Resultado encontrado no cache do Firebase`)
+    console.log(`✅ [syncFixture] Cache do Firebase`)
     return matchData
   }
 
-  // Não tem resultado → chama o Keeper
-  console.log(`📡 [syncFixture] Chamando Keeper para atualizar...`)
-  
+  console.log(`📡 [syncFixture] Chamando Keeper...`)
+
   try {
     const response = await fetch(
       `${FOOTBALL_KEEPER_URL}?fixtureId=${encodeURIComponent(fixtureStr)}`,
@@ -1507,15 +1506,13 @@ async function syncFixtureBeforeClaim(fixtureId) {
     )
 
     let result = {}
-    try {
-      result = await response.json()
-    } catch (e) {}
+    try { result = await response.json() } catch (e) {}
 
     if (!response.ok) {
-      throw new Error(result.error || `HTTP ${response.status}`)
+      throw new Error(result?.error || `HTTP ${response.status}`)
     }
 
-    // Salva no Firebase para todos os usuários
+    // Salva no Firebase
     if (result.status === 'FINISHED' || result.homeScore != null) {
       await setDoc(matchRef, {
         status: 'FINISHED',
@@ -1533,15 +1530,15 @@ async function syncFixtureBeforeClaim(fixtureId) {
     return { ...matchData, ...result }
 
   } catch (error) {
-    console.error(`❌ [syncFixture] Erro ao atualizar jogo ${fixtureStr}:`, error.message)
+    console.error(`❌ [syncFixture] Falha:`, error.message)
     
-    // Se falhar mas temos dados antigos, retorna mesmo assim
+    
     if (matchData) {
-      console.warn(`⚠️ [syncFixture] Usando dados antigos do cache`)
+      console.warn(`⚠️ Usando cache antigo`)
       return matchData
     }
 
-    throw new Error('Não foi possível obter o resultado deste jogo no momento.')
+    throw error
   }
 }
 
