@@ -1475,36 +1475,74 @@ async function loadHistory() {
   }
 }
 
+// ==================== SYNC RESULTADO COM CACHE (VERSÃO MELHORADA) ====================
 async function syncFixtureBeforeClaim(fixtureId) {
-  const response = await fetch(
-    `${FOOTBALL_KEEPER_URL}?fixtureId=${encodeURIComponent(String(fixtureId || '').trim())}`
-  )
+  const fixtureStr = String(fixtureId || '').trim()
+  if (!fixtureStr) throw new Error('Fixture ID inválido')
 
-  let result = {}
+  console.log(`🔄 [syncFixture] Verificando jogo ${fixtureStr}`)
 
-  try {
-    result = await response.json()
-  } catch {
-    result = {}
+  const matchRef = doc(db, 'football_matches', fixtureStr)
+  const matchSnap = await getDoc(matchRef)
+  let matchData = matchSnap.exists() ? matchSnap.data() : null
+
+  // Se já temos resultado final no Firebase → retorna direto (cache)
+  if (matchData?.status === 'FINISHED' && 
+      (matchData.homeScore != null || matchData.awayScore != null)) {
+    console.log(`✅ [syncFixture] Resultado encontrado no cache do Firebase`)
+    return matchData
   }
 
-  if (!response.ok || result?.ok === false) {
-  const detailParts = [
-    result?.stage ? `Etapa: ${result.stage}` : '',
-    result?.error || '',
-    result?.shortMessage || '',
-    result?.code ? `Code: ${result.code}` : '',
-    result?.marketStateOnError
-  ? `status=${result.marketStateOnError.status}, hasWinner=${result.marketStateOnError.hasWinner}, winning=${result.marketStateOnError.currentWinningOutcome}, authority=${result.marketStateOnError.authority || '-'}, operator=${result.operator || '-'}`
-  : ''
-  ].filter(Boolean)
+  // Não tem resultado → chama o Keeper
+  console.log(`📡 [syncFixture] Chamando Keeper para atualizar...`)
+  
+  try {
+    const response = await fetch(
+      `${FOOTBALL_KEEPER_URL}?fixtureId=${encodeURIComponent(fixtureStr)}`,
+      { 
+        method: 'GET', 
+        headers: { 'User-Agent': 'Wala-Frontend' },
+        cache: 'no-store'
+      }
+    )
 
-  throw new Error(
-    detailParts.join(' | ') || 'Não foi possível verificar o resultado do mercado.'
-  )
-}
+    let result = {}
+    try {
+      result = await response.json()
+    } catch (e) {}
 
-  return result
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`)
+    }
+
+    // Salva no Firebase para todos os usuários
+    if (result.status === 'FINISHED' || result.homeScore != null) {
+      await setDoc(matchRef, {
+        status: 'FINISHED',
+        homeScore: result.homeScore ?? matchData?.homeScore,
+        awayScore: result.awayScore ?? matchData?.awayScore,
+        winner: result.winner ?? matchData?.winner,
+        resolvedAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        source: 'keeper'
+      }, { merge: true })
+
+      console.log(`💾 [syncFixture] Resultado salvo no Firebase`)
+    }
+
+    return { ...matchData, ...result }
+
+  } catch (error) {
+    console.error(`❌ [syncFixture] Erro ao atualizar jogo ${fixtureStr}:`, error.message)
+    
+    // Se falhar mas temos dados antigos, retorna mesmo assim
+    if (matchData) {
+      console.warn(`⚠️ [syncFixture] Usando dados antigos do cache`)
+      return matchData
+    }
+
+    throw new Error('Não foi possível obter o resultado deste jogo no momento.')
+  }
 }
 
 async function claimItem(item) {
