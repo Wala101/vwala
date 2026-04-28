@@ -267,7 +267,20 @@ async function createMarket() {
     return
   }
 
-  const closeAt = Math.floor(new Date(closeAtStr).getTime() / 1000)
+  const closeAtDate = new Date(closeAtStr)
+  const closeAt = Math.floor(closeAtDate.getTime() / 1000)
+  const now = Math.floor(Date.now() / 1000)
+
+  // Validação importante
+  if (closeAt <= now) {
+    showAlert('Data inválida', 'A data de fechamento deve ser no futuro (pelo menos 1 hora à frente).', 'error')
+    return
+  }
+  if (closeAt - now < 3600) { // menos de 1 hora
+    showAlert('Data muito próxima', 'A aposta deve fechar com pelo menos 1 hora de antecedência.', 'error')
+    return
+  }
+
   const btn = document.getElementById('createBtn')
   btn.disabled = true
   btn.textContent = "Criando Mercado..."
@@ -281,7 +294,13 @@ async function createMarket() {
     showLoadingModal('Criando Mercado', 'Confirmando transação na Polygon...')
 
     const tx = await contract.createMarket(
-      title, optionA, optionB, closeAt, 300, probA * 100, probB * 100
+      title, 
+      optionA, 
+      optionB, 
+      closeAt, 
+      300, 
+      probA * 100, 
+      probB * 100
     )
 
     const receipt = await tx.wait()
@@ -295,7 +314,7 @@ async function createMarket() {
         optionA,
         optionB,
         closeAt,
-        closeAtDate: new Date(closeAt * 1000),
+        closeAtDate: closeAtDate,
         probA,
         probB,
         feeBps: 300,
@@ -309,9 +328,13 @@ async function createMarket() {
       await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myMarkets', receipt.transactionHash), marketData)
     }
 
-    showAlert('Mercado Criado com Sucesso!', `Hash: <small>${receipt.transactionHash}</small>`, 'success')
+    showAlert(
+      '✅ Mercado Criado com Sucesso!', 
+      `Transação confirmada!<br>Hash: <small>${receipt.transactionHash}</small>`,
+      'success'
+    )
 
-    // Limpar e atualizar lista
+    // Limpar formulário
     document.getElementById('title').value = ''
     document.getElementById('optionA').value = ''
     document.getElementById('optionB').value = ''
@@ -323,13 +346,12 @@ async function createMarket() {
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Falha na Transação', error.shortMessage || error.message, 'error')
+    showAlert('Falha na Transação', error.shortMessage || error.message || 'Erro desconhecido', 'error')
   } finally {
     btn.disabled = false
     btn.textContent = "🚀 Criar Mercado"
   }
 }
-
 // ==================== RENDER ====================
 function renderPage() {
   document.querySelector('#app').innerHTML = `
