@@ -34,7 +34,7 @@ schedule = "*/30 * * * *"
 
 [[redirects]]
   from = "/criar"
-  to = "/criar-apostas.html"
+  to = "/criar-aposta.html"
   status = 200
 
 [[redirects]]
