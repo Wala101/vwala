@@ -284,20 +284,26 @@ async function loadMyMarkets() {
         : '—';
 
       html += `
-        <div class="market-item">
-          <div class="market-title">${m.title || 'Sem título'}</div>
-          <div class="market-options">
-            <span>A: ${m.optionA || '?'} (${m.probA || 50}%)</span>
-            <span>B: ${m.optionB || '?'} (${m.probB || 50}%)</span>
-          </div>
-          <div class="market-info">
-            <span>Fecha: ${date}</span>
-            <span class="status ${m.status || 'active'}">
-              ${m.status === 'active' ? 'Ativa' : 'Finalizada'}
-            </span>
-          </div>
-        </div>
-      `;
+  <div class="market-item">
+    <div class="market-title">${m.title || 'Sem título'}</div>
+
+    <div class="market-options">
+      <span>A: ${m.optionA || '?'} (${m.probA || 50}%)</span>
+      <span>B: ${m.optionB || '?'} (${m.probB || 50}%)</span>
+    </div>
+
+    <div class="market-info">
+      <span>Fecha: ${date}</span>
+      <span class="status ${m.status || 'active'}">
+        ${m.status === 'active' ? 'Ativa' : 'Finalizada'}
+      </span>
+    </div>
+
+    <div class="market-hash">
+      TX: ${String(m.txHash || m.marketId || '').slice(0, 12)}...${String(m.txHash || m.marketId || '').slice(-8)}
+    </div>
+  </div>
+`;
     });
 
     container.innerHTML = html;
