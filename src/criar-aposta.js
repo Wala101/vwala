@@ -48,7 +48,7 @@ window.showAlert = (title, message, type = 'success') => {
     <div class="modal-content">
       <div class="modal-icon">${type === 'success' ? '🎉' : '⚠️'}</div>
       <h2 class="modal-title">${title}</h2>
-      <p class="modal-message">${message}</p>
+      <p class="modal-message break-text">${message}</p>
       <button class="modal-btn" onclick="this.closest('.modal-overlay').remove()">FECHAR</button>
     </div>
   `
