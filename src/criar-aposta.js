@@ -1,4 +1,3 @@
-import './style/style.css'
 import { auth, db } from './firebase'
 import {
   browserLocalPersistence,
