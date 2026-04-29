@@ -589,7 +589,7 @@ function renderPage() {
         <main class="app-content">
           <div class="create-page">
             <div class="create-header">
-              <h1>🚀 Criar Mercado</h1>
+              <h1> Criar Mercado</h1>
               <p>Crie sua própria aposta • Apenas você pode resolver</p>
             </div>
 
@@ -604,7 +604,7 @@ function renderPage() {
                 <div><label>Probabilidade A (%)</label><input type="number" id="probA" value="50" min="1" max="99" class="input" /></div>
                 <div><label>Probabilidade B (%)</label><input type="number" id="probB" value="50" min="1" max="99" class="input" /></div>
               </div>
-              <button id="createBtn" class="launch-btn">🚀 Criar Mercado</button>
+              <button id="createBtn" class="launch-btn">🎲 Criar Mercado</button>
             </div>
 
             <div class="my-markets-section">
