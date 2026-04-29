@@ -1,5 +1,5 @@
 import { auth, db } from './firebase'
-import { doc, getDoc, setDoc, collection, query, orderBy, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, serverTimestamp } from 'firebase/firestore'
 import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { JsonRpcProvider, Contract, Wallet, parseUnits, formatUnits } from 'ethers'
 
@@ -389,42 +389,37 @@ window.redeemWinnings = async function(marketId) {
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
     
     const market = await contract.getMarket(BigInt(marketId));
-    if (!market.resolved) {
-      throw new Error('Mercado ainda não foi resolvido.');
-    }
-
     const position = await contract.getPosition(BigInt(marketId), state.userAddress);
-    
+
     console.log(`📊 Posição: Option=${position.option}, Amount=${position.amount}, Claimed=${position.claimed}`);
 
-    if (!position.exists || position.claimed) {
-      throw new Error('Você já resgatou ou não tem prêmio neste mercado.');
-    }
-    if (position.option !== market.winningOption) {
-      throw new Error('Você não ganhou esta aposta.');
-    }
+    if (!market.resolved) throw new Error('Mercado ainda não resolvido.');
+    if (!position.exists || position.claimed) throw new Error('Você já resgatou ou não tem prêmio.');
+    if (position.option !== market.winningOption) throw new Error('Você não é o vencedor.');
 
     showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
 
-    // CHAMADA CORRETA
     const tx = await contract.connect(signer).claim(BigInt(marketId));
     await tx.wait();
 
     // Atualiza Firestore
     const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-    await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
+    await setDoc(betRef, { 
+      redeemed: true, 
+      redeemedAt: serverTimestamp() 
+    }, { merge: true });
 
     hideLoadingModal();
     showAlert('✅ Resgate realizado com sucesso!', 'O prêmio foi enviado para sua carteira.', 'success');
 
-    setTimeout(loadUserHistory, 1500);
+    setTimeout(loadUserHistory, 1200);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
     
-    const msg = error.shortMessage || error.message;
-    showAlert('❌ Erro no Resgate', msg.includes('reverted') ? 'Você não tem prêmio para resgatar.' : msg, 'error');
+    const msg = error.shortMessage || error.message || 'Erro desconhecido';
+    showAlert('❌ Erro no Resgate', msg, 'error');
   }
 };
 
