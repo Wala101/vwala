@@ -86,48 +86,76 @@ window.hideLoadingModal = () => {
 }
 
 
-// ==================== MODAL DE PIN (Premium) ====================
+// ==================== MODAL DE PIN (PADRONIZADO - IGUAL AOS OUTROS) ====================
 window.showPinModal = (title = 'Confirmar PIN', message = 'Digite seu PIN para continuar') => {
   return new Promise((resolve) => {
-    const existing = document.getElementById('pin-modal')
+    // Remove modal antigo se existir
+    const existing = document.getElementById('appPinModal')
     if (existing) existing.remove()
 
-    const modal = document.createElement('div')
-    modal.id = 'pin-modal'
-    modal.className = 'modal-overlay'
+    const modalHTML = `
+      <div id="appPinOverlay" class="overlay" style="display:flex;"></div>
+      <div id="appPinModal" class="custom-modal" style="display:flex;">
+        <div class="card modal-card notice-modal-card app-pin-modal-card">
+          <div class="modal-header app-pin-modal-header">
+            <div class="app-pin-modal-brand">
+              <div class="app-pin-modal-badge">W</div>
+              <div class="app-pin-modal-headings">
+                <h3 id="appPinTitle">${title}</h3>
+                <span class="app-pin-modal-subtitle">Segurança da carteira</span>
+              </div>
+            </div>
+            <button class="modal-close app-pin-modal-close" id="closeAppPinBtn">✕</button>
+          </div>
 
-    modal.innerHTML = `
-      <div class="modal-content pin-modal">
-        <div class="modal-icon">🔑</div>
-        <h2 class="modal-title">${title}</h2>
-        <p class="modal-message">${message}</p>
-        
-        <input type="password" id="pin-input" class="input pin-input" 
-               placeholder="••••••" maxlength="6" autocomplete="off" autofocus>
-        
-        <div class="pin-buttons">
-          <button class="modal-btn cancel-btn" onclick="this.closest('.modal-overlay').remove(); resolve(null)">Cancelar</button>
-          <button class="modal-btn confirm-btn" id="confirm-pin-btn">Confirmar</button>
+          <div class="notice-modal-body app-pin-modal-body">
+            <p id="appPinText" class="notice-modal-text app-pin-modal-text">
+              ${message}
+            </p>
+
+            <div class="app-pin-input-wrap">
+              <input
+                id="appPinInput"
+                class="input app-pin-input"
+                type="password"
+                placeholder="Digite seu PIN"
+                autocomplete="current-password"
+                maxlength="6"
+              />
+            </div>
+          </div>
+
+          <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
+            <button id="appPinConfirmBtn" class="notice-confirm-btn app-pin-confirm-btn">Confirmar</button>
+          </div>
         </div>
       </div>
     `
 
-    document.body.appendChild(modal)
-    modal.style.display = 'flex'
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = modalHTML
+    document.body.appendChild(tempDiv)
 
-    const pinInput = document.getElementById('pin-input')
-    const confirmBtn = document.getElementById('confirm-pin-btn')
+    // Elementos
+    const pinInput = document.getElementById('appPinInput')
+    const confirmBtn = document.getElementById('appPinConfirmBtn')
+    const closeBtn = document.getElementById('closeAppPinBtn')
+    const overlay = document.getElementById('appPinOverlay')
 
-    setTimeout(() => pinInput.focus(), 150)
+    setTimeout(() => pinInput.focus(), 100)
+
+    // Eventos
+    const closeModal = (result = null) => {
+      tempDiv.remove()
+      resolve(result)
+    }
+
+    closeBtn.onclick = () => closeModal(null)
+    overlay.onclick = () => closeModal(null)
+    confirmBtn.onclick = () => closeModal(pinInput.value.trim())
 
     pinInput.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') confirmBtn.click()
-    })
-
-    confirmBtn.addEventListener('click', () => {
-      const pin = pinInput.value.trim()
-      modal.remove()
-      resolve(pin)
     })
   })
 }
