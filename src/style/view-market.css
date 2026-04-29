@@ -289,18 +289,18 @@
   display: none;
 }
 
-/* INPUT DO PIN - Grande e bonito */
+/* ==================== INPUT DO PIN - TAMANHO PADRÃO ==================== */
 .pin-input {
   width: 100% !important;
   background: rgba(255,255,255,0.08) !important;
   border: 2px solid rgba(255,255,255,0.25) !important;
-  border-radius: 16px !important;
-  padding: 20px 16px !important;
+  border-radius: 14px !important;
+  padding: 16px 14px !important;
   color: #fff !important;
-  font-size: 32px !important;
+  font-size: 20px !important;
   text-align: center !important;
-  letter-spacing: 12px !important;
-  font-weight: 700;
+  letter-spacing: 6px !important;
+  font-weight: 600;
   margin: 20px 0 24px 0 !important;
 }
 
