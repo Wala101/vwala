@@ -2943,22 +2943,32 @@ async function initFirebaseAuthGate() {
 
           await refreshUserCreatedTokens(user.uid)
 
-          // ==================== VERIFICAÇÃO DE PIN ====================
-          // Se não tiver PIN neste aparelho → vai direto pra Swap
-          const hasLocalPin = !!getMatchingLocalDeviceWallet(user.uid, walletAddressToLoad)
+          // ==================== CRIA PIN DIRETO NA CARTEIRA ====================
+          if (walletAddressToLoad) {
+            const hasLocalPin = !!getMatchingLocalDeviceWallet(user.uid, walletAddressToLoad)
 
-          if (!hasLocalPin) {
-            console.log('[PIN AUSENTE] Redirecionando para Swap...')
+            if (!hasLocalPin) {
+              console.log('[PIN AUSENTE] Criando PIN neste aparelho...')
 
-            await showMessageModal(
-              'PIN necessário',
-              'Para usar as funções da carteira (enviar, comprar, vender), crie um PIN neste aparelho.'
-            )
+              await showMessageModal(
+                'Configure seu PIN',
+                'Para usar enviar, comprar e vender é necessário criar um PIN de segurança neste aparelho.'
+              )
 
-            setTimeout(() => {
-              window.location.href = buildSwapPageUrl()
-            }, 1500)
-            return
+              const deviceVault = await ensureDeviceWalletAccess(user, walletProfile)
+
+              if (!deviceVault?.walletKeystoreLocal) {
+                await showMessageModal(
+                  'Atenção',
+                  'Não foi possível configurar o PIN. Algumas funções podem não funcionar.'
+                )
+              } else {
+                await showMessageModal(
+                  'PIN criado com sucesso!',
+                  'Agora você pode usar todas as funções da carteira neste aparelho.'
+                )
+              }
+            }
           }
           // ============================================================
 
