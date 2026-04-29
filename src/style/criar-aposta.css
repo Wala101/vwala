@@ -426,19 +426,22 @@
 }
 
 .resolve-btn {
+  width: 100%;
+  margin-top: 10px;
   background: #10b981;
   color: white;
   border: none;
-  padding: 8px 14px;
-  border-radius: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
   cursor: pointer;
   font-weight: 600;
+  transition: all 0.2s ease;
 }
 
 .resolve-btn:hover {
   background: #059669;
+  transform: translateY(-1px);
 }
-
 .winner {
   color: #10b981;
   font-weight: 600;
