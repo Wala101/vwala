@@ -505,13 +505,13 @@ app.innerHTML = `
 
           <article
   class="feature-card clickable-card"
-  data-href="/criar-aposta"
+  data-href="/view-market"
   role="button"
   tabindex="0"
   aria-label="Abrir página Criar Aposta"
 >
   <div class="feature-card-top">
-    <span class="feature-badge">🎯</span>
+    <span class="feature-badge">🎲</span>
     <span class="feature-chip">Novo</span>
   </div>
 
@@ -522,7 +522,7 @@ app.innerHTML = `
 
   <div class="feature-card-footer">
     <span>Abrir</span>
-    <strong style="display: none;">criar-aposta</strong>
+    <strong style="display: none;">view-market3</strong>
   </div>
 </article>
 
