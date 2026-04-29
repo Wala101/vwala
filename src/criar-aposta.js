@@ -26,12 +26,9 @@ const TOKEN_SYMBOL = 'vWALA'
 // ==================== ABI ATUALIZADO ====================
 const USER_PREDICTIONS_ABI = [
   'function createMarket(string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB) external returns (uint256)',
-  
-  // Função para resolver o mercado
   'function resolveMarket(uint256 marketId, bool outcomeA) external',
-  
-  // (Opcional) Para ler dados do mercado on-chain no futuro
-  'function markets(uint256 marketId) view returns (tuple(uint256 id, string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB, bool resolved, bool outcomeA, uint256 totalVolume))'
+  'function markets(uint256 marketId) view returns (tuple(uint256 id, string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB, bool resolved, bool outcomeA, uint256 totalVolume))',
+  'event MarketCreated(uint256 indexed marketId, address indexed creator)'
 ]
 
 let currentGoogleUser = null
@@ -390,15 +387,29 @@ async function createMarket() {
     )
 
     const receipt = await tx.wait()
-    hideLoadingModal()
+hideLoadingModal()
 
+const marketCreatedLog = receipt.logs.find(log => {
+  try {
+    const parsed = contract.interface.parseLog(log)
+    return parsed && parsed.name === 'MarketCreated'
+  } catch {
+    return false
+  }
+})
 
+if (!marketCreatedLog) {
+  throw new Error('Evento MarketCreated não encontrado na transação.')
+}
+
+const parsedEvent = contract.interface.parseLog(marketCreatedLog)
+const marketId = parsedEvent.args.marketId.toString()
 
 if (currentGoogleUser?.uid) {
   const txHash = tx.hash
 
   const marketData = {
-    marketId: txHash,
+    marketId,
     title,
     optionA,
     optionB,
@@ -454,7 +465,7 @@ async function resolveUserMarket(marketId, title) {
     return
   }
 
-  const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId)
+  const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', String(marketId))
   const snap = await getDoc(marketRef)
 
   if (!snap.exists()) {
