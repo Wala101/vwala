@@ -384,29 +384,51 @@ window.redeemWinnings = async function(marketId) {
   if (!signer) return;
 
   try {
-    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon');
+    showLoadingModal('Verificando...', 'Checando prêmio na blockchain');
 
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
-    const tx = await contract.redeemWinnings(BigInt(marketId));
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
+    
+    // Verifica posição do usuário ANTES de tentar resgatar
+    const position = await contract.userPosition(BigInt(marketId), state.userAddress);
+    const market = await contract.getMarket(BigInt(marketId));
+
+    if (!market.resolved) {
+      throw new Error('Mercado ainda não foi resolvido.');
+    }
+    if (Number(market.winningOption) !== Number(bet.option || 0)) {  // bet não está definido aqui, ajuste se necessário
+      throw new Error('Você não ganhou esta aposta.');
+    }
+
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
+
+    const tx = await contract.connect(signer).redeemWinnings(BigInt(marketId));
     await tx.wait();
 
     // Atualiza Firestore
     const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-    await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
+    await setDoc(betRef, { 
+      redeemed: true, 
+      redeemedAt: serverTimestamp() 
+    }, { merge: true });
 
     hideLoadingModal();
     showAlert('✅ Resgate realizado!', 'O prêmio foi enviado para sua carteira.', 'success');
 
-    // Atualiza a página automaticamente
     setTimeout(() => {
-      loadMarket();        // Atualiza a aposta atual
-      loadUserHistory();   // Atualiza o histórico
+      loadUserHistory();
+      loadMarket();
     }, 1500);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
-    showAlert('Erro no resgate', error.shortMessage || error.message, 'error');
+    
+    let msg = error.shortMessage || error.message || 'Erro desconhecido';
+    if (msg.includes('require(false') || msg.includes('reverted')) {
+      msg = 'Você não tem prêmio para resgatar neste mercado ou já resgatou.';
+    }
+    
+    showAlert('❌ Falha no Resgate', msg, 'error');
   }
 };
 
