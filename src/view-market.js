@@ -245,8 +245,15 @@ async function placeBet(option) {
     return
   }
 
-  const signer = await getInternalWalletSigner()
-  if (!signer) return
+  let signer;
+  try {
+    signer = await getInternalWalletSigner()
+    if (!signer) return
+  } catch (e) {
+    hideLoadingModal()
+    showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
+    return
+  }
 
   try {
     const amountWei = parseUnits(amount.toString(), 18)
@@ -275,27 +282,24 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    // ==================== SUCESSO ====================
+    // ==================== SUCESSO - LIBERA O LOADING IMEDIATAMENTE ====================
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Atualizações no Firebase com proteção máxima
+    // Atualizações no Firebase (isoladas - não podem travar a tela)
     if (currentGoogleUser?.uid) {
-      try {
-        await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
-        await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
-      } catch (fbError) {
-        console.error('Erro ao salvar no Firebase (não crítico):', fbError)
-        // Não quebra a experiência do usuário
-      }
+      Promise.allSettled([
+        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
+        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+      ]).catch(e => console.error('Erro Firebase (não crítico):', e));
     }
 
     setTimeout(loadMarket, 2000)
 
   } catch (error) {
-    hideLoadingModal()   // ← GARANTIDO
-    console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+    hideLoadingModal()   // ← GARANTIDO EM QUALQUER ERRO
+    console.error('Erro completo na aposta:', error)
+    showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
 }
 
