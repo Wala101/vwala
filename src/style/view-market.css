@@ -580,26 +580,26 @@
 }
 
 
-/* SPINNER VERDE INLINE */
+.bet-loading {
+  text-align: center;
+  margin: 16px 0;
+  color: #25ff8a;
+  font-size: 15px;
+  font-weight: 500;
+}
+
 .loading-spinner {
   display: inline-block;
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border: 3px solid rgba(37, 255, 138, 0.3);
-  border-top: 3px solid #25ff8a;
+  border-top-color: #25ff8a;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  animation: spin 0.9s linear infinite;
   vertical-align: middle;
-  margin-right: 8px;
+  margin-right: 10px;
 }
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-.bet-loading {
-  text-align: center;
-  color: #25ff8a;
-  font-weight: 500;
-  margin: 12px 0;
 }

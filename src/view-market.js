@@ -205,7 +205,7 @@ async function loadMarket() {
           <div class="position-warning">
           ⚠️ Só é possível apostar em uma opção por mercado
         </div>
- 
+
         ${!onChain.resolved ? `
           <div class="bet-section">
             <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
@@ -257,26 +257,26 @@ async function placeBet(option) {
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
-    // Mostra spinner inline
-    showBetLoading(true)
+    // Abre o modal grande
+    showLoadingModal('Aprovando vWALA...', 'Aguarde um momento')
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
     const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
 
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
     if (allowance < amountWei) {
-      showBetLoadingText("Aprovando vWALA...")
+      showLoadingModal('Aprovando vWALA...', 'Confirmando na blockchain...')
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
       await approveTx.wait()
     }
 
-    showBetLoadingText("Enviando aposta para a blockchain...")
+    showLoadingModal('Enviando aposta...', 'Confirmando transação na Polygon')
 
     const marketId = BigInt(currentMarket.id)
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    showBetLoading(false)
+    hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
     await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
@@ -284,29 +284,10 @@ async function placeBet(option) {
     setTimeout(loadMarket, 3000)
 
   } catch (error) {
-    showBetLoading(false)
+    hideLoadingModal()
     console.error(error)
     showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
   }
-}
-
-// ==================== FUNÇÃO DO SPINNER INLINE ====================
-function showBetLoading(show) {
-  let loader = document.getElementById('bet-loader')
-  if (!loader) {
-    loader = document.createElement('div')
-    loader.id = 'bet-loader'
-    loader.className = 'bet-loading'
-    // Insere acima dos botões
-    const betSection = document.querySelector('.bet-section')
-    if (betSection) betSection.prepend(loader)
-  }
-  loader.style.display = show ? 'block' : 'none'
-}
-
-function showBetLoadingText(text) {
-  const loader = document.getElementById('bet-loader')
-  if (loader) loader.innerHTML = `<span class="loading-spinner"></span>${text}`
 }
 
 
