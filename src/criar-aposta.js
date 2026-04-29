@@ -500,7 +500,7 @@ async function createMarket() {
 }
 
 
-// ==================== RESOLVER MERCADO ====================
+// ==================== RESOLVER MERCADO (ATUALIZA PARA TODO MUNDO) ====================
 async function resolveUserMarket(marketId, title) {
   if (!currentGoogleUser?.uid) {
     showAlert('Erro', 'Usuário não identificado', 'error')
@@ -508,7 +508,7 @@ async function resolveUserMarket(marketId, title) {
   }
 
   const privateRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', String(marketId))
-  const publicRef   = doc(db, 'markets', String(marketId))   // ← Coleção pública
+  const publicRef   = doc(db, 'markets', String(marketId))   // ← COLEÇÃO PÚBLICA
 
   const snap = await getDoc(privateRef)
   if (!snap.exists()) {
@@ -584,11 +584,9 @@ async function resolveUserMarket(marketId, title) {
       resolveTxHash: tx.hash
     }
 
-    // Atualiza coleção PRIVADA
-    await setDoc(privateRef, updateData, { merge: true })
-
-    // Atualiza coleção PÚBLICA
-    await setDoc(publicRef, updateData, { merge: true })
+    // 🔥 ATUALIZAÇÃO PARA TODO MUNDO
+    await setDoc(privateRef, updateData, { merge: true })   // Privado do criador
+    await setDoc(publicRef, updateData, { merge: true })    // Público (importante!)
 
     hideLoadingModal()
 
