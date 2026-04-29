@@ -250,7 +250,6 @@ async function loadUserTokenBalance() {
     return '0'
   }
 }
-
 // ==================== CARREGAR MINHAS APOSTAS ====================
 async function loadMyMarkets() {
   if (!currentGoogleUser?.uid) {
@@ -288,6 +287,7 @@ async function loadMyMarkets() {
         : '—';
 
       const isActive = m.status === 'active';
+      const marketIdToCopy = m.marketId || m.id;   // ← Prioriza o marketId numérico
 
       html += `
 <div class="market-item">
@@ -309,8 +309,10 @@ async function loadMyMarkets() {
   </div>
 
   <div class="market-actions">
-    <button class="copy-market-btn" onclick="navigator.clipboard.writeText('${m.txHash || m.marketId || ''}'); showAlert('ID Copiado', 'ID da aposta copiado!', 'success')">
-      📋 Copiar ID
+    <button class="copy-market-btn" 
+            onclick="navigator.clipboard.writeText('${marketIdToCopy}'); 
+                     showAlert('ID Copiado!', 'Market ID copiado com sucesso!<br>Envie este número para seus amigos.', 'success')">
+      📋 Copiar Market ID
     </button>
     
     ${isActive ? `
@@ -320,7 +322,8 @@ async function loadMyMarkets() {
   </div>
 
   <div class="market-hash">
-    TX: ${String(m.txHash || m.marketId || '').slice(0, 12)}...${String(m.txHash || m.marketId || '').slice(-8)}
+    Market ID: <strong>${marketIdToCopy}</strong><br>
+    TX: ${String(m.txHash || '').slice(0, 12)}...${String(m.txHash || '').slice(-8)}
   </div>
 </div>`;
     });
