@@ -338,6 +338,25 @@ async function loadMyMarkets() {
 
 // ==================== CRIAR MERCADO ====================
 async function createMarket() {
+  // ==================== VERIFICAÇÃO DE PIN ====================
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null');
+  
+  if (!deviceVault?.walletKeystoreLocal) {
+    showAlert(
+      'Carteira não configurada', 
+      'Você precisa criar um PIN na página de Swap antes de criar uma aposta.', 
+      'error'
+    );
+    
+    // Redireciona para página de carteira/swap
+    setTimeout(() => {
+      window.location.href = '/swap';   // ← Altere se o caminho for diferente
+    }, 1500);
+    
+    return;
+  }
+  // ============================================================
+
   const title = document.getElementById('title').value.trim()
   const optionA = document.getElementById('optionA').value.trim()
   const optionB = document.getElementById('optionB').value.trim()
@@ -421,7 +440,7 @@ async function createMarket() {
       // Salva no usuário (privado)
       await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId), marketData)
 
-      // Salva na coleção pública (para página Ver Aposta)
+      // Salva na coleção pública
       await setDoc(doc(db, 'markets', marketId), marketData)
 
       console.log(`✅ Mercado salvo publicamente → markets/${marketId}`)
