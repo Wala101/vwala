@@ -154,17 +154,18 @@
   margin-bottom: 20px;
 }
 
-/* ==================== BET BUTTONS - LADO A LADO ==================== */
+
+/* ==================== BET BUTTONS - LADO A LADO (MESMO NO CELULAR) ==================== */
 .bet-buttons {
   display: flex;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 14px;
+  margin-top: 16px;
 }
 
 .bet-btn {
   flex: 1;
-  padding: 18px 24px;
-  font-size: 18px;
+  padding: 18px 20px;
+  font-size: 17px;
   font-weight: 700;
   border: none;
   border-radius: 16px;
@@ -173,6 +174,7 @@
   text-transform: uppercase;
   letter-spacing: 0.5px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  min-height: 58px; /* garante altura igual */
 }
 
 .bet-btn.a {
@@ -186,17 +188,24 @@
 }
 
 .bet-btn:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
 }
 
-/* Ajuste responsivo */
-@media (max-width: 480px) {
+/* Garante que fiquem lado a lado mesmo em telas pequenas */
+@media (max-width: 640px) {
   .bet-buttons {
-    flex-direction: column;
-    gap: 10px;
+    flex-direction: row; /* força horizontal */
+    gap: 12px;
+  }
+  
+  .bet-btn {
+    padding: 16px 12px;
+    font-size: 16px;
   }
 }
+
+
 /* ==================== MODAIS PREMIUM (AGORA BONITOS) ==================== */
 .modal-overlay {
   position: fixed;
