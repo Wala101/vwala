@@ -26,9 +26,10 @@ const TOKEN_SYMBOL = 'vWALA'
 // ==================== ABI ATUALIZADO ====================
 const USER_PREDICTIONS_ABI = [
   'function createMarket(string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB) external returns (uint256)',
-  'function resolveMarket(uint256 marketId, bool outcomeA) external',
-  'function markets(uint256 marketId) view returns (tuple(uint256 id, string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB, bool resolved, bool outcomeA, uint256 totalVolume))',
-  'event MarketCreated(uint256 indexed marketId, address indexed creator)'
+  'function resolveMarket(uint256 marketId, uint8 winningOption) external',
+  'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
+  'event MarketCreated(uint256 indexed marketId, address indexed creator)',
+  'event MarketResolved(uint256 indexed marketId, uint8 winningOption)'
 ]
 
 let currentGoogleUser = null
@@ -523,14 +524,15 @@ async function resolveUserMarket(marketId, title) {
   try {
     showLoadingModal('Resolvendo Mercado', 'Confirmando transação na Polygon...')
 
-    const tx = await contract.resolveMarket(marketId, winner)
+    const winningOption = winner ? 0 : 1;
+const tx = await contract.resolveMarket(marketId, winningOption);
     await tx.wait()
 
     hideLoadingModal()
 
     await setDoc(marketRef, {
       status: 'resolved',
-      winningOption: winner ? 'A' : 'B',
+      winningOption: winningOption === 0 ? 'A' : 'B',
       resolvedAt: serverTimestamp(),
       resolveTxHash: tx.hash
     }, { merge: true })
