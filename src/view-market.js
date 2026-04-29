@@ -257,7 +257,6 @@ async function placeBet(option) {
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
-    // Abre o modal grande
     showLoadingModal('Aprovando vWALA...', 'Aguarde um momento')
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
@@ -276,21 +275,22 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-        hideLoadingModal();
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success');
+    // ==================== SUCESSO ====================
+    hideLoadingModal()
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Salva histórico da aposta
-    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt);
+    // Atualizações no Firebase (com proteção)
+    if (currentGoogleUser?.uid) {
+      await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
+      await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+    }
 
-    // 🔥 Atualiza saldo no Firebase (desconta o valor apostado)
-    await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount);
-
-    setTimeout(loadMarket, 3000);
+    setTimeout(loadMarket, 2500)
 
   } catch (error) {
-    hideLoadingModal();
-    console.error(error);
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error');
+    hideLoadingModal()   // ← GARANTIDO
+    console.error(error)
+    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
   }
 }
 
