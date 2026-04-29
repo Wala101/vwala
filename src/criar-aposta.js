@@ -453,7 +453,7 @@ showAlert(
     showAlert('Falha na Transação', error.shortMessage || error.message || 'Erro desconhecido', 'error')
   } finally {
     btn.disabled = false
-    btn.textContent = "🚀 Criar Mercado"
+    btn.textContent = "🎲 Criar Mercado"
   }
 }
 
