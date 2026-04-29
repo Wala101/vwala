@@ -12,9 +12,9 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
   'function buyPosition(uint256 marketId, uint8 option, uint256 amount) external',
-  'function redeemWinnings(uint256 marketId) external',
-  'function userPosition(uint256 marketId, address user) view returns (uint256 amountA, uint256 amountB)'
-]
+  'function claim(uint256 marketId) external',                    // ← MUDOU AQUI
+  'function getPosition(uint256 marketId, address user) view returns (tuple(bool exists,uint8 option,uint256 amount,bool claimed))'  // ← Melhor usar isso
+];
 
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) external returns (bool)',
@@ -386,57 +386,45 @@ window.redeemWinnings = async function(marketId) {
   try {
     showLoadingModal('Verificando Prêmio...', '');
 
-    const contractView = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
-    const market = await contractView.getMarket(BigInt(marketId));
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
     
+    const market = await contract.getMarket(BigInt(marketId));
     if (!market.resolved) {
-      throw new Error('Mercado ainda não resolvido.');
+      throw new Error('Mercado ainda não foi resolvido.');
     }
 
-    // Verifica posição real no contrato
-    const position = await contractView.userPosition(BigInt(marketId), state.userAddress);
-    const amountA = Number(position.amountA);
-    const amountB = Number(position.amountB);
+    const position = await contract.getPosition(BigInt(marketId), state.userAddress);
+    
+    console.log(`📊 Posição: Option=${position.option}, Amount=${position.amount}, Claimed=${position.claimed}`);
 
-    console.log(`Posição on-chain -> A: ${amountA}, B: ${amountB}, Vencedor: ${market.winningOption}`);
-
-    if (market.winningOption === 0 && amountA === 0) {
-      throw new Error('Você não tem saldo vencedor na opção A.');
+    if (!position.exists || position.claimed) {
+      throw new Error('Você já resgatou ou não tem prêmio neste mercado.');
     }
-    if (market.winningOption === 1 && amountB === 0) {
-      throw new Error('Você não tem saldo vencedor na opção B.');
+    if (position.option !== market.winningOption) {
+      throw new Error('Você não ganhou esta aposta.');
     }
 
-    showLoadingModal('Resgatando Prêmio...', 'Confirmando transação...');
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
 
-    const tx = await contractView.connect(signer).redeemWinnings(BigInt(marketId));
+    // CHAMADA CORRETA
+    const tx = await contract.connect(signer).claim(BigInt(marketId));
     await tx.wait();
 
     // Atualiza Firestore
     const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-    await setDoc(betRef, { 
-      redeemed: true, 
-      redeemedAt: serverTimestamp() 
-    }, { merge: true });
+    await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
 
     hideLoadingModal();
     showAlert('✅ Resgate realizado com sucesso!', 'O prêmio foi enviado para sua carteira.', 'success');
 
-    setTimeout(() => {
-      loadUserHistory();
-    }, 1500);
+    setTimeout(loadUserHistory, 1500);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
-
-    let msg = error.shortMessage || error.message || 'Erro desconhecido';
     
-    if (msg.includes('require(false') || msg.includes('reverted')) {
-      msg = 'Contrato não reconhece prêmio (pode ser bug de self-bet ou já resgatado).';
-    }
-
-    showAlert('❌ Não foi possível resgatar', msg, 'error');
+    const msg = error.shortMessage || error.message;
+    showAlert('❌ Erro no Resgate', msg.includes('reverted') ? 'Você não tem prêmio para resgatar.' : msg, 'error');
   }
 };
 
