@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ver Aposta - Wala Predictions</title>
-    <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="icon" type="image/png" href="/logo.png" />
 
   <link rel="stylesheet" href="/src/style/view-market.css">
 </head>
@@ -14,18 +14,43 @@
       <main class="app-content">
         <div class="view-market-page">
 
+          <!-- Header -->
           <div class="header-view">
-            <h1>🎲 Ver Aposta Compartilhada</h1>
-            <p>Digite o ID da aposta (Tx Hash) que alguém compartilhou com você</p>
+            <h1>🎲 Wala Predictions</h1>
+            <p>Busque uma aposta compartilhada ou veja seu histórico</p>
           </div>
 
-          <div class="search-card">
-            <input type="text" id="marketId" class="input" placeholder="Cole o Tx Hash aqui..." />
-            <button id="searchBtn" class="launch-btn">Buscar Aposta</button>
+          <!-- Tabs -->
+          <div class="tabs">
+            <button id="tabSearch" class="tab-btn active">🔍 Buscar Aposta</button>
+            <button id="tabHistory" class="tab-btn">📜 Meu Histórico</button>
           </div>
 
-          <div id="marketContent" class="market-content" style="display: none;">
-            <!-- Conteúdo carregado via JS -->
+          <!-- ==================== ABA BUSCAR ==================== -->
+          <div id="searchTab" class="tab-content">
+            <div class="search-card">
+              <input type="text" id="marketId" class="input" placeholder="Cole o Tx Hash aqui..." />
+              <button id="searchBtn" class="launch-btn">Buscar Aposta</button>
+            </div>
+
+            <div id="marketContent" class="market-content" style="display: none;">
+              <!-- Conteúdo carregado via JS -->
+            </div>
+          </div>
+
+          <!-- ==================== ABA HISTÓRICO ==================== -->
+          <div id="historyTab" class="tab-content" style="display: none;">
+            <div class="history-card">
+              <div class="history-header">
+                <h2>📜 Seu Histórico de Apostas</h2>
+                <button id="refreshHistoryBtn" class="refresh-btn">🔄 Atualizar</button>
+              </div>
+
+              <div id="historyList" class="history-list">
+                <!-- Preenchido via JavaScript -->
+                <div class="loading-history">Carregando suas apostas...</div>
+              </div>
+            </div>
           </div>
 
         </div>
