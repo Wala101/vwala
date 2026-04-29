@@ -224,11 +224,11 @@ async function loadMarket() {
     <!-- Container com largura total -->
     <div class="bet-container">
       <div class="bet-buttons">
-        <button id="betA" class="bet-btn a">APOSTAR A</button>
-        <button id="betB" class="bet-btn b">APOSTAR B</button>
+        <button id="betA" class="bet-btn a"> A</button>
+        <button id="betB" class="bet-btn b">B</button>
       </div>
     </div>
-  </div>` : ''} : ''}
+  </div>`  : ''}
       </div>
     `
 
