@@ -25,6 +25,7 @@ let currentGoogleUser = null
 let currentMarket = null
 let state = { provider: null, signer: null, userAddress: '' }
 
+// ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
@@ -47,7 +48,6 @@ window.showAlert = (title, message, type = 'success') => {
 window.showLoadingModal = (title = 'Processando', message = '') => {
   const existing = document.getElementById('loading-modal')
   if (existing) return
-
   const modal = document.createElement('div')
   modal.id = 'loading-modal'
   modal.className = 'modal-overlay loading'
@@ -86,11 +86,7 @@ window.showPinModal = () => new Promise(resolve => {
 
   setTimeout(() => document.getElementById('pin-input')?.focus(), 150)
 
-  document.getElementById('cancel-pin-btn').onclick = () => {
-    modal.remove()
-    resolve(null)
-  }
-
+  document.getElementById('cancel-pin-btn').onclick = () => { modal.remove(); resolve(null) }
   document.getElementById('confirm-pin-btn').onclick = () => {
     const pin = document.getElementById('pin-input').value.trim()
     modal.remove()
@@ -98,24 +94,18 @@ window.showPinModal = () => new Promise(resolve => {
   }
 })
 
+// ==================== WALLET ====================
 async function syncWalletProfileFromFirebase() {
   if (!currentGoogleUser?.uid) return
-
   try {
     const snap = await getDoc(doc(db, 'users', currentGoogleUser.uid))
     if (!snap.exists()) return
-
     const data = snap.data()
     let addr = String(data.walletAddress || '').trim()
-
     if (!addr && data.walletKeystoreCloud) {
-      const unlocked = await Wallet.fromEncryptedJson(
-        data.walletKeystoreCloud,
-        `vwala_google_device_pin_v1:${currentGoogleUser.uid}`
-      )
+      const unlocked = await Wallet.fromEncryptedJson(data.walletKeystoreCloud, `vwala_google_device_pin_v1:${currentGoogleUser.uid}`)
       addr = unlocked.address
     }
-
     if (addr) state.userAddress = addr
   } catch (error) {
     console.error(error)
@@ -132,14 +122,13 @@ async function getInternalWalletSigner() {
   }
 
   if (state.userAddress.toLowerCase() !== String(vault.walletAddress || '').toLowerCase()) {
-    showAlert('Carteira incompatível', 'A carteira local não pertence a este usuário.', 'error')
+    showAlert('Carteira incompatível', '', 'error')
     return null
   }
 
   while (true) {
     const pin = await window.showPinModal()
     if (!pin) return null
-
     try {
       const wallet = await Wallet.fromEncryptedJson(vault.walletKeystoreLocal, pin)
       state.signer = wallet.connect(state.provider)
@@ -150,9 +139,9 @@ async function getInternalWalletSigner() {
   }
 }
 
+// ==================== SALDO ====================
 async function getUserVWalaBalance() {
   if (!state.userAddress) return '0.00'
-
   try {
     const token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
     const balance = await token.balanceOf(state.userAddress)
@@ -163,6 +152,7 @@ async function getUserVWalaBalance() {
   }
 }
 
+// ==================== CARREGAR MERCADO ====================
 async function loadMarket() {
   const marketIdStr = document.getElementById('marketId').value.trim()
   const content = document.getElementById('marketContent')
@@ -202,46 +192,30 @@ async function loadMarket() {
     content.innerHTML = `
       <div class="market-detail-card">
         <h2>${title}</h2>
-
         <div class="market-status">
           ${onChain.resolved
             ? '<span class="status resolved">🔴 Resolvido</span>'
             : `<span class="status active">🟢 Ativo • Fecha: ${closeDate.toLocaleDateString('pt-BR')}</span>`}
         </div>
-
         <div class="options-bet">
           <div class="option-card a"><strong>A:</strong> ${optionA}</div>
           <div class="option-card b"><strong>B:</strong> ${optionB}</div>
         </div>
-
         ${!onChain.resolved ? `
           <div class="bet-section">
-            <div class="user-balance">
-              Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong>
-            </div>
-
-            <input
-              type="number"
-              id="betAmount"
-              class="input"
-              placeholder="Quantidade vWALA"
-              min="0.1"
-              step="0.1"
-              value="2"
-            />
-
+            <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
+            <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
             <div class="bet-buttons">
               <button id="betA" class="bet-btn a">APOSTAR EM A</button>
               <button id="betB" class="bet-btn b">APOSTAR EM B</button>
             </div>
-          </div>
-        ` : ''}
+          </div>` : ''}
       </div>
     `
 
     if (!onChain.resolved) {
       document.getElementById('betA').onclick = () => placeBet(0)
-document.getElementById('betB').onclick = () => placeBet(1)
+      document.getElementById('betB').onclick = () => placeBet(1)
     }
   } catch (error) {
     console.error(error)
@@ -249,7 +223,23 @@ document.getElementById('betB').onclick = () => placeBet(1)
   }
 }
 
+// ==================== APOSTAR (COM VERIFICAÇÃO DE PIN) ====================
 async function placeBet(option) {
+  // ==================== VERIFICAÇÃO DE PIN ====================
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+  if (!deviceVault?.walletKeystoreLocal) {
+    showAlert(
+      'Carteira não configurada',
+      'Você precisa criar um PIN na página de Swap antes de apostar.',
+      'error'
+    )
+    setTimeout(() => {
+      window.location.href = '/swap'   // ← Mude se o caminho for diferente
+    }, 1800)
+    return
+  }
+  // ============================================================
+
   const amountStr = document.getElementById('betAmount').value.trim()
   const amount = parseFloat(amountStr)
 
@@ -266,17 +256,9 @@ async function placeBet(option) {
     const now = Math.floor(Date.now() / 1000)
     const userBalance = await getUserVWalaBalance()
 
-    if (currentMarket.resolved) {
-      throw new Error('Mercado já resolvido')
-    }
-
-    if (now >= Number(currentMarket.closeAt)) {
-      throw new Error('Mercado encerrado')
-    }
-
-    if (Number(userBalance) < amount) {
-      throw new Error('Saldo insuficiente de vWALA')
-    }
+    if (currentMarket.resolved) throw new Error('Mercado já resolvido')
+    if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
+    if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
     showLoadingModal('Aprovando vWALA...')
 
@@ -293,25 +275,21 @@ async function placeBet(option) {
     showLoadingModal('Enviando aposta...')
 
     const marketId = BigInt(currentMarket.id)
-
-    await predictions.buyPosition.staticCall(marketId, option, amountWei)
-
-const tx = await predictions.buyPosition(marketId, option, amountWei)
+    const tx = await predictions.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    state.signer = null
     hideLoadingModal()
-
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
     setTimeout(loadMarket, 3000)
+
   } catch (error) {
-    state.signer = null
     hideLoadingModal()
     console.error(error)
     showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
   }
 }
 
+// ==================== BOOT ====================
 async function boot() {
   await setPersistence(auth, browserLocalPersistence)
 
