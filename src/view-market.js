@@ -292,7 +292,11 @@ async function placeBet(option) {
     hideLoadingModal()
     showLoadingModal('Enviando aposta...')
 
-    const tx = await predictions.bet(BigInt(currentMarket.id), option, amountWei)
+    const marketId = BigInt(currentMarket.id)
+
+    await predictions.bet.staticCall(marketId, option, amountWei)
+
+    const tx = await predictions.bet(marketId, option, amountWei)
     await tx.wait()
 
     state.signer = null
