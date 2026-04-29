@@ -12,9 +12,9 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
   'function buyPosition(uint256 marketId, uint8 option, uint256 amount) external',
-  'function claim(uint256 marketId) external',                    // ← MUDOU AQUI
-  'function getPosition(uint256 marketId, address user) view returns (tuple(bool exists,uint8 option,uint256 amount,bool claimed))'  // ← Melhor usar isso
-];
+  'function redeemWinnings(uint256 marketId) external',
+  'function userPosition(uint256 marketId, address user) view returns (uint256 amountA, uint256 amountB)'
+]
 
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) external returns (bool)',
@@ -334,25 +334,9 @@ async function loadUserHistory() {
       const bet = docSnap.data();
       const marketId = bet.marketId;
 
-      // 🔥 VERIFICAÇÃO ON-CHAIN (só isso que você pediu)
-      let isResolved = bet.resolved === true;
-      let winningOption = bet.winningOption;
-
-      if (!isResolved) {
-        try {
-          const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
-          const market = await contract.getMarket(BigInt(marketId));
-          if (market.resolved) {
-            isResolved = true;
-            winningOption = market.winningOption;
-          }
-        } catch (e) {
-          console.log("Erro ao checar on-chain:", e);
-        }
-      }
-
+      const isResolved = bet.resolved === true;
       const isRedeemed = bet.redeemed === true;
-      const won = isResolved && Number(bet.option) === Number(winningOption);
+      const won = bet.winningOption !== undefined && Number(bet.option) === Number(bet.winningOption);
 
       let statusHTML = isResolved 
         ? (won ? `<span class="history-status status-resolved">🏆 Ganho</span>` : `<span class="history-status status-resolved">🔴 Perdido</span>`)
@@ -384,30 +368,10 @@ window.redeemWinnings = async function(marketId) {
   if (!signer) return;
 
   try {
-    showLoadingModal('Verificando Prêmio...', '');
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon');
 
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
-    
-    const market = await contract.getMarket(BigInt(marketId));
-    if (!market.resolved) {
-      throw new Error('Mercado ainda não foi resolvido.');
-    }
-
-    const position = await contract.getPosition(BigInt(marketId), state.userAddress);
-    
-    console.log(`📊 Posição: Option=${position.option}, Amount=${position.amount}, Claimed=${position.claimed}`);
-
-    if (!position.exists || position.claimed) {
-      throw new Error('Você já resgatou ou não tem prêmio neste mercado.');
-    }
-    if (position.option !== market.winningOption) {
-      throw new Error('Você não ganhou esta aposta.');
-    }
-
-    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
-
-    // CHAMADA CORRETA
-    const tx = await contract.connect(signer).claim(BigInt(marketId));
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
+    const tx = await contract.redeemWinnings(BigInt(marketId));
     await tx.wait();
 
     // Atualiza Firestore
@@ -415,16 +379,18 @@ window.redeemWinnings = async function(marketId) {
     await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
 
     hideLoadingModal();
-    showAlert('✅ Resgate realizado com sucesso!', 'O prêmio foi enviado para sua carteira.', 'success');
+    showAlert('✅ Resgate realizado!', 'O prêmio foi enviado para sua carteira.', 'success');
 
-    setTimeout(loadUserHistory, 1500);
+    // Atualiza a página automaticamente
+    setTimeout(() => {
+      loadMarket();        // Atualiza a aposta atual
+      loadUserHistory();   // Atualiza o histórico
+    }, 1500);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
-    
-    const msg = error.shortMessage || error.message;
-    showAlert('❌ Erro no Resgate', msg.includes('reverted') ? 'Você não tem prêmio para resgatar.' : msg, 'error');
+    showAlert('Erro no resgate', error.shortMessage || error.message, 'error');
   }
 };
 
