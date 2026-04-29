@@ -473,10 +473,10 @@ async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
 }
 
 
-// ==================== ATUALIZAR SALDO FIREBASE AO APOSTAR ====================
+// ==================== ATUALIZAR SALDO AO APOSTAR ====================
 async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   if (!userId || !amount) return;
-
+  
   try {
     const amountRaw = parseUnits(String(amount), 18);
     if (amountRaw <= 0n) return;
@@ -484,48 +484,35 @@ async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
     const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
     const balanceSnap = await getDoc(balanceRef);
 
-    let currentBalanceRaw = 0n;
-
+    let current = 0n;
     if (balanceSnap.exists()) {
-      const data = balanceSnap.data();
-      currentBalanceRaw = data.balanceRaw 
-        ? BigInt(data.balanceRaw) 
-        : parseUnits(String(data.balanceFormatted || data.balance || '0'), 18);
+      const d = balanceSnap.data();
+      current = d.balanceRaw ? BigInt(d.balanceRaw) : parseUnits(String(d.balanceFormatted || d.balance || '0'), 18);
     }
 
-    if (currentBalanceRaw < amountRaw) {
-      console.warn('⚠️ Saldo insuficiente no Firebase para debitar aposta');
-      return;
-    }
+    if (current < amountRaw) return;
 
-    const nextBalanceRaw = currentBalanceRaw - amountRaw;
-    const nextBalanceFormatted = formatUnits(nextBalanceRaw, 18);
+    const next = current - amountRaw;
+    const formatted = formatUnits(next, 18);
 
     await setDoc(balanceRef, {
-      assetId: 'vwala',
-      token: 'vWALA',
-      tokenAddress: VWALA_TOKEN,
-      walletAddress: walletAddress,
-      balanceRaw: nextBalanceRaw.toString(),
-      balance: Number(nextBalanceFormatted),
-      balanceFormatted: nextBalanceFormatted,
+      balanceRaw: next.toString(),
+      balanceFormatted: formatted,
+      balance: Number(formatted),
       lastType: 'bet_placed',
-      lastTxHash: `bet-${Date.now()}`,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Aposta debitada do saldo Firebase: -${amount} vWALA`);
-
+    console.log(`✅ Débito aposta: -${amount} vWALA`);
   } catch (e) {
-    console.error('Erro ao debitar aposta do saldo Firebase:', e);
+    console.error('Erro saveBetToBalanceFirebase:', e);
   }
 }
 
-
-// ==================== ATUALIZAR SALDO FIREBASE APÓS RESGATE ====================
+// ==================== ATUALIZAR SALDO APÓS RESGATE ====================
 async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
   if (!userId || !payoutAmount) return;
-
+  
   try {
     const amountRaw = parseUnits(String(payoutAmount), 18);
     if (amountRaw <= 0n) return;
@@ -533,38 +520,28 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
     const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
     const balanceSnap = await getDoc(balanceRef);
 
-    let currentBalanceRaw = 0n;
-
+    let current = 0n;
     if (balanceSnap.exists()) {
-      const data = balanceSnap.data();
-      currentBalanceRaw = data.balanceRaw 
-        ? BigInt(data.balanceRaw) 
-        : parseUnits(String(data.balanceFormatted || data.balance || '0'), 18);
+      const d = balanceSnap.data();
+      current = d.balanceRaw ? BigInt(d.balanceRaw) : parseUnits(String(d.balanceFormatted || d.balance || '0'), 18);
     }
 
-    const nextBalanceRaw = currentBalanceRaw + amountRaw;
-    const nextBalanceFormatted = formatUnits(nextBalanceRaw, 18);
+    const next = current + amountRaw;
+    const formatted = formatUnits(next, 18);
 
     await setDoc(balanceRef, {
-      assetId: 'vwala',
-      token: 'vWALA',
-      tokenAddress: VWALA_TOKEN,
-      walletAddress: walletAddress,
-      balanceRaw: nextBalanceRaw.toString(),
-      balance: Number(nextBalanceFormatted),
-      balanceFormatted: nextBalanceFormatted,
+      balanceRaw: next.toString(),
+      balanceFormatted: formatted,
+      balance: Number(formatted),
       lastType: 'redeem_win',
-      lastTxHash: `redeem-${marketId}`,
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Saldo Firebase atualizado com sucesso: +${payoutAmount} vWALA`);
-
+    console.log(`✅ Crédito resgate: +${payoutAmount} vWALA`);
   } catch (e) {
-    console.error('Erro ao atualizar saldo Firebase após resgate:', e);
+    console.error('Erro saveRedeemToFirebase:', e);
   }
 }
-
 // ==================== BOOT ====================
 async function boot() {
   await setPersistence(auth, browserLocalPersistence)
