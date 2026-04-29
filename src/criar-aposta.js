@@ -23,8 +23,15 @@ const CONTRACT_ADDRESS = '0x25F9007ef8E62796C1ed0259B6266d097577e133'
 const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const TOKEN_SYMBOL = 'vWALA'
 
+// ==================== ABI ATUALIZADO ====================
 const USER_PREDICTIONS_ABI = [
-  'function createMarket(string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB) external returns (uint256)'
+  'function createMarket(string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB) external returns (uint256)',
+  
+  // Função para resolver o mercado
+  'function resolveMarket(uint256 marketId, bool outcomeA) external',
+  
+  // (Opcional) Para ler dados do mercado on-chain no futuro
+  'function markets(uint256 marketId) view returns (tuple(uint256 id, string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB, bool resolved, bool outcomeA, uint256 totalVolume))'
 ]
 
 let currentGoogleUser = null
@@ -274,7 +281,6 @@ async function loadMyMarkets() {
       }
     });
 
-    // Ordenar por data (mais recente primeiro)
     markets.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
     let html = '';
@@ -283,12 +289,14 @@ async function loadMyMarkets() {
         ? new Date(m.closeAtDate.seconds * 1000).toLocaleDateString('pt-BR')
         : '—';
 
+      const isActive = m.status === 'active';
+
       html += `
 <div class="market-item">
   <div class="market-header">
     <div class="market-title">${m.title || 'Sem título'}</div>
     <span class="status ${m.status || 'active'}">
-      ${m.status === 'active' ? 'Ativa' : 'Finalizada'}
+      ${isActive ? '🟢 Ativa' : '🔴 Resolvida'}
     </span>
   </div>
 
@@ -299,19 +307,24 @@ async function loadMyMarkets() {
 
   <div class="market-info">
     <span>Fecha: ${date}</span>
+    ${m.winningOption ? `<br><span class="winner">🏆 Vencedor: ${m.winningOption === 'A' ? m.optionA : m.optionB}</span>` : ''}
   </div>
 
   <div class="market-actions">
     <button class="copy-market-btn" onclick="navigator.clipboard.writeText('${m.txHash || m.marketId || ''}'); showAlert('ID Copiado', 'ID da aposta copiado!', 'success')">
       📋 Copiar ID
     </button>
+    
+    ${isActive ? `
+    <button class="resolve-btn" onclick="resolveMarket('${m.marketId}', '${(m.title || '').replace(/'/g, "\\'")}')">
+      🔧 Resolver Aposta
+    </button>` : ''}
   </div>
-</div>
+
   <div class="market-hash">
     TX: ${String(m.txHash || m.marketId || '').slice(0, 12)}...${String(m.txHash || m.marketId || '').slice(-8)}
   </div>
-</div>
-`;
+</div>`;
     });
 
     container.innerHTML = html;
@@ -431,6 +444,100 @@ showAlert(
     btn.textContent = "🚀 Criar Mercado"
   }
 }
+
+// ==================== RESOLVER MERCADO ====================
+async function resolveMarket(marketId, title) {
+  if (!currentGoogleUser?.uid) {
+    showAlert('Erro', 'Usuário não identificado', 'error')
+    return
+  }
+
+  const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId)
+  const snap = await getDoc(marketRef)
+
+  if (!snap.exists()) {
+    showAlert('Erro', 'Mercado não encontrado', 'error')
+    return
+  }
+
+  const market = snap.data()
+  if (market.status !== 'active') {
+    showAlert('Já resolvido', 'Este mercado já foi resolvido.', 'error')
+    return
+  }
+
+  // Modal de escolha do vencedor
+  const winner = await new Promise(resolve => {
+    const modal = document.createElement('div')
+    modal.className = 'modal-overlay'
+    modal.innerHTML = `
+      <div class="modal-content resolve-modal">
+        <div class="modal-icon">🔧</div>
+        <h2 class="modal-title">Resolver Mercado</h2>
+        <p><strong>${title}</strong></p>
+        <p>Qual opção ganhou?</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
+          <button class="resolve-option-btn" data-winner="true" style="padding: 16px; font-size: 1.1em; background: #10b981; color: white; border: none; border-radius: 12px; cursor: pointer;">
+            ✅ ${market.optionA}
+          </button>
+          <button class="resolve-option-btn" data-winner="false" style="padding: 16px; font-size: 1.1em; background: #ef4444; color: white; border: none; border-radius: 12px; cursor: pointer;">
+            ✅ ${market.optionB}
+          </button>
+        </div>
+
+        <button class="modal-btn cancel-btn" onclick="this.closest('.modal-overlay').remove(); resolve(null)">Cancelar</button>
+      </div>
+    `
+    document.body.appendChild(modal)
+    modal.style.display = 'flex'
+
+    modal.querySelectorAll('.resolve-option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.remove()
+        resolve(btn.dataset.winner === 'true')
+      })
+    })
+  })
+
+  if (winner === null) return
+
+  const signer = await getInternalWalletSigner()
+  if (!signer) return
+
+  const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+
+  try {
+    showLoadingModal('Resolvendo Mercado', 'Confirmando transação na Polygon...')
+
+    const tx = await contract.resolveMarket(marketId, winner)
+    await tx.wait()
+
+    hideLoadingModal()
+
+    // Atualiza no Firebase
+    await setDoc(marketRef, {
+      status: 'resolved',
+      winningOption: winner ? 'A' : 'B',
+      resolvedAt: serverTimestamp(),
+      resolveTxHash: tx.hash
+    }, { merge: true })
+
+    showAlert(
+      '✅ Mercado Resolvido com Sucesso!',
+      `Vencedor: <strong>${winner ? market.optionA : market.optionB}</strong><br>Tx: <small>${tx.hash}</small>`,
+      'success'
+    )
+
+    await loadMyMarkets() // Atualiza a lista
+
+  } catch (error) {
+    hideLoadingModal()
+    console.error(error)
+    showAlert('Erro na resolução', error.shortMessage || error.message || 'Erro desconhecido', 'error')
+  }
+}
+
 // ==================== RENDER ====================
 function renderPage() {
   document.querySelector('#app').innerHTML = `

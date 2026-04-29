@@ -424,3 +424,29 @@
   background: rgba(37, 255, 138, 0.25);
   color: #fff;
 }
+
+.resolve-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.resolve-btn:hover {
+  background: #059669;
+}
+
+.winner {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.options-resolve button {
+  width: 100%;
+  margin: 8px 0;
+  padding: 14px;
+  font-size: 1.1em;
+}
