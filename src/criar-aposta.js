@@ -589,7 +589,7 @@ function renderPage() {
         <main class="app-content">
           <div class="create-page">
             <div class="create-header">
-              <h1> Criar Mercado</h1>
+              <h1>🎲 Criar Mercado</h1>
               <p>Crie sua própria aposta • Apenas você pode resolver</p>
             </div>
 
