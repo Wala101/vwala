@@ -391,33 +391,39 @@ window.redeemWinnings = async function(marketId) {
     const market = await contract.getMarket(BigInt(marketId));
     const position = await contract.getPosition(BigInt(marketId), state.userAddress);
 
-    console.log(`📊 Posição: Option=${position.option}, Amount=${position.amount}, Claimed=${position.claimed}`);
-
     if (!market.resolved) throw new Error('Mercado ainda não resolvido.');
-    if (!position.exists || position.claimed) throw new Error('Você já resgatou ou não tem prêmio.');
-    if (position.option !== market.winningOption) throw new Error('Você não é o vencedor.');
+    if (!position.exists || position.claimed) throw new Error('Prêmio já resgatado.');
+    if (position.option !== market.winningOption) throw new Error('Você não ganhou esta aposta.');
+
+    // Calcula o payout (igual ao contrato)
+    const winningPool = position.option === 0 ? market.poolA : market.poolB;
+    const payoutRaw = (BigInt(position.amount) * BigInt(market.totalPool)) / BigInt(winningPool);
+    const payoutFormatted = formatUnits(payoutRaw, 18);
 
     showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
 
     const tx = await contract.connect(signer).claim(BigInt(marketId));
-    await tx.wait();
-
-    // Atualiza Firestore
-    const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-    await setDoc(betRef, { 
-      redeemed: true, 
-      redeemedAt: serverTimestamp() 
-    }, { merge: true });
+    const receipt = await tx.wait();
 
     hideLoadingModal();
-    showAlert('✅ Resgate realizado com sucesso!', 'O prêmio foi enviado para sua carteira.', 'success');
 
-    setTimeout(loadUserHistory, 1200);
+    // 🔥 Atualiza Firebase
+    await saveRedeemToFirebase(
+      currentGoogleUser.uid, 
+      state.userAddress, 
+      marketId, 
+      payoutFormatted
+    );
+
+    showAlert('✅ Resgate realizado!', 
+      `Você recebeu <strong>${Number(payoutFormatted).toFixed(4)} vWALA</strong>`, 
+      'success');
+
+    setTimeout(loadUserHistory, 1500);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
-    
     const msg = error.shortMessage || error.message || 'Erro desconhecido';
     showAlert('❌ Erro no Resgate', msg, 'error');
   }
@@ -459,6 +465,47 @@ async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
     }
   } catch (e) {
     console.error('Erro ao salvar aposta no Firestore:', e);
+  }
+}
+
+
+// ==================== ATUALIZAR SALDO FIREBASE APÓS RESGATE ====================
+async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
+  if (!userId) return;
+
+  const amountRaw = parseUnits(String(payoutAmount || '0'), 18);
+  if (amountRaw <= 0n) return;
+
+  const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
+
+  try {
+    const balanceSnap = await getDoc(balanceRef);
+    const currentData = balanceSnap.exists() ? balanceSnap.data() : {};
+
+    const currentBalanceRaw = currentData.balanceRaw 
+      ? BigInt(currentData.balanceRaw) 
+      : parseUnits(String(currentData.balanceFormatted || currentData.balance || '0'), 18);
+
+    const nextBalanceRaw = currentBalanceRaw + amountRaw;
+    const nextBalanceFormatted = formatUnits(nextBalanceRaw, 18);
+
+    await setDoc(balanceRef, {
+      assetId: 'vwala',
+      token: 'vWALA',
+      tokenAddress: VWALA_TOKEN,
+      walletAddress: walletAddress,
+      balanceRaw: nextBalanceRaw.toString(),
+      balance: Number(nextBalanceFormatted),
+      balanceFormatted: nextBalanceFormatted,
+      lastType: 'redeem_win',
+      lastTxHash: `redeem-${marketId}`,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log(`✅ Saldo Firebase atualizado: +${payoutAmount} vWALA`);
+
+  } catch (e) {
+    console.error('Erro ao atualizar saldo Firebase após resgate:', e);
   }
 }
 
