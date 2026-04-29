@@ -502,6 +502,30 @@ app.innerHTML = `
             </div>
           </article>
 
+
+          <article
+  class="feature-card clickable-card"
+  data-href="/criar-aposta"
+  role="button"
+  tabindex="0"
+  aria-label="Abrir página Criar Aposta"
+>
+  <div class="feature-card-top">
+    <span class="feature-badge">🎯</span>
+    <span class="feature-chip">Novo</span>
+  </div>
+
+  <h3>Criar Aposta</h3>
+  <p>
+    Crie novos mercados esportivos e configure eventos personalizados.
+  </p>
+
+  <div class="feature-card-footer">
+    <span>Abrir</span>
+    <strong style="display: none;">criar-aposta</strong>
+  </div>
+</article>
+
           <article
             class="feature-card clickable-card"
             data-href="/predicoes"
