@@ -16,7 +16,7 @@ let currentGoogleUser = null
 let currentMarket = null
 let state = { provider: null, signer: null, userAddress: '' }
 
-// ==================== MODAIS PREMIUM ====================
+// ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
@@ -24,7 +24,6 @@ window.showAlert = (title, message, type = 'success') => {
   const modal = document.createElement('div')
   modal.id = 'premium-modal'
   modal.className = `modal-overlay ${type}`
-
   modal.innerHTML = `
     <div class="modal-content">
       <div class="modal-icon">${type === 'success' ? '🎉' : '⚠️'}</div>
@@ -40,18 +39,10 @@ window.showAlert = (title, message, type = 'success') => {
 window.showLoadingModal = (title = 'Processando', message = 'Enviando transação...') => {
   const existing = document.getElementById('loading-modal')
   if (existing) return
-
   const modal = document.createElement('div')
   modal.id = 'loading-modal'
   modal.className = 'modal-overlay loading'
-
-  modal.innerHTML = `
-    <div class="modal-content">
-      <div class="premium-spinner"></div>
-      <h2 class="modal-title">${title}</h2>
-      <p class="modal-message">${message}</p>
-    </div>
-  `
+  modal.innerHTML = `<div class="modal-content"><div class="premium-spinner"></div><h2>${title}</h2><p>${message}</p></div>`
   document.body.appendChild(modal)
   modal.style.display = 'flex'
 }
@@ -68,10 +59,9 @@ window.showPinModal = () => new Promise(resolve => {
   const modal = document.createElement('div')
   modal.id = 'pin-modal'
   modal.className = 'modal-overlay'
-
   modal.innerHTML = `
     <div class="modal-content pin-modal">
-      <div class="modal-icon">🎲</div>
+      <div class="modal-icon">🔑</div>
       <h2>Confirmar PIN</h2>
       <p>Digite seu PIN para apostar</p>
       <input type="password" id="pin-input" class="input pin-input" maxlength="6" autocomplete="off" autofocus>
@@ -99,15 +89,12 @@ async function syncWalletProfileFromFirebase() {
   try {
     const snap = await getDoc(doc(db, 'users', currentGoogleUser.uid))
     if (!snap.exists()) return
-
     const data = snap.data()
     let addr = String(data.walletAddress || '').trim()
-
     if (!addr && data.walletKeystoreCloud) {
       const unlocked = await Wallet.fromEncryptedJson(data.walletKeystoreCloud, `vwala_google_device_pin_v1:${currentGoogleUser.uid}`)
       addr = unlocked.address
     }
-
     if (addr) state.userAddress = addr
   } catch (e) { console.error(e) }
 }
@@ -122,7 +109,7 @@ async function getInternalWalletSigner() {
   }
 
   if (state.userAddress.toLowerCase() !== String(vault.walletAddress || '').toLowerCase()) {
-    showAlert('Carteira incompatível', 'Faça login novamente', 'error')
+    showAlert('Carteira incompatível', '', 'error')
     return null
   }
 
@@ -141,11 +128,11 @@ async function getInternalWalletSigner() {
 
 // ==================== CARREGAR MERCADO ====================
 async function loadMarket() {
-  let marketIdStr = document.getElementById('marketId').value.trim()
+  const marketIdStr = document.getElementById('marketId').value.trim()
   const content = document.getElementById('marketContent')
 
   if (!marketIdStr) {
-    showAlert('ID obrigatório', 'Digite o Market ID da aposta', 'error')
+    showAlert('ID obrigatório', 'Digite o Market ID', 'error')
     return
   }
 
@@ -158,50 +145,50 @@ async function loadMarket() {
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
     const onChain = await contract.getMarket(marketId)
 
-    if (!onChain.exists) throw new Error('Mercado não encontrado')
+    if (!onChain.exists) throw new Error('Mercado não encontrado no contrato')
 
-    // Dados padrão
-    let marketData = {
-      title: `Mercado #${marketIdStr}`,
-      optionA: 'Opção A',
-      optionB: 'Opção B'
+    // Busca dados completos no Firebase (título, opções, etc.)
+    let title = `Mercado #${marketIdStr}`
+    let optionA = 'Opção A'
+    let optionB = 'Opção B'
+
+    // Tenta buscar na coleção pública primeiro (recomendado)
+    let fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
+    if (!fbSnap.exists()) {
+      // Fallback: busca em todos os usuários (temporário)
+      // Isso só funciona se o usuário atual for o criador ou se as regras permitirem
+      fbSnap = await getDoc(doc(db, 'users', currentGoogleUser?.uid || 'unknown', 'myMarkets', marketIdStr))
     }
 
-    // Tenta buscar título e opções no Firebase (se você salvou)
-    try {
-      const fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
-      if (fbSnap.exists()) {
-        const fb = fbSnap.data()
-        marketData.title = fb.title || marketData.title
-        marketData.optionA = fb.optionA || marketData.optionA
-        marketData.optionB = fb.optionB || marketData.optionB
-      }
-    } catch (e) {
-      console.log("Dados complementares não encontrados no Firebase")
+    if (fbSnap.exists()) {
+      const fb = fbSnap.data()
+      title = fb.title || title
+      optionA = fb.optionA || optionA
+      optionB = fb.optionB || optionB
     }
 
-    currentMarket = { id: marketIdStr, ...onChain, ...marketData }
+    currentMarket = { id: marketIdStr, ...onChain, title, optionA, optionB }
 
     const closeDate = new Date(Number(onChain.closeAt) * 1000)
 
     content.innerHTML = `
       <div class="market-detail-card">
-        <h2>${marketData.title}</h2>
+        <h2>${title}</h2>
         
         <div class="market-status">
           ${onChain.resolved 
-            ? `<span class="status resolved">🔴 Resolvido • Vencedor: ${onChain.winningOption === 0 ? marketData.optionA : marketData.optionB}</span>` 
+            ? `<span class="status resolved">🔴 Resolvido • Vencedor: ${onChain.winningOption === 0 ? optionA : optionB}</span>` 
             : `<span class="status active">🟢 Ativo • Fecha: ${closeDate.toLocaleDateString('pt-BR')}</span>`
           }
         </div>
 
         <div class="options-bet">
           <div class="option-card a">
-            <strong>A:</strong> ${marketData.optionA}<br>
+            <strong>A:</strong> ${optionA}<br>
             <small>${(Number(onChain.probA)/100).toFixed(1)}% • Pool: ${onChain.poolA}</small>
           </div>
           <div class="option-card b">
-            <strong>B:</strong> ${marketData.optionB}<br>
+            <strong>B:</strong> ${optionB}<br>
             <small>${(Number(onChain.probB)/100).toFixed(1)}% • Pool: ${onChain.poolB}</small>
           </div>
         </div>
@@ -224,7 +211,7 @@ async function loadMarket() {
 
   } catch (err) {
     console.error(err)
-    content.innerHTML = `<p class="error-text">Aposta não encontrada ou ID inválido.<br><small>${err.message}</small></p>`
+    content.innerHTML = `<p class="error-text">Aposta não encontrada.<br><small>${err.message}</small></p>`
   }
 }
 
@@ -268,13 +255,12 @@ async function boot() {
 
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
 
-  // Listeners
   document.getElementById('searchBtn').addEventListener('click', loadMarket)
   document.getElementById('marketId').addEventListener('keypress', e => {
     if (e.key === 'Enter') loadMarket()
   })
 
-  console.log("📄 Página Ver Aposta v2.5 (Completa) ✅")
+  console.log("📄 Página Ver Aposta v2.6 - Completa ✅")
 }
 
 boot()
