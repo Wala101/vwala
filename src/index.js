@@ -9,63 +9,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers'
 
-// ======================
-// ANTI-WALLET INJECTION v3 - AGRESSIVO
-// ======================
-if (typeof window !== 'undefined') {
-  try {
-    const walletKeys = [
-      'ethereum', 'solana', 'phantom', 'binance', 'trustWallet',
-      'coinbase', 'rabby', 'metamask', 'wallet'
-    ]
 
-    // 1. Bloqueio inicial forte
-    const blockWallets = () => {
-      walletKeys.forEach(key => {
-        try {
-          if (window[key]) delete window[key]
-          Object.defineProperty(window, key, {
-            value: undefined,
-            writable: true,
-            configurable: true
-          })
-        } catch (_) {}
-      })
-    }
-
-    blockWallets()
-
-    // 2. Proteção contínua contra reinjeção
-    window.addEventListener('load', blockWallets)
-    window.addEventListener('DOMContentLoaded', blockWallets)
-    setTimeout(blockWallets, 50)
-    setTimeout(blockWallets, 300)
-    setTimeout(blockWallets, 800)
-
-    // 3. Bloqueio de postMessage (principal causa dos erros da MetaMask)
-    const originalPostMessage = window.postMessage
-    window.postMessage = function (message, targetOrigin, ...args) {
-      if (message && typeof message === 'object') {
-        const str = JSON.stringify(message).toLowerCase()
-        if (str.includes('metamask') || 
-            str.includes('ethereum') || 
-            str.includes('phantom') || 
-            str.includes('wallet')) {
-          return // bloqueia mensagem da carteira
-        }
-      }
-      return originalPostMessage.call(this, message, targetOrigin, ...args)
-    }
-
-    console.log('%cAnti-wallet injection v3 (agressivo) ativado', 'color: #28a745; font-size: 13px')
-  } catch (e) {
-    console.warn('Anti-wallet falhou parcialmente', e)
-  }
-}
-
-
-
-//=========================
 
 const app = document.querySelector('#app')
 
