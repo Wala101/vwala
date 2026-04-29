@@ -25,7 +25,7 @@ let state = { provider: null, signer: null, userAddress: '' }
 
 // ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
-  console.log(`[ALERT] ${type}: ${title} | ${message}`);
+  console.log(`[ALERT] ${type.toUpperCase()}: ${title} - ${message}`);
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
 
@@ -63,7 +63,7 @@ window.hideLoadingModal = () => {
 }
 
 window.showPinModal = () => new Promise(resolve => {
-  console.log('[PIN] Abrindo modal');
+  console.log('[PIN] Abrindo');
   const existing = document.getElementById('pin-modal')
   if (existing) existing.remove()
 
@@ -159,7 +159,7 @@ async function loadMarket() {
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
     const onChain = await contract.getMarket(marketId);
 
-    console.log('[CONTRACT] Dados:', onChain);
+    console.log('[CONTRACT] Dados completos:', onChain);
 
     if (!onChain.exists) throw new Error('Mercado não encontrado');
 
@@ -212,8 +212,8 @@ async function loadMarket() {
     }
 
   } catch (err) {
-    console.error('[ERROR]', err);
-    content.innerHTML = `<p class="error-text">Erro ao carregar.<br><small>${err.message}</small></p>`;
+    console.error('[ERROR] loadMarket:', err);
+    content.innerHTML = `<p class="error-text">Erro ao carregar aposta.<br><small>${err.message}</small></p>`;
   }
 }
 
@@ -222,7 +222,7 @@ async function placeBet(option) {
   const amountStr = document.getElementById('betAmount').value;
   const amount = parseFloat(amountStr);
 
-  console.log(`[BET] Iniciando - Option: ${option} | Amount: ${amount}`);
+  console.log(`[BET] === INICIANDO === Option: ${option} | Amount: ${amount}`);
 
   if (!amount || amount <= 0) return showAlert('Valor inválido', '', 'error');
 
@@ -239,16 +239,17 @@ async function placeBet(option) {
     console.log(`[BET] AmountWei: ${amountWei}`);
 
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS);
-    console.log(`[ALLOWANCE] ${allowance}`);
+    console.log(`[ALLOWANCE] Atual: ${allowance}`);
 
     if (allowance < amountWei) {
+      console.log('[APPROVE] Enviando...');
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
       await approveTx.wait();
       console.log('✅ Aprovação OK');
     }
 
     hideLoadingModal();
-    showLoadingModal('Enviando aposta...', '');
+    showLoadingModal('Enviando aposta...', `Market ${currentMarket.id}`);
 
     console.log(`[BET] Chamando bet(${currentMarket.id}, ${option}, ${amountWei})`);
 
@@ -258,12 +259,12 @@ async function placeBet(option) {
     await tx.wait();
 
     hideLoadingModal();
-    showAlert('✅ Sucesso!', `Apostou ${amount} vWALA`, 'success');
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success');
     setTimeout(loadMarket, 3000);
 
   } catch (err) {
     hideLoadingModal();
-    console.error('[BET ERROR]', err);
+    console.error('[BET ERROR FULL]', err);
     showAlert('Erro na transação', err.shortMessage || err.reason || err.message, 'error');
   }
 }
