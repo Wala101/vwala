@@ -620,3 +620,73 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+
+/* Modal PIN Padronizado */
+#appPinOverlay, #appPinModal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+}
+
+#appPinOverlay {
+  background: rgba(0,0,0,0.8);
+  display: none;
+}
+
+#appPinModal {
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+#appPinModal.active, #appPinOverlay.active {
+  display: flex !important;
+}
+
+.app-pin-modal-card {
+  background: linear-gradient(180deg, #12161e, #0a0c12);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+}
+
+.app-pin-modal-header {
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.app-pin-modal-badge {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #25ff8a, #5cffb4);
+  color: #000;
+  font-size: 22px;
+  font-weight: 900;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.app-pin-input {
+  width: 100%;
+  padding: 16px;
+  font-size: 18px;
+  text-align: center;
+  letter-spacing: 4px;
+  background: #1a1f2b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  color: white;
+}
+
+.app-pin-input:focus {
+  border-color: #25ff8a;
+  outline: none;
+}

@@ -368,16 +368,29 @@ window.redeemWinnings = async function(marketId) {
   if (!signer) return;
 
   try {
-    showLoadingModal('Resgatando...');
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon');
+
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
     const tx = await contract.redeemWinnings(BigInt(marketId));
     await tx.wait();
+
+    // Atualiza Firestore
+    const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
+    await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
+
     hideLoadingModal();
-    showAlert('✅ Resgatado!', 'Prêmio enviado para sua carteira.', 'success');
-    setTimeout(loadUserHistory, 2000);
+    showAlert('✅ Resgate realizado!', 'O prêmio foi enviado para sua carteira.', 'success');
+
+    // Atualiza a página automaticamente
+    setTimeout(() => {
+      loadMarket();        // Atualiza a aposta atual
+      loadUserHistory();   // Atualiza o histórico
+    }, 1500);
+
   } catch (error) {
     hideLoadingModal();
-    showAlert('Erro', error.message, 'error');
+    console.error(error);
+    showAlert('Erro no resgate', error.shortMessage || error.message, 'error');
   }
 };
 
