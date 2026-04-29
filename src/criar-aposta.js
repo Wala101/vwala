@@ -538,6 +538,14 @@ async function resolveMarket(marketId, title) {
   }
 }
 
+// ==================== RESOLVER MERCADO ====================
+async function resolveMarket(marketId, title) {
+  // ... todo o código da função que você já tem ...
+}
+
+// ←←← ADICIONE ESTA LINHA AQUI ←←←
+window.resolveMarket = resolveMarket;
+
 // ==================== RENDER ====================
 function renderPage() {
   document.querySelector('#app').innerHTML = `
