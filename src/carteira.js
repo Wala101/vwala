@@ -2802,110 +2802,73 @@ function saveFirebaseUser(user) {
   )
 }
 
-// ==================== GARANTIR PIN APÓS LOGIN ====================
+
 async function ensureUserWalletProfile(user) {
   if (!user?.uid) {
-    throw new Error('Usuário inválido.')
+    throw new Error('Usuário inválido para criar carteira.')
   }
 
   const userRef = doc(db, 'users', user.uid)
   const userSnap = await getDoc(userRef)
 
-  let walletProfile = userSnap.exists() ? userSnap.data() : {}
+  if (userSnap.exists()) {
+    const userData = userSnap.data()
+    return await syncResolvedWalletAddress(user, userData)
+  }
 
-  // Verifica se já tem PIN local neste aparelho
-  const hasLocalPin = !!getLocalDeviceWallet()
+  const pin = await promptCreateDevicePin()
 
-  if (!hasLocalPin) {
-    await showMessageModal(
-      'Configurar PIN',
-      'Para usar a carteira neste aparelho, crie um PIN de 6 dígitos.',
-      'Continuar'
-    )
+  if (!pin) {
+    return null
+  }
 
-    const newPin = await promptCreateDevicePin()
+  const wallet = Wallet.createRandom()
+  const walletKeystoreCloud = await wallet.encrypt(buildCloudPassword(user))
+  const walletKeystoreLocal = await wallet.encrypt(pin)
 
-    if (!newPin) {
-      await showMessageModal('PIN obrigatório', 'Você precisa criar um PIN para continuar.', 'OK')
-      // Força logout se não criar PIN
-      await auth.signOut()
-      return null
-    }
+  const payload = {
+    uid: user.uid,
+    email: user.email || '',
+    name: user.displayName || '',
+    photo: user.photoURL || '',
+    walletAddress: wallet.address,
+    walletKeystoreCloud,
+    walletModel: 'google_device_pin_v1',
+    chainId: POLYGON_CHAIN_ID,
+    network: 'polygon',
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  }
 
-    // Cria ou migra a carteira com o novo PIN
-    const deviceVault = await ensureDeviceWalletAccess(user, walletProfile)
+  await setDoc(userRef, payload)
 
-    if (!deviceVault) {
-      await showMessageModal('Erro', 'Não foi possível configurar o PIN.')
-      return null
-    }
+  saveLocalDeviceWallet({
+    uid: user.uid,
+    walletAddress: wallet.address,
+    walletKeystoreLocal,
+    chainId: POLYGON_CHAIN_ID,
+    network: 'polygon'
+  })
 
-    // Atualiza perfil no Firebase
-    walletProfile = await syncResolvedWalletAddress(user, {
-      ...walletProfile,
-      walletAddress: deviceVault.walletAddress,
-      walletKeystoreCloud: await Wallet.fromEncryptedJson(
-        deviceVault.walletKeystoreLocal,
-        newPin
-      ).then(w => w.encrypt(buildCloudPassword(user)))
+  currentWalletAddress = wallet.address
+  updateWalletAddressUI(currentWalletAddress)
+
+  localStorage.setItem(
+    'vwala_wallet_profile',
+    JSON.stringify({
+      uid: user.uid,
+      walletAddress: wallet.address,
+      chainId: POLYGON_CHAIN_ID,
+      network: 'polygon'
     })
-  }
+  )
 
-  return walletProfile
-}
+  await showMessageModal(
+    'Carteira criada',
+    'Carteira criada com sucesso. Neste aparelho seu PIN já ficou definido.'
+  )
 
-// ==================== LOGIN COM GOOGLE ====================
-async function loginWithGoogle() {
-  if (!googleLoginBtn) return
-
-  const originalText = googleLoginBtn.textContent
-
-  try {
-    googleLoginBtn.disabled = true
-    googleLoginBtn.textContent = 'Entrando...'
-
-    await setPersistence(auth, browserLocalPersistence)
-
-    let userCredential
-    try {
-      userCredential = await signInWithPopup(auth, googleProvider)
-    } catch (error) {
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
-        userCredential = await signInWithRedirect(auth, googleProvider)
-        return
-      }
-      throw error
-    }
-
-    const user = userCredential.user
-    currentGoogleUser = user
-    saveFirebaseUser(user)
-
-    // Força criação do PIN imediatamente após login
-    const walletProfile = await ensureUserWalletProfile(user)
-
-    if (walletProfile) {
-      closeAuthGate()
-
-      const walletAddress = walletProfile.walletAddress || ''
-      if (walletAddress) {
-        currentWalletAddress = walletAddress
-        updateWalletAddressUI(currentWalletAddress)
-
-        await loadPolygonBalance(currentWalletAddress)
-        await loadVWalaBalance(currentWalletAddress)
-      }
-
-      await refreshUserCreatedTokens(user.uid)
-    }
-
-  } catch (error) {
-    console.error('Erro ao entrar com Google:', error)
-    await showMessageModal('Erro de login', 'Não foi possível entrar com Google.')
-  } finally {
-    googleLoginBtn.disabled = false
-    googleLoginBtn.textContent = originalText
-  }
+  return payload
 }
 
 async function loginWithGoogle() {
@@ -2960,25 +2923,45 @@ async function initFirebaseAuthGate() {
           const walletProfile = await ensureUserWalletProfile(user)
 
           const walletAddressToLoad = String(
-  walletProfile?.walletAddress || ''
-).trim()
+            walletProfile?.walletAddress || ''
+          ).trim()
 
           if (walletAddressToLoad) {
             currentWalletAddress = walletAddressToLoad
             updateWalletAddressUI(currentWalletAddress)
 
             console.log('[CARTEIRA LOAD ADDRESS]', {
-  build: CARTEIRA_BUILD_TAG,
-  source: 'firestore_walletAddress',
-  currentWalletAddress,
-  firestoreWalletAddress: walletProfile?.walletAddress || ''
-})
+              build: CARTEIRA_BUILD_TAG,
+              source: 'firestore_walletAddress',
+              currentWalletAddress,
+              firestoreWalletAddress: walletProfile?.walletAddress || ''
+            })
 
             await loadPolygonBalance(currentWalletAddress)
             await loadVWalaBalance(currentWalletAddress)
           }
 
           await refreshUserCreatedTokens(user.uid)
+
+          // ==================== VERIFICAÇÃO DE PIN ====================
+          // Se não tiver PIN neste aparelho → vai direto pra Swap
+          const hasLocalPin = !!getMatchingLocalDeviceWallet(user.uid, walletAddressToLoad)
+
+          if (!hasLocalPin) {
+            console.log('[PIN AUSENTE] Redirecionando para Swap...')
+
+            await showMessageModal(
+              'PIN necessário',
+              'Para usar as funções da carteira (enviar, comprar, vender), crie um PIN neste aparelho.'
+            )
+
+            setTimeout(() => {
+              window.location.href = buildSwapPageUrl()
+            }, 1500)
+            return
+          }
+          // ============================================================
+
         } catch (error) {
           console.error('Erro ao preparar carteira do usuário:', error)
 
