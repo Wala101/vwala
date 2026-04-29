@@ -272,3 +272,35 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* MELHORIAS MOBILE */
+@media (max-width: 640px) {
+  .view-market-page {
+    padding: 20px 12px;
+  }
+
+  .market-detail-card {
+    padding: 24px 20px;
+  }
+
+  .options-bet {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .bet-buttons {
+    flex-direction: column;
+  }
+
+  .search-card {
+    padding: 20px;
+  }
+
+  .header-view h1 {
+    font-size: 28px;
+  }
+}
+
+/* Melhoria visual das opções */
+.option-card.a { border-left: 5px solid #10b981; }
+.option-card.b { border-left: 5px solid #ef4444; }
