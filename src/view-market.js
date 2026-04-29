@@ -299,6 +299,97 @@ async function placeBet(option) {
 }
 
 
+
+// ==================== TABS (Buscar / Histórico) ====================
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+
+  if (tab === 'search') {
+    document.getElementById('tabSearch').classList.add('active');
+    document.getElementById('searchTab').style.display = 'block';
+  } else {
+    document.getElementById('tabHistory').classList.add('active');
+    document.getElementById('historyTab').style.display = 'block';
+    loadUserHistory();
+  }
+}
+
+// ==================== CARREGAR HISTÓRICO ====================
+async function loadUserHistory() {
+  const container = document.getElementById('historyList');
+  if (!container) return;
+  
+  container.innerHTML = '<div class="loading-history">Carregando seu histórico...</div>';
+
+  if (!currentGoogleUser?.uid) {
+    container.innerHTML = `<div class="empty-history">Faça login para ver seu histórico.</div>`;
+    return;
+  }
+
+  try {
+    const betsRef = collection(db, 'users', currentGoogleUser.uid, 'myBets');
+    const q = query(betsRef, orderBy('timestamp', 'desc'));
+    const snapshot = await getDocs(q);
+
+    if (snapshot.empty) {
+      container.innerHTML = `<div class="empty-history">Você ainda não tem apostas.</div>`;
+      return;
+    }
+
+    let html = '';
+    for (const docSnap of snapshot.docs) {
+      const bet = docSnap.data();
+      const marketId = bet.marketId;
+
+      const isResolved = bet.resolved === true;
+      const isRedeemed = bet.redeemed === true;
+      const won = bet.winningOption !== undefined && Number(bet.option) === Number(bet.winningOption);
+
+      let statusHTML = isResolved 
+        ? (won ? `<span class="history-status status-resolved">🏆 Ganho</span>` : `<span class="history-status status-resolved">🔴 Perdido</span>`)
+        : `<span class="history-status status-active">🟢 Ativo</span>`;
+
+      html += `
+        <div class="history-item">
+          <div class="history-item-header">
+            <div class="history-market-title">${bet.title || `Mercado #${marketId}`}</div>
+            ${statusHTML}
+          </div>
+          <div class="history-bet-info">
+            Apostou <strong>${Number(bet.amount || 0).toFixed(2)} vWALA</strong> na opção <strong>${bet.option === 0 ? 'A' : 'B'}</strong>
+          </div>
+          ${isResolved && !isRedeemed && won ? `
+            <button class="redeem-btn" onclick="redeemWinnings('${marketId}')">🎁 Resgatar Prêmio</button>` : ''}
+        </div>
+      `;
+    }
+    container.innerHTML = html;
+  } catch (error) {
+    console.error(error);
+    container.innerHTML = `<div class="empty-history">Erro ao carregar histórico.</div>`;
+  }
+}
+
+window.redeemWinnings = async function(marketId) {
+  const signer = await getInternalWalletSigner();
+  if (!signer) return;
+
+  try {
+    showLoadingModal('Resgatando...');
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
+    const tx = await contract.redeemWinnings(BigInt(marketId));
+    await tx.wait();
+    hideLoadingModal();
+    showAlert('✅ Resgatado!', 'Prêmio enviado para sua carteira.', 'success');
+    setTimeout(loadUserHistory, 2000);
+  } catch (error) {
+    hideLoadingModal();
+    showAlert('Erro', error.message, 'error');
+  }
+};
+
+
 // ==================== SALVAR / ATUALIZAR APOSTA NO FIRESTORE (ACUMULA) ====================
 async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
   if (!currentGoogleUser?.uid) return;
@@ -351,12 +442,20 @@ async function boot() {
 
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
 
+  // === TABS ===
+  document.getElementById('tabSearch').addEventListener('click', () => switchTab('search'));
+  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+
+  // Busca
   document.getElementById('searchBtn').addEventListener('click', loadMarket)
   document.getElementById('marketId').addEventListener('keypress', e => {
     if (e.key === 'Enter') loadMarket()
   })
 
-  console.log('📄 Página Ver Aposta v2.14 ✅')
+  // Inicia na aba de busca
+  switchTab('search')
+
+  console.log('📄 Página Ver Aposta + Histórico v2.16 ✅')
 }
 
 boot()
