@@ -25,6 +25,7 @@ let state = { provider: null, signer: null, userAddress: '' }
 
 // ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
+  console.log(`[ALERT] ${type.toUpperCase()}: ${title} - ${message}`);
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
 
@@ -44,6 +45,7 @@ window.showAlert = (title, message, type = 'success') => {
 }
 
 window.showLoadingModal = (title = 'Processando', message = '') => {
+  console.log(`[LOADING] ${title} - ${message}`);
   const existing = document.getElementById('loading-modal')
   if (existing) return
   const modal = document.createElement('div')
@@ -55,11 +57,13 @@ window.showLoadingModal = (title = 'Processando', message = '') => {
 }
 
 window.hideLoadingModal = () => {
+  console.log('[LOADING] Fechando modal');
   const modal = document.getElementById('loading-modal')
   if (modal) modal.remove()
 }
 
 window.showPinModal = () => new Promise(resolve => {
+  console.log('[PIN] Abrindo modal');
   const existing = document.getElementById('pin-modal')
   if (existing) existing.remove()
 
@@ -92,80 +96,92 @@ window.showPinModal = () => new Promise(resolve => {
 
 // ==================== WALLET ====================
 async function syncWalletProfileFromFirebase() {
-  if (!currentGoogleUser?.uid) return
+  console.log('[WALLET] Sincronizando perfil Firebase...');
+  if (!currentGoogleUser?.uid) return;
   try {
-    const snap = await getDoc(doc(db, 'users', currentGoogleUser.uid))
-    if (!snap.exists()) return
-    const data = snap.data()
-    let addr = String(data.walletAddress || '').trim()
+    const snap = await getDoc(doc(db, 'users', currentGoogleUser.uid));
+    if (!snap.exists()) return;
+    const data = snap.data();
+    let addr = String(data.walletAddress || '').trim();
     if (!addr && data.walletKeystoreCloud) {
-      const unlocked = await Wallet.fromEncryptedJson(data.walletKeystoreCloud, `vwala_google_device_pin_v1:${currentGoogleUser.uid}`)
-      addr = unlocked.address
+      const unlocked = await Wallet.fromEncryptedJson(data.walletKeystoreCloud, `vwala_google_device_pin_v1:${currentGoogleUser.uid}`);
+      addr = unlocked.address;
     }
-    if (addr) state.userAddress = addr
+    if (addr) state.userAddress = addr;
+    console.log('[WALLET] Endereço carregado:', addr);
   } catch (e) { console.error(e) }
 }
 
 async function getInternalWalletSigner() {
-  if (state.signer) return state.signer
+  console.log('[SIGNER] Buscando signer...');
+  if (state.signer) return state.signer;
 
-  const vault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+  const vault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null');
   if (!vault?.walletKeystoreLocal) {
-    showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    return null
+    showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error');
+    return null;
   }
 
   if (state.userAddress.toLowerCase() !== String(vault.walletAddress || '').toLowerCase()) {
-    showAlert('Carteira incompatível', '', 'error')
-    return null
+    showAlert('Carteira incompatível', '', 'error');
+    return null;
   }
 
   while (true) {
-    const pin = await window.showPinModal()
-    if (!pin) return null
+    const pin = await window.showPinModal();
+    if (!pin) return null;
     try {
-      const wallet = await Wallet.fromEncryptedJson(vault.walletKeystoreLocal, pin)
-      state.signer = wallet.connect(state.provider)
-      return state.signer
+      const wallet = await Wallet.fromEncryptedJson(vault.walletKeystoreLocal, pin);
+      state.signer = wallet.connect(state.provider);
+      console.log('[SIGNER] Signer obtido com sucesso');
+      return state.signer;
     } catch {
-      showAlert('PIN Inválido', 'Tente novamente', 'error')
+      showAlert('PIN Inválido', 'Tente novamente', 'error');
     }
   }
 }
 
 // ==================== CARREGAR MERCADO ====================
 async function loadMarket() {
-  const marketIdStr = document.getElementById('marketId').value.trim()
-  const content = document.getElementById('marketContent')
+  const marketIdStr = document.getElementById('marketId').value.trim();
+  const content = document.getElementById('marketContent');
 
-  if (!marketIdStr) return showAlert('ID obrigatório', 'Digite o Market ID', 'error')
+  console.log(`[LOAD] Tentando carregar Market ID: ${marketIdStr}`);
 
-  content.style.display = 'none'
-  content.innerHTML = '<p class="loading-text">Carregando aposta...</p>'
-  content.style.display = 'block'
+  if (!marketIdStr) return showAlert('ID obrigatório', 'Digite o Market ID', 'error');
+
+  content.style.display = 'none';
+  content.innerHTML = '<p class="loading-text">Carregando aposta...</p>';
+  content.style.display = 'block';
 
   try {
-    const marketId = BigInt(marketIdStr)
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
-    const onChain = await contract.getMarket(marketId)
+    const marketId = BigInt(marketIdStr);
+    console.log(`[CONTRACT] Chamando getMarket(${marketId})`);
 
-    if (!onChain.exists) throw new Error('Mercado não encontrado')
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
+    const onChain = await contract.getMarket(marketId);
 
-    let title = `Mercado #${marketIdStr}`
-    let optionA = 'Opção A'
-    let optionB = 'Opção B'
+    console.log('[CONTRACT] Dados on-chain:', onChain);
 
-    const fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
+    if (!onChain.exists) throw new Error('Mercado não encontrado');
+
+    let title = `Mercado #${marketIdStr}`;
+    let optionA = 'Opção A';
+    let optionB = 'Opção B';
+
+    const fbSnap = await getDoc(doc(db, 'markets', marketIdStr));
     if (fbSnap.exists()) {
-      const fb = fbSnap.data()
-      title = fb.title || title
-      optionA = fb.optionA || optionA
-      optionB = fb.optionB || optionB
+      const fb = fbSnap.data();
+      title = fb.title || title;
+      optionA = fb.optionA || optionA;
+      optionB = fb.optionB || optionB;
+      console.log('[FIREBASE] Dados complementares encontrados');
     }
 
-    currentMarket = { id: marketIdStr, ...onChain, title, optionA, optionB }
+    currentMarket = { id: marketIdStr, ...onChain, title, optionA, optionB };
 
-    const closeDate = new Date(Number(onChain.closeAt) * 1000)
+    const closeDate = new Date(Number(onChain.closeAt) * 1000);
+    console.log(`[INFO] Fecha em: ${closeDate.toLocaleString('pt-BR')}`);
 
     content.innerHTML = `
       <div class="market-detail-card">
@@ -184,95 +200,103 @@ async function loadMarket() {
 
         ${!onChain.resolved ? `
         <div class="bet-section">
-          <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1"/>
+          <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
           <div class="bet-buttons">
             <button id="betA" class="bet-btn a">APOSTAR EM A</button>
             <button id="betB" class="bet-btn b">APOSTAR EM B</button>
           </div>
         </div>` : ''}
       </div>
-    `
+    `;
 
     if (!onChain.resolved) {
-      document.getElementById('betA').onclick = () => placeBet(true)
-      document.getElementById('betB').onclick = () => placeBet(false)
+      document.getElementById('betA').onclick = () => placeBet(true);
+      document.getElementById('betB').onclick = () => placeBet(false);
     }
 
   } catch (err) {
-    console.error(err)
-    content.innerHTML = `<p class="error-text">Aposta não encontrada.<br><small>${err.message}</small></p>`
+    console.error('[ERROR] loadMarket:', err);
+    content.innerHTML = `<p class="error-text">Aposta não encontrada.<br><small>${err.message}</small></p>`;
   }
 }
 
 // ==================== APOSTAR ====================
 async function placeBet(option) {
-  const amountStr = document.getElementById('betAmount').value
-  const amount = parseFloat(amountStr)
+  const amountStr = document.getElementById('betAmount').value;
+  const amount = parseFloat(amountStr);
+
+  console.log(`[BET] Iniciando aposta - Option: ${option}, Amount: ${amount}`);
 
   if (!amount || amount <= 0) {
-    return showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error')
+    return showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error');
   }
 
-  const signer = await getInternalWalletSigner()
-  if (!signer) return
+  const signer = await getInternalWalletSigner();
+  if (!signer) return;
 
   try {
-    showLoadingModal('Aprovando vWALA...', '')
+    showLoadingModal('Aprovando vWALA...', '');
 
-    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer);
+    const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
 
-    const amountWei = parseUnits(amount.toString(), 18)
+    const amountWei = parseUnits(amount.toString(), 18);
+    console.log(`[BET] Amount em wei: ${amountWei}`);
 
     // Aprovação
-    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
+    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS);
+    console.log(`[ALLOWANCE] Atual: ${allowance}`);
+
     if (allowance < amountWei) {
-      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
-      await approveTx.wait()
-      console.log('✅ Aprovação feita')
+      console.log('[APPROVE] Enviando aprovação...');
+      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
+      await approveTx.wait();
+      console.log('✅ Aprovação concluída');
     }
 
-    hideLoadingModal()
-    showLoadingModal('Enviando aposta...', `Market: ${currentMarket.id} | Option: ${option}`)
+    hideLoadingModal();
+    showLoadingModal('Enviando aposta...', `Market ${currentMarket.id} | Option ${option}`);
 
-    console.log(`Chamando bet(${currentMarket.id}, ${option}, ${amountWei})`)
+    console.log(`[BET] Chamando bet(${currentMarket.id}, ${option}, ${amountWei})`);
 
-    const tx = await predictions.bet(BigInt(currentMarket.id), option, amountWei)
-    console.log('Transação enviada:', tx.hash)
+    const tx = await predictions.bet(BigInt(currentMarket.id), option, amountWei);
+    console.log(`[TX] Hash: ${tx.hash}`);
 
-    await tx.wait()
+    await tx.wait();
 
-    hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success')
-    setTimeout(loadMarket, 3000)
+    hideLoadingModal();
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success');
+    setTimeout(loadMarket, 3000);
 
   } catch (err) {
-    hideLoadingModal()
-    console.error(err)
-    showAlert('Erro na transação', err.shortMessage || err.reason || err.message, 'error')
+    hideLoadingModal();
+    console.error('[BET ERROR]', err);
+    showAlert('Erro na transação', err.shortMessage || err.reason || err.message, 'error');
   }
 }
 
 // ==================== BOOT ====================
 async function boot() {
-  await setPersistence(auth, browserLocalPersistence)
+  console.log('[BOOT] Iniciando...');
+
+  await setPersistence(auth, browserLocalPersistence);
 
   await new Promise(resolve => {
     onAuthStateChanged(auth, async (user) => {
-      currentGoogleUser = user
-      if (user) await syncWalletProfileFromFirebase()
-      resolve()
-    })
-  })
+      currentGoogleUser = user;
+      if (user) await syncWalletProfileFromFirebase();
+      resolve();
+    });
+  });
 
-  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
+  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID);
 
-  document.getElementById('searchBtn').addEventListener('click', loadMarket)
+  document.getElementById('searchBtn').addEventListener('click', loadMarket);
   document.getElementById('marketId').addEventListener('keypress', e => {
-    if (e.key === 'Enter') loadMarket()
-  })
+    if (e.key === 'Enter') loadMarket();
+  });
 
-  console.log("📄 Página Ver Aposta v2.10 (bet corrigido) ✅")
+  console.log("📄 Página Ver Aposta v2.11 (FULL DEBUG) ✅");
 }
 
-boot()
+boot();
