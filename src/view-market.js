@@ -250,7 +250,7 @@ async function placeBet(option) {
     signer = await getInternalWalletSigner()
     if (!signer) return
   } catch (e) {
-    hideLoadingModal()
+    hideLoadingModal?.()
     showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
     return
   }
@@ -282,22 +282,22 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    // ==================== SUCESSO - LIBERA O LOADING IMEDIATAMENTE ====================
+    // ==================== SUCESSO ====================
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Atualizações no Firebase (isoladas - não podem travar a tela)
+    // Firebase em background (não bloqueia nada)
     if (currentGoogleUser?.uid) {
-      Promise.allSettled([
-        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
-        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
-      ]).catch(e => console.error('Erro Firebase (não crítico):', e));
+      setTimeout(() => {
+        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {})
+        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount).catch(() => {})
+      }, 500)
     }
 
     setTimeout(loadMarket, 2000)
 
   } catch (error) {
-    hideLoadingModal()   // ← GARANTIDO EM QUALQUER ERRO
+    hideLoadingModal()
     console.error('Erro completo na aposta:', error)
     showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
