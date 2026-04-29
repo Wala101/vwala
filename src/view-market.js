@@ -228,77 +228,27 @@ async function loadMarket() {
   }
 }
 
-// ==================== APOSTAR ====================
-async function placeBet(option) {
-  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
-  if (!deviceVault?.walletKeystoreLocal) {
-    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    setTimeout(() => window.location.href = '/carteira', 1800)
-    return
-  }
-
-  const amountStr = document.getElementById('betAmount').value.trim()
-  const amount = parseFloat(amountStr)
-
-  if (!amount || amount <= 0) {
-    showAlert('Valor inválido', 'Digite uma quantidade maior que zero.', 'error')
-    return
-  }
-
-  let signer;
-  try {
-    signer = await getInternalWalletSigner()
-    if (!signer) return
-  } catch (e) {
-    hideLoadingModal?.()
-    showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
-    return
-  }
-
-  try {
-    const amountWei = parseUnits(amount.toString(), 18)
-    const now = Math.floor(Date.now() / 1000)
-    const userBalance = await getUserVWalaBalance()
-
-    if (currentMarket.resolved) throw new Error('Mercado já resolvido')
-    if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
-    if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
-
-    showLoadingModal('Aprovando vWALA...', 'Aguarde um momento')
-
-    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
-
-    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
-    if (allowance < amountWei) {
-      showLoadingModal('Aprovando vWALA...', 'Confirmando na blockchain...')
-      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
-      await approveTx.wait()
-    }
-
-    showLoadingModal('Enviando aposta...', 'Confirmando transação na Polygon')
-
-    const marketId = BigInt(currentMarket.id)
-    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
-    await tx.wait()
-
-    // ==================== SUCESSO ====================
+    // ====================== SUCESSO ======================
     hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
+    showAlert('✅ Aposta realizada com sucesso!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Firebase em background (não bloqueia nada)
+    // 🔥 Firebase só roda se on-chain deu certo
     if (currentGoogleUser?.uid) {
       setTimeout(() => {
-        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {})
-        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount).catch(() => {})
-      }, 500)
+        Promise.allSettled([
+          saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
+          saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+        ]).catch(e => {
+          console.warn('Firebase falhou (não afeta a aposta):', e)
+        })
+      }, 800)
     }
 
-    setTimeout(loadMarket, 2000)
+    setTimeout(() => loadMarket(), 3000)
 
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro completo na aposta:', error)
+    console.error('❌ Erro na aposta:', error)
     showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
 }
@@ -442,21 +392,23 @@ window.redeemWinnings = async function(marketId) {
 };
 
 
-// ==================== SALVAR / ATUALIZAR APOSTA NO FIRESTORE (ACUMULA) ====================
 async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
   if (!currentGoogleUser?.uid) return;
 
-  const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-
   try {
+    const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
+    
+    const timeout = setTimeout(() => console.warn('saveBetToFirestore timeout'), 5000);
+    
     const existingSnap = await getDoc(betRef);
+    clearTimeout(timeout);
 
     if (existingSnap.exists()) {
       const existing = existingSnap.data();
       await setDoc(betRef, {
         marketId: marketId.toString(),
         option: Number(option),
-        amount: Number(existing.amount || 0) + Number(amount),   // ← ACUMULA
+        amount: Number(existing.amount || 0) + Number(amount),
         title: title || existing.title,
         closeAt: Number(closeAt),
         timestamp: Date.now(),
@@ -476,12 +428,11 @@ async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
       });
     }
   } catch (e) {
-    console.error('Erro ao salvar aposta no Firestore:', e);
+    console.error('Erro ao salvar aposta no Firestore (não crítico):', e);
   }
 }
 
 
-// ==================== ATUALIZAR SALDO AO APOSTAR ====================
 async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   if (!userId || !amount) return;
   
@@ -490,15 +441,26 @@ async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
     if (amountRaw <= 0n) return;
 
     const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
+    
+    // Timeout de segurança (5 segundos)
+    const timeout = setTimeout(() => {
+      console.warn('saveBetToBalanceFirebase timeout - ignorando');
+    }, 5000);
+
     const balanceSnap = await getDoc(balanceRef);
+    clearTimeout(timeout);
 
     let current = 0n;
     if (balanceSnap.exists()) {
       const d = balanceSnap.data();
-      current = d.balanceRaw ? BigInt(d.balanceRaw) : parseUnits(String(d.balanceFormatted || d.balance || '0'), 18);
+      current = d.balanceRaw ? BigInt(d.balanceRaw) : 
+               parseUnits(String(d.balanceFormatted || d.balance || '0'), 18);
     }
 
-    if (current < amountRaw) return;
+    if (current < amountRaw) {
+      console.warn('Saldo no Firebase menor que aposta');
+      return;
+    }
 
     const next = current - amountRaw;
     const formatted = formatUnits(next, 18);
@@ -513,7 +475,8 @@ async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
 
     console.log(`✅ Débito aposta: -${amount} vWALA`);
   } catch (e) {
-    console.error('Erro saveBetToBalanceFirebase:', e);
+    console.error('Erro saveBetToBalanceFirebase (não crítico):', e);
+    // Nunca propaga erro
   }
 }
 
