@@ -289,7 +289,7 @@
   display: none;
 }
 
-/* ==================== INPUT DO PIN - TAMANHO PADRÃO ==================== */
+/* ==================== INPUT DO PIN ==================== */
 .pin-input {
   width: 100% !important;
   background: rgba(255,255,255,0.08) !important;
@@ -301,7 +301,7 @@
   text-align: center !important;
   letter-spacing: 6px !important;
   font-weight: 600;
-  margin: 20px 0 24px 0 !important;
+  margin: 20px 0 12px 0 !important;   /* ← MUDADO: 24px → 12px */
 }
 
 .pin-input:focus {
