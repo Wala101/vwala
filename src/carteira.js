@@ -2802,72 +2802,110 @@ function saveFirebaseUser(user) {
   )
 }
 
+// ==================== GARANTIR PIN APÓS LOGIN ====================
 async function ensureUserWalletProfile(user) {
   if (!user?.uid) {
-    throw new Error('Usuário inválido para criar carteira.')
+    throw new Error('Usuário inválido.')
   }
 
   const userRef = doc(db, 'users', user.uid)
   const userSnap = await getDoc(userRef)
 
-  if (userSnap.exists()) {
-    const userData = userSnap.data()
-    return await syncResolvedWalletAddress(user, userData)
-  }
+  let walletProfile = userSnap.exists() ? userSnap.data() : {}
 
-  const pin = await promptCreateDevicePin()
+  // Verifica se já tem PIN local neste aparelho
+  const hasLocalPin = !!getLocalDeviceWallet()
 
-  if (!pin) {
-    return null
-  }
+  if (!hasLocalPin) {
+    await showMessageModal(
+      'Configurar PIN',
+      'Para usar a carteira neste aparelho, crie um PIN de 6 dígitos.',
+      'Continuar'
+    )
 
-  const wallet = Wallet.createRandom()
-  const walletKeystoreCloud = await wallet.encrypt(buildCloudPassword(user))
-  const walletKeystoreLocal = await wallet.encrypt(pin)
+    const newPin = await promptCreateDevicePin()
 
-  const payload = {
-    uid: user.uid,
-    email: user.email || '',
-    name: user.displayName || '',
-    photo: user.photoURL || '',
-    walletAddress: wallet.address,
-    walletKeystoreCloud,
-    walletModel: 'google_device_pin_v1',
-    chainId: POLYGON_CHAIN_ID,
-    network: 'polygon',
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
-  }
+    if (!newPin) {
+      await showMessageModal('PIN obrigatório', 'Você precisa criar um PIN para continuar.', 'OK')
+      // Força logout se não criar PIN
+      await auth.signOut()
+      return null
+    }
 
-  await setDoc(userRef, payload)
+    // Cria ou migra a carteira com o novo PIN
+    const deviceVault = await ensureDeviceWalletAccess(user, walletProfile)
 
-  saveLocalDeviceWallet({
-    uid: user.uid,
-    walletAddress: wallet.address,
-    walletKeystoreLocal,
-    chainId: POLYGON_CHAIN_ID,
-    network: 'polygon'
-  })
+    if (!deviceVault) {
+      await showMessageModal('Erro', 'Não foi possível configurar o PIN.')
+      return null
+    }
 
-  currentWalletAddress = wallet.address
-  updateWalletAddressUI(currentWalletAddress)
-
-  localStorage.setItem(
-    'vwala_wallet_profile',
-    JSON.stringify({
-      uid: user.uid,
-      walletAddress: wallet.address,
-      chainId: POLYGON_CHAIN_ID,
-      network: 'polygon'
+    // Atualiza perfil no Firebase
+    walletProfile = await syncResolvedWalletAddress(user, {
+      ...walletProfile,
+      walletAddress: deviceVault.walletAddress,
+      walletKeystoreCloud: await Wallet.fromEncryptedJson(
+        deviceVault.walletKeystoreLocal,
+        newPin
+      ).then(w => w.encrypt(buildCloudPassword(user)))
     })
-  )
+  }
 
-  await showMessageModal(
-    'Carteira criada',
-    'Carteira criada com sucesso. Neste aparelho seu PIN já ficou definido.'
-  )
+  return walletProfile
+}
 
-  return payload
+// ==================== LOGIN COM GOOGLE ====================
+async function loginWithGoogle() {
+  if (!googleLoginBtn) return
+
+  const originalText = googleLoginBtn.textContent
+
+  try {
+    googleLoginBtn.disabled = true
+    googleLoginBtn.textContent = 'Entrando...'
+
+    await setPersistence(auth, browserLocalPersistence)
+
+    let userCredential
+    try {
+      userCredential = await signInWithPopup(auth, googleProvider)
+    } catch (error) {
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/operation-not-supported-in-this-environment') {
+        userCredential = await signInWithRedirect(auth, googleProvider)
+        return
+      }
+      throw error
+    }
+
+    const user = userCredential.user
+    currentGoogleUser = user
+    saveFirebaseUser(user)
+
+    // Força criação do PIN imediatamente após login
+    const walletProfile = await ensureUserWalletProfile(user)
+
+    if (walletProfile) {
+      closeAuthGate()
+
+      const walletAddress = walletProfile.walletAddress || ''
+      if (walletAddress) {
+        currentWalletAddress = walletAddress
+        updateWalletAddressUI(currentWalletAddress)
+
+        await loadPolygonBalance(currentWalletAddress)
+        await loadVWalaBalance(currentWalletAddress)
+      }
+
+      await refreshUserCreatedTokens(user.uid)
+    }
+
+  } catch (error) {
+    console.error('Erro ao entrar com Google:', error)
+    await showMessageModal('Erro de login', 'Não foi possível entrar com Google.')
+  } finally {
+    googleLoginBtn.disabled = false
+    googleLoginBtn.textContent = originalText
+  }
 }
 
 async function loginWithGoogle() {
