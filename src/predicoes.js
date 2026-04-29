@@ -205,29 +205,40 @@ document.querySelector('#app').innerHTML = `
 
   <div id="appPinOverlay" class="overlay"></div>
   <div id="appPinModal" class="custom-modal">
-    <div class="card modal-card notice-modal-card">
-      <div class="modal-header">
-        <h3 id="appPinTitle">Confirmar PIN</h3>
-        <button class="modal-close" id="closeAppPinBtn" type="button">✕</button>
+    <div class="card modal-card notice-modal-card app-pin-modal-card">
+      <div class="modal-header app-pin-modal-header">
+        <div class="app-pin-modal-brand">
+          <div class="app-pin-modal-badge">W</div>
+          <div class="app-pin-modal-headings">
+            <h3 id="appPinTitle">Confirmar PIN</h3>
+            <span class="app-pin-modal-subtitle">Segurança da carteira</span>
+          </div>
+        </div>
+        <button class="modal-close app-pin-modal-close" id="closeAppPinBtn" type="button">✕</button>
       </div>
 
-      <div class="notice-modal-body">
-        <p id="appPinText" class="notice-modal-text">Digite o PIN da carteira para abrir posição.</p>
-        <input
-          id="appPinInput"
-          class="input"
-          type="password"
-          placeholder="Digite seu PIN"
-          autocomplete="current-password"
-        />
+      <div class="notice-modal-body app-pin-modal-body">
+        <p id="appPinText" class="notice-modal-text app-pin-modal-text">
+          Digite o PIN da carteira para abrir posição.
+        </p>
+
+        <div class="app-pin-input-wrap">
+          <input
+            id="appPinInput"
+            class="input app-pin-input"
+            type="password"
+            placeholder="Digite seu PIN"
+            autocomplete="current-password"
+          />
+        </div>
       </div>
 
-      <div class="notice-modal-footer app-pin-actions">
-        <button id="appPinConfirmBtn" class="notice-confirm-btn" type="button">Confirmar</button>
+      <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
+        <button id="appPinConfirmBtn" class="notice-confirm-btn app-pin-confirm-btn" type="button">Confirmar</button>
       </div>
     </div>
   </div>
-
+  
   <div id="appLoadingOverlay" class="overlay"></div>
   <div id="appLoadingModal" class="custom-modal">
     <div class="card modal-card notice-modal-card app-loading-card">
