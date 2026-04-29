@@ -228,22 +228,14 @@ async function loadMarket() {
   }
 }
 
-// ==================== APOSTAR (COM VERIFICAÇÃO DE PIN) ====================
+// ==================== APOSTAR ====================
 async function placeBet(option) {
-  // ==================== VERIFICAÇÃO DE PIN ====================
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
-    showAlert(
-      'Carteira não configurada',
-      'Você precisa criar um PIN na página de Swap antes de apostar.',
-      'error'
-    )
-    setTimeout(() => {
-      window.location.href = '/carteira'   // ← Mude se o caminho for diferente
-    }, 1800)
+    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
+    setTimeout(() => window.location.href = '/carteira', 1800)
     return
   }
-  // ============================================================
 
   const amountStr = document.getElementById('betAmount').value.trim()
   const amount = parseFloat(amountStr)
@@ -265,43 +257,56 @@ async function placeBet(option) {
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
-    showLoadingModal('Aprovando vWALA...')
+    // Mostra spinner inline
+    showBetLoading(true)
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
 
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
     if (allowance < amountWei) {
+      showBetLoadingText("Aprovando vWALA...")
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
       await approveTx.wait()
     }
 
-    hideLoadingModal()
-    showLoadingModal('Enviando aposta...')
+    showBetLoadingText("Enviando aposta para a blockchain...")
 
     const marketId = BigInt(currentMarket.id)
-    const tx = await predictions.buyPosition(marketId, option, amountWei)
+    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    hideLoadingModal()
+    showBetLoading(false)
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Salva / acumula no Firebase
-    await saveBetToFirestore(
-      marketId, 
-      option, 
-      amount, 
-      currentMarket.title, 
-      currentMarket.closeAt
-    );
+    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
 
     setTimeout(loadMarket, 3000)
 
   } catch (error) {
-    hideLoadingModal()
+    showBetLoading(false)
     console.error(error)
     showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
   }
+}
+
+// ==================== FUNÇÃO DO SPINNER INLINE ====================
+function showBetLoading(show) {
+  let loader = document.getElementById('bet-loader')
+  if (!loader) {
+    loader = document.createElement('div')
+    loader.id = 'bet-loader'
+    loader.className = 'bet-loading'
+    // Insere acima dos botões
+    const betSection = document.querySelector('.bet-section')
+    if (betSection) betSection.prepend(loader)
+  }
+  loader.style.display = show ? 'block' : 'none'
+}
+
+function showBetLoadingText(text) {
+  const loader = document.getElementById('bet-loader')
+  if (loader) loader.innerHTML = `<span class="loading-spinner"></span>${text}`
 }
 
 
