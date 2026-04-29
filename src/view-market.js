@@ -203,14 +203,18 @@ async function loadMarket() {
           <div class="option-card b"><strong>B:</strong> ${optionB}</div>
         </div>
         ${!onChain.resolved ? `
-          <div class="bet-section">
-            <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
-            <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
-            <div class="bet-buttons">
-  <button id="betA" class="bet-btn a">A</button>
-  <button id="betB" class="bet-btn b">B</button>
-</div>
-          </div>` : ''}
+  <div class="bet-section">
+    <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
+    
+    <!-- DEPOIS DE ESCOLHER UM LADO NÃO PODE MUDAR -->
+    ${positionWarning || ''}
+    
+    <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
+    <div class="bet-buttons">
+      <button id="betA" class="bet-btn a">A</button>
+      <button id="betB" class="bet-btn b">B</button>
+    </div>
+  </div>` : ''}
       </div>
     `
 
