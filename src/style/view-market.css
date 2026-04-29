@@ -47,6 +47,7 @@
   color: #fff;
   font-size: 16px;
   margin-bottom: 16px;
+  transition: all 0.2s ease;
 }
 
 .search-card input:focus {
@@ -67,6 +68,8 @@
   cursor: pointer;
   transition: all 0.25s ease;
   box-shadow: 0 8px 25px rgba(37, 255, 138, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .search-card button:hover {
@@ -90,6 +93,7 @@
   font-weight: 700;
 }
 
+/* Status */
 .market-status { margin-bottom: 28px; }
 
 .status {
@@ -112,6 +116,7 @@
   border: 1px solid rgba(255, 80, 80, 0.4);
 }
 
+/* Options */
 .options-bet {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -173,7 +178,7 @@
   box-shadow: 0 10px 25px rgba(0,0,0,0.3);
 }
 
-/* ==================== MODAIS PREMIUM ==================== */
+/* ==================== MODAIS PREMIUM (AGORA BONITOS) ==================== */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
@@ -205,67 +210,52 @@
 
 .modal-icon {
   font-size: 52px;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .modal-title {
   font-size: 24px;
   color: #fff;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
   font-weight: 700;
 }
 
-/* Esconde o subtítulo "Digite seu PIN para apostar" */
 .modal-message {
-  display: none;
+  color: #b0b7c4;
+  line-height: 1.6;
+  font-size: 15.5px;
+  margin-bottom: 28px;
 }
 
-/* INPUT DO PIN - MELHORADO */
-.pin-input {
-  width: 100% !important;
-  background: rgba(255,255,255,0.08) !important;
-  border: 2px solid rgba(255,255,255,0.2) !important;
-  border-radius: 16px !important;
-  padding: 20px 16px !important;
-  color: #fff !important;
-  font-size: 28px !important;
-  text-align: center !important;
-  letter-spacing: 12px !important;
-  font-weight: 600;
-  margin: 24px 0 28px 0 !important;
-}
-
-.pin-input:focus {
-  outline: none;
-  border-color: #25ff8a !important;
-  box-shadow: 0 0 0 4px rgba(37, 255, 138, 0.3) !important;
-}
-
-/* Botões do PIN */
-.pin-buttons {
-  display: flex;
-  gap: 12px;
-}
-
-.pin-buttons button {
-  flex: 1;
+.modal-btn {
+  width: 100%;
   padding: 16px;
-  font-size: 16px;
+  margin-top: 8px;
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
   font-weight: 700;
+  border: none;
   border-radius: 16px;
+  font-size: 16.5px;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.pin-buttons .cancel-btn {
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  border: 1px solid rgba(255,255,255,0.25);
+.modal-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(37, 255, 138, 0.4);
 }
 
-.pin-buttons .confirm-btn {
-  background: linear-gradient(90deg, #5cffb4, #25ff8a);
-  color: #000;
+/* Pin Modal */
+.pin-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pin-buttons button {
+  flex: 1;
+  padding: 14px;
 }
 
 /* Responsive */
@@ -273,6 +263,7 @@
   .view-market-page { padding: 20px 12px; }
   .search-card { padding: 24px; }
   .market-detail-card { padding: 24px 20px; }
+  .options-bet { grid-template-columns: 1fr; gap: 12px; }
+  .bet-buttons { flex-direction: column; }
   .modal-content { padding: 32px 24px; }
-  .pin-input { font-size: 24px; letter-spacing: 8px; }
 }
