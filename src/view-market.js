@@ -43,7 +43,7 @@ window.showAlert = (title, message, type = 'success') => {
   modal.style.display = 'flex'
 }
 
-window.showLoadingModal = (title = 'Processando', message = 'Enviando...') => {
+window.showLoadingModal = (title = 'Processando', message = '') => {
   const existing = document.getElementById('loading-modal')
   if (existing) return
   const modal = document.createElement('div')
@@ -205,7 +205,7 @@ async function loadMarket() {
 }
 
 // ==================== APOSTAR ====================
-async function placeBet(option) {  // true = A, false = B
+async function placeBet(option) {
   const amountStr = document.getElementById('betAmount').value
   const amount = parseFloat(amountStr)
 
@@ -233,9 +233,13 @@ async function placeBet(option) {  // true = A, false = B
     }
 
     hideLoadingModal()
-    showLoadingModal('Enviando aposta...', 'Confirmando na Polygon')
+    showLoadingModal('Enviando aposta...', `Market: ${currentMarket.id} | Option: ${option}`)
+
+    console.log(`Chamando bet(${currentMarket.id}, ${option}, ${amountWei})`)
 
     const tx = await predictions.bet(BigInt(currentMarket.id), option, amountWei)
+    console.log('Transação enviada:', tx.hash)
+
     await tx.wait()
 
     hideLoadingModal()
@@ -268,7 +272,7 @@ async function boot() {
     if (e.key === 'Enter') loadMarket()
   })
 
-  console.log("📄 Página Ver Aposta v2.9 (bet com amount + bool) ✅")
+  console.log("📄 Página Ver Aposta v2.10 (bet corrigido) ✅")
 }
 
 boot()
