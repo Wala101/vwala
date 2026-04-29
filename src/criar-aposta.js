@@ -467,12 +467,14 @@ async function resolveUserMarket(marketId, title) {
   }
 
   const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', String(marketId))
-  const snap = await getDoc(marketRef)
+const snap = await getDoc(marketRef)
 
-  if (!snap.exists()) {
-    showAlert('Erro', 'Mercado não encontrado', 'error')
-    return
-  }
+if (!snap.exists()) {
+  showAlert('Erro', 'Mercado não encontrado', 'error')
+  return
+}
+
+const market = snap.data()
 
   const now = Math.floor(Date.now() / 1000);
 
