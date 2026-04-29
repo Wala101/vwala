@@ -56,7 +56,6 @@
   box-shadow: 0 0 0 4px rgba(37,255,138,0.18);
 }
 
-/* BOTÃO PRINCIPAL - MELHORADO */
 .search-card button {
   width: 100%;
   padding: 18px;
@@ -95,9 +94,7 @@
 }
 
 /* Status */
-.market-status {
-  margin-bottom: 28px;
-}
+.market-status { margin-bottom: 28px; }
 
 .status {
   display: inline-block;
@@ -173,40 +170,92 @@
   transition: all 0.25s ease;
 }
 
-.bet-btn.a {
-  background: linear-gradient(90deg, #10b981, #34d399);
-  color: #000;
-}
-
-.bet-btn.b {
-  background: linear-gradient(90deg, #ef4444, #f87171);
-  color: white;
-}
+.bet-btn.a { background: linear-gradient(90deg, #10b981, #34d399); color: #000; }
+.bet-btn.b { background: linear-gradient(90deg, #ef4444, #f87171); color: white; }
 
 .bet-btn:hover {
   transform: translateY(-3px);
   box-shadow: 0 10px 25px rgba(0,0,0,0.3);
 }
 
-/* Loading & Error */
-.loading-text, .error-text {
-  text-align: center;
-  padding: 60px 20px;
-  color: #8c95a0;
-  font-size: 16px;
-}
-
-/* ==================== MODAIS ==================== */
+/* ==================== MODAIS PREMIUM (AGORA BONITOS) ==================== */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.88);
+  background: rgba(0, 0, 0, 0.92);
   display: none;
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(12px);
+}
+
+.modal-content {
+  background: linear-gradient(180deg, #1a2333, #111827);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 24px;
+  padding: 40px 32px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 30px 70px rgba(0,0,0,0.7);
+  animation: modalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.7) translateY(40px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.modal-icon {
+  font-size: 52px;
+  margin-bottom: 20px;
+}
+
+.modal-title {
+  font-size: 24px;
+  color: #fff;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.modal-message {
+  color: #b0b7c4;
+  line-height: 1.6;
+  font-size: 15.5px;
+  margin-bottom: 28px;
+}
+
+.modal-btn {
+  width: 100%;
+  padding: 16px;
+  margin-top: 8px;
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
+  font-weight: 700;
+  border: none;
+  border-radius: 16px;
+  font-size: 16.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(37, 255, 138, 0.4);
+}
+
+/* Pin Modal */
+.pin-buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.pin-buttons button {
+  flex: 1;
+  padding: 14px;
 }
 
 /* Responsive */
@@ -216,4 +265,5 @@
   .market-detail-card { padding: 24px 20px; }
   .options-bet { grid-template-columns: 1fr; gap: 12px; }
   .bet-buttons { flex-direction: column; }
+  .modal-content { padding: 32px 24px; }
 }
