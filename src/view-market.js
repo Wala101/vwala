@@ -334,9 +334,25 @@ async function loadUserHistory() {
       const bet = docSnap.data();
       const marketId = bet.marketId;
 
-      const isResolved = bet.resolved === true;
+      // 🔥 VERIFICAÇÃO ON-CHAIN (só isso que você pediu)
+      let isResolved = bet.resolved === true;
+      let winningOption = bet.winningOption;
+
+      if (!isResolved) {
+        try {
+          const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
+          const market = await contract.getMarket(BigInt(marketId));
+          if (market.resolved) {
+            isResolved = true;
+            winningOption = market.winningOption;
+          }
+        } catch (e) {
+          console.log("Erro ao checar on-chain:", e);
+        }
+      }
+
       const isRedeemed = bet.redeemed === true;
-      const won = bet.winningOption !== undefined && Number(bet.option) === Number(bet.winningOption);
+      const won = isResolved && Number(bet.option) === Number(winningOption);
 
       let statusHTML = isResolved 
         ? (won ? `<span class="history-status status-resolved">🏆 Ganho</span>` : `<span class="history-status status-resolved">🔴 Perdido</span>`)
