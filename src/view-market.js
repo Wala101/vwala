@@ -9,7 +9,11 @@ const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toSt
 const CONTRACT_ADDRESS = '0x25F9007ef8E62796C1ed0259B6266d097577e133'
 
 const USER_PREDICTIONS_ABI = [
-  'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))'
+  'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
+  'function bet(uint256 marketId, uint8 option) external payable',
+  'function placeBet(uint256 marketId, uint8 option) external payable',
+  'function buy(uint256 marketId, uint8 option) external payable',
+  'function makeBet(uint256 marketId, uint8 option) external payable'
 ]
 
 let currentGoogleUser = null
@@ -36,7 +40,7 @@ window.showAlert = (title, message, type = 'success') => {
   modal.style.display = 'flex'
 }
 
-window.showLoadingModal = (title = 'Processando', message = 'Enviando transação...') => {
+window.showLoadingModal = (title = 'Processando', message = 'Enviando...') => {
   const existing = document.getElementById('loading-modal')
   if (existing) return
   const modal = document.createElement('div')
@@ -131,10 +135,7 @@ async function loadMarket() {
   const marketIdStr = document.getElementById('marketId').value.trim()
   const content = document.getElementById('marketContent')
 
-  if (!marketIdStr) {
-    showAlert('ID obrigatório', 'Digite o Market ID', 'error')
-    return
-  }
+  if (!marketIdStr) return showAlert('ID obrigatório', 'Digite o Market ID', 'error')
 
   content.style.display = 'none'
   content.innerHTML = '<p class="loading-text">Carregando aposta...</p>'
@@ -145,21 +146,13 @@ async function loadMarket() {
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
     const onChain = await contract.getMarket(marketId)
 
-    if (!onChain.exists) throw new Error('Mercado não encontrado no contrato')
+    if (!onChain.exists) throw new Error('Mercado não encontrado')
 
-    // Busca dados completos no Firebase (título, opções, etc.)
     let title = `Mercado #${marketIdStr}`
     let optionA = 'Opção A'
     let optionB = 'Opção B'
 
-    // Tenta buscar na coleção pública primeiro (recomendado)
-    let fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
-    if (!fbSnap.exists()) {
-      // Fallback: busca em todos os usuários (temporário)
-      // Isso só funciona se o usuário atual for o criador ou se as regras permitirem
-      fbSnap = await getDoc(doc(db, 'users', currentGoogleUser?.uid || 'unknown', 'myMarkets', marketIdStr))
-    }
-
+    const fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
     if (fbSnap.exists()) {
       const fb = fbSnap.data()
       title = fb.title || title
@@ -174,23 +167,16 @@ async function loadMarket() {
     content.innerHTML = `
       <div class="market-detail-card">
         <h2>${title}</h2>
-        
         <div class="market-status">
           ${onChain.resolved 
-            ? `<span class="status resolved">🔴 Resolvido • Vencedor: ${onChain.winningOption === 0 ? optionA : optionB}</span>` 
+            ? `<span class="status resolved">🔴 Resolvido</span>` 
             : `<span class="status active">🟢 Ativo • Fecha: ${closeDate.toLocaleDateString('pt-BR')}</span>`
           }
         </div>
 
         <div class="options-bet">
-          <div class="option-card a">
-            <strong>A:</strong> ${optionA}<br>
-            <small>${(Number(onChain.probA)/100).toFixed(1)}% • Pool: ${onChain.poolA}</small>
-          </div>
-          <div class="option-card b">
-            <strong>B:</strong> ${optionB}<br>
-            <small>${(Number(onChain.probB)/100).toFixed(1)}% • Pool: ${onChain.poolB}</small>
-          </div>
+          <div class="option-card a"><strong>A:</strong> ${optionA}<br><small>${(Number(onChain.probA)/100).toFixed(1)}% • Pool: ${onChain.poolA}</small></div>
+          <div class="option-card b"><strong>B:</strong> ${optionB}<br><small>${(Number(onChain.probB)/100).toFixed(1)}% • Pool: ${onChain.poolB}</small></div>
         </div>
 
         ${!onChain.resolved ? `
@@ -215,29 +201,40 @@ async function loadMarket() {
   }
 }
 
-// ==================== APOSTAR ====================
+// ==================== APOSTAR (com vários nomes possíveis) ====================
 async function placeBet(option) {
   const amount = parseFloat(document.getElementById('betAmount').value)
-  if (!amount || amount <= 0) {
-    showAlert('Valor inválido', 'Digite uma quantidade válida', 'error')
-    return
-  }
+  if (!amount || amount <= 0) return showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error')
 
   const signer = await getInternalWalletSigner()
   if (!signer) return
 
   try {
     showLoadingModal('Confirmando aposta...')
+
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
-    const tx = await contract.bet(currentMarket.id, option)
+    let tx
+
+    // Tenta diferentes nomes de função
+    for (const fnName of ['bet', 'placeBet', 'buy', 'makeBet']) {
+      if (typeof contract[fnName] === 'function') {
+        tx = await contract[fnName](currentMarket.id, option)
+        break
+      }
+    }
+
+    if (!tx) throw new Error('Função de aposta não encontrada no contrato')
+
     await tx.wait()
 
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success')
     setTimeout(loadMarket, 3000)
+
   } catch (err) {
     hideLoadingModal()
-    showAlert('Erro na transação', err.shortMessage || err.message, 'error')
+    console.error(err)
+    showAlert('Erro na transação', err.shortMessage || err.message || 'Verifique o contrato', 'error')
   }
 }
 
@@ -260,7 +257,7 @@ async function boot() {
     if (e.key === 'Enter') loadMarket()
   })
 
-  console.log("📄 Página Ver Aposta v2.6 - Completa ✅")
+  console.log("📄 Página Ver Aposta v2.8 ✅")
 }
 
 boot()
