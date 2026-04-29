@@ -33,23 +33,20 @@
   background: linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 24px;
-  padding: 28px 32px;
+  padding: 32px 28px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.35);
   margin-bottom: 32px;
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
 }
 
 .search-card input {
-  flex: 1;
-  min-width: 260px;
+  width: 100%;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 16px;
   padding: 16px 20px;
   color: #fff;
   font-size: 16px;
+  margin-bottom: 16px;
   transition: all 0.2s ease;
 }
 
@@ -59,22 +56,26 @@
   box-shadow: 0 0 0 4px rgba(37,255,138,0.18);
 }
 
+/* BOTÃO PRINCIPAL - MELHORADO */
 .search-card button {
+  width: 100%;
+  padding: 18px;
   background: linear-gradient(90deg, #5cffb4, #25ff8a);
   color: #000;
   border: none;
-  padding: 0 32px;
-  border-radius: 16px;
+  border-radius: 18px;
   font-weight: 700;
-  font-size: 16.5px;
+  font-size: 17px;
   cursor: pointer;
   transition: all 0.25s ease;
-  white-space: nowrap;
+  box-shadow: 0 8px 25px rgba(37, 255, 138, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .search-card button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(37, 255, 138, 0.35);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 30px rgba(37, 255, 138, 0.45);
 }
 
 /* ==================== MARKET CARD ==================== */
@@ -145,10 +146,6 @@
 }
 
 /* Bet Section */
-.bet-section {
-  margin-top: 8px;
-}
-
 .bet-section input {
   width: 100%;
   background: rgba(255,255,255,0.06);
@@ -199,11 +196,7 @@
   font-size: 16px;
 }
 
-.error-text {
-  color: #ff8080;
-}
-
-/* ==================== MODAIS (mesmo estilo da página criar) ==================== */
+/* ==================== MODAIS ==================== */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0;
@@ -216,91 +209,11 @@
   backdrop-filter: blur(8px);
 }
 
-.modal-content {
-  background: linear-gradient(180deg, #1a2333, #111827);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
-  padding: 32px;
-  max-width: 380px;
-  width: 90%;
-  text-align: center;
-  box-shadow: 0 25px 60px rgba(0,0,0,0.6);
-  animation: modalPop 0.3s ease;
-}
-
-@keyframes modalPop {
-  from { transform: scale(0.8); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-
-.modal-icon {
-  font-size: 42px;
-  margin-bottom: 16px;
-}
-
-.modal-title {
-  font-size: 22px;
-  color: #fff;
-  margin-bottom: 12px;
-}
-
-.modal-message {
-  color: #b0b7c4;
-  line-height: 1.5;
-  font-size: 15.5px;
-}
-
-.modal-btn {
-  width: 100%;
-  padding: 16px;
-  margin-top: 12px;
-  background: linear-gradient(90deg, #5cffb4, #25ff8a);
-  color: #000;
-  font-weight: 700;
-  border: none;
-  border-radius: 16px;
-  font-size: 16.5px;
-  cursor: pointer;
-}
-
 /* Responsive */
 @media (max-width: 640px) {
-  .search-card {
-    flex-direction: column;
-  }
-  .options-bet {
-    grid-template-columns: 1fr;
-  }
+  .view-market-page { padding: 20px 12px; }
+  .search-card { padding: 24px; }
+  .market-detail-card { padding: 24px 20px; }
+  .options-bet { grid-template-columns: 1fr; gap: 12px; }
+  .bet-buttons { flex-direction: column; }
 }
-
-/* MELHORIAS MOBILE */
-@media (max-width: 640px) {
-  .view-market-page {
-    padding: 20px 12px;
-  }
-
-  .market-detail-card {
-    padding: 24px 20px;
-  }
-
-  .options-bet {
-    grid-template-columns: 1fr;
-    gap: 12px;
-  }
-
-  .bet-buttons {
-    flex-direction: column;
-  }
-
-  .search-card {
-    padding: 20px;
-  }
-
-  .header-view h1 {
-    font-size: 28px;
-  }
-}
-
-/* Melhoria visual das opções */
-.option-card.a { border-left: 5px solid #10b981; }
-.option-card.b { border-left: 5px solid #ef4444; }
