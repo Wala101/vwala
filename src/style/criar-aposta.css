@@ -1,9 +1,26 @@
 @import './index.css';
 
 .create-page {
-  max-width: 520px;
+  max-width: 540px;
   margin: 0 auto;
-  padding: 32px 20px;           /* mais espaço nas laterais e em cima/baixo */
+  padding: 40px 20px 80px;
+  width: 100%;
+  box-sizing: border-box;
+  
+  /* Centralização perfeita */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.form-card {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 44px 36px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
 }
 
 .create-header {
