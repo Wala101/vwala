@@ -384,24 +384,32 @@ window.redeemWinnings = async function(marketId) {
   if (!signer) return;
 
   try {
-    showLoadingModal('Verificando...', 'Checando prêmio na blockchain');
+    showLoadingModal('Verificando Prêmio...', '');
 
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
+    const contractView = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider);
+    const market = await contractView.getMarket(BigInt(marketId));
     
-    // Verifica posição do usuário ANTES de tentar resgatar
-    const position = await contract.userPosition(BigInt(marketId), state.userAddress);
-    const market = await contract.getMarket(BigInt(marketId));
-
     if (!market.resolved) {
-      throw new Error('Mercado ainda não foi resolvido.');
-    }
-    if (Number(market.winningOption) !== Number(bet.option || 0)) {  // bet não está definido aqui, ajuste se necessário
-      throw new Error('Você não ganhou esta aposta.');
+      throw new Error('Mercado ainda não resolvido.');
     }
 
-    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...');
+    // Verifica posição real no contrato
+    const position = await contractView.userPosition(BigInt(marketId), state.userAddress);
+    const amountA = Number(position.amountA);
+    const amountB = Number(position.amountB);
 
-    const tx = await contract.connect(signer).redeemWinnings(BigInt(marketId));
+    console.log(`Posição on-chain -> A: ${amountA}, B: ${amountB}, Vencedor: ${market.winningOption}`);
+
+    if (market.winningOption === 0 && amountA === 0) {
+      throw new Error('Você não tem saldo vencedor na opção A.');
+    }
+    if (market.winningOption === 1 && amountB === 0) {
+      throw new Error('Você não tem saldo vencedor na opção B.');
+    }
+
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando transação...');
+
+    const tx = await contractView.connect(signer).redeemWinnings(BigInt(marketId));
     await tx.wait();
 
     // Atualiza Firestore
@@ -412,23 +420,23 @@ window.redeemWinnings = async function(marketId) {
     }, { merge: true });
 
     hideLoadingModal();
-    showAlert('✅ Resgate realizado!', 'O prêmio foi enviado para sua carteira.', 'success');
+    showAlert('✅ Resgate realizado com sucesso!', 'O prêmio foi enviado para sua carteira.', 'success');
 
     setTimeout(() => {
       loadUserHistory();
-      loadMarket();
     }, 1500);
 
   } catch (error) {
     hideLoadingModal();
     console.error(error);
-    
+
     let msg = error.shortMessage || error.message || 'Erro desconhecido';
-    if (msg.includes('require(false') || msg.includes('reverted')) {
-      msg = 'Você não tem prêmio para resgatar neste mercado ou já resgatou.';
-    }
     
-    showAlert('❌ Falha no Resgate', msg, 'error');
+    if (msg.includes('require(false') || msg.includes('reverted')) {
+      msg = 'Contrato não reconhece prêmio (pode ser bug de self-bet ou já resgatado).';
+    }
+
+    showAlert('❌ Não foi possível resgatar', msg, 'error');
   }
 };
 
