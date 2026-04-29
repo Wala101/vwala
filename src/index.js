@@ -435,9 +435,6 @@ app.innerHTML = `
 
       <aside id="sidebar" class="side-menu">
   <a href="/carteira">Carteira</a>
-  <a href="/token">Criar Token</a>
-  <a href="/futeboll">Futebol</a>
-  <a href="/predicoes">Predições</a>
   <a href="/criar-aposta">Criar Apostas</a>
   <a href="/posicoes">H/Futebol</a>
   <a href="/historico">H/Futures</a>
@@ -515,10 +512,10 @@ app.innerHTML = `
     <span class="feature-chip">Novo</span>
   </div>
 
-  <h3>Criar Aposta</h3>
-  <p>
-    Crie novos mercados esportivos e configure eventos personalizados.
-  </p>
+  <h3>Mercado Personalizado</h3>
+ <p>
+  Copie o ID da aposta criada e entre no mercado personalizado.
+</p>
 
   <div class="feature-card-footer">
     <span>Abrir</span>
