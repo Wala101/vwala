@@ -267,3 +267,76 @@
   .bet-buttons { flex-direction: column; }
   .modal-content { padding: 32px 24px; }
 }
+
+
+/* ==================== MODAL PIN MELHORADO ==================== */
+.pin-modal .modal-content {
+  padding: 36px 32px;
+}
+
+.pin-modal .modal-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.pin-modal .modal-title {
+  font-size: 26px;
+  margin-bottom: 4px;
+}
+
+/* Esconde o subtítulo antigo */
+.pin-modal .modal-message {
+  display: none;
+}
+
+/* INPUT DO PIN - Grande e bonito */
+.pin-input {
+  width: 100% !important;
+  background: rgba(255,255,255,0.08) !important;
+  border: 2px solid rgba(255,255,255,0.25) !important;
+  border-radius: 16px !important;
+  padding: 20px 16px !important;
+  color: #fff !important;
+  font-size: 32px !important;
+  text-align: center !important;
+  letter-spacing: 12px !important;
+  font-weight: 700;
+  margin: 20px 0 24px 0 !important;
+}
+
+.pin-input:focus {
+  outline: none;
+  border-color: #25ff8a !important;
+  box-shadow: 0 0 0 4px rgba(37, 255, 138, 0.35) !important;
+}
+
+/* Botões do PIN */
+.pin-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.pin-buttons button {
+  flex: 1;
+  padding: 16px 20px;
+  font-size: 17px;
+  font-weight: 700;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.pin-buttons .cancel-btn {
+  background: rgba(255,255,255,0.12);
+  color: #ddd;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.pin-buttons .confirm-btn {
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
+}
+
+.pin-buttons button:hover {
+  transform: translateY(-2px);
+}

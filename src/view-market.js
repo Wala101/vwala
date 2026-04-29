@@ -205,9 +205,9 @@ async function loadMarket() {
             <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
             <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
             <div class="bet-buttons">
-              <button id="betA" class="bet-btn a">APOSTAR EM A</button>
-              <button id="betB" class="bet-btn b">APOSTAR EM B</button>
-            </div>
+  <button id="betA" class="bet-btn a">A</button>
+  <button id="betB" class="bet-btn b">B</button>
+</div>
           </div>` : ''}
       </div>
     `
