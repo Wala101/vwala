@@ -10,40 +10,70 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers'
 
 // ======================
-// ANTI-WALLET INJECTION (MetaMask, Phantom, etc)
+// ANTI-WALLET INJECTION v2 (MetaMask, Phantom, Rabby, etc)
 // ======================
 if (typeof window !== 'undefined') {
   try {
-    Object.defineProperty(window, 'ethereum', {
-      value: undefined,
-      writable: true,
-      configurable: true
+    const wallets = [
+      'ethereum',
+      'solana',
+      'phantom',
+      'binance',
+      'trustWallet',
+      'coinbase',
+      'rabby',
+      'metamask'
+    ]
+
+    wallets.forEach(name => {
+      try {
+        // Tenta deletar primeiro (mais efetivo)
+        if (window[name]) {
+          delete window[name]
+        }
+
+        // Depois redefine como undefined
+        Object.defineProperty(window, name, {
+          value: undefined,
+          writable: true,
+          configurable: true
+        })
+      } catch (e) {
+        // Ignora se não conseguir redefinir (non-configurable)
+      }
     })
 
-    Object.defineProperty(window, 'solana', {
-      value: undefined,
-      writable: true,
-      configurable: true
-    })
+    // Proteção contínua (algumas extensões reinjetam)
+    const blockWalletInjection = () => {
+      wallets.forEach(name => {
+        try {
+          if (window[name]) delete window[name]
+          Object.defineProperty(window, name, {
+            value: undefined,
+            writable: true,
+            configurable: true
+          })
+        } catch (_) {}
+      })
+    }
 
-    Object.defineProperty(window, 'phantom', {
-      value: undefined,
-      writable: true,
-      configurable: true
-    })
+    window.addEventListener('load', blockWalletInjection)
+    window.addEventListener('DOMContentLoaded', blockWalletInjection)
+    
+    // Roda várias vezes para pegar injeções tardias
+    setTimeout(blockWalletInjection, 100)
+    setTimeout(blockWalletInjection, 500)
+    setTimeout(blockWalletInjection, 1000)
 
-    // Proteção extra após o carregamento
-    window.addEventListener('load', () => {
-      if (window.ethereum) delete window.ethereum
-      if (window.solana) delete window.solana
-      if (window.phantom) delete window.phantom
-    })
-
-    console.log('%cAnti-wallet injection ativado', 'color: #888; font-size: 12px')
+    console.log('%cAnti-wallet injection v2 ativado', 'color: #28a745; font-size: 12px')
   } catch (e) {
     console.warn('Anti-wallet injection falhou (não crítico)', e)
   }
 }
+
+
+
+//=========================
 
 const app = document.querySelector('#app')
 
