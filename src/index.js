@@ -486,7 +486,7 @@ app.innerHTML = `
           >
             <div class="feature-card-top">
               <span class="feature-badge">⚽</span>
-              <span class="feature-chip">Em destaque</span>
+              <span class="feature-chip">Brasileirão</span>
             </div>
 
             <h3>Futebol</h3>
@@ -510,7 +510,7 @@ app.innerHTML = `
 >
   <div class="feature-card-top">
     <span class="feature-badge">🎲</span>
-    <span class="feature-chip">Novo</span>
+    <span class="feature-chip">Personalizado</span>
   </div>
 
   <h3>Mercado Personalizado</h3>
@@ -533,7 +533,7 @@ app.innerHTML = `
           >
             <div class="feature-card-top">
               <span class="feature-badge">📈</span>
-              <span class="feature-chip">Novo</span>
+              <span class="feature-chip">Cripto</span>
             </div>
 
             <h3>Predições</h3>
