@@ -1,5 +1,5 @@
 import { auth, db } from './firebase'
-import { doc, getDoc, setDoc, collection, query, orderBy, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, serverTimestamp } from 'firebase/firestore'
 import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { JsonRpcProvider, Contract, Wallet, parseUnits, formatUnits } from 'ethers'
 
@@ -12,8 +12,8 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
   'function buyPosition(uint256 marketId, uint8 option, uint256 amount) external',
-  'function redeemWinnings(uint256 marketId) external',
-  'function userPosition(uint256 marketId, address user) view returns (uint256 amountA, uint256 amountB)'
+  'function claim(uint256 marketId) external',
+  'function getPosition(uint256 marketId, address user) view returns (tuple(bool exists,uint8 option,uint256 amount,bool claimed))'
 ]
 
 const ERC20_ABI = [
@@ -153,78 +153,71 @@ async function getUserVWalaBalance() {
   }
 }
 
-// ==================== CARREGAR MERCADO ====================
-async function loadMarket() {
-  const marketIdStr = document.getElementById('marketId').value.trim()
-  const content = document.getElementById('marketContent')
-
-  if (!marketIdStr) {
-    showAlert('ID obrigatório', 'Digite o Market ID.', 'error')
-    return
-  }
-
-  content.style.display = 'block'
-  content.innerHTML = '<p class="loading-text">Carregando aposta...</p>'
-
+// ==================== ATUALIZAR SALDO AO APOSTAR ====================
+async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
+  if (!userId || !amount) return
   try {
-    const marketId = BigInt(marketIdStr)
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
-    const onChain = await contract.getMarket(marketId)
+    const amountRaw = parseUnits(String(amount), 18)
+    if (amountRaw <= 0n) return
 
-    if (!onChain.exists) throw new Error('Mercado não encontrado')
+    const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala')
+    const snap = await getDoc(balanceRef)
 
-    let title = `Mercado #${marketIdStr}`
-    let optionA = 'Opção A'
-    let optionB = 'Opção B'
-
-    const fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
-    if (fbSnap.exists()) {
-      const fb = fbSnap.data()
-      title = fb.title || title
-      optionA = fb.optionA || optionA
-      optionB = fb.optionB || optionB
+    let current = 0n
+    if (snap.exists()) {
+      const d = snap.data()
+      current = d.balanceRaw ? BigInt(d.balanceRaw) : parseUnits(String(d.balanceFormatted || d.balance || '0'), 18)
     }
 
-    currentMarket = { id: marketIdStr, ...onChain, title, optionA, optionB }
+    if (current < amountRaw) return
 
-    const closeDate = new Date(Number(onChain.closeAt) * 1000)
-    const userBalance = await getUserVWalaBalance()
+    const next = current - amountRaw
+    const formatted = formatUnits(next, 18)
 
-    content.innerHTML = `
-      <div class="market-detail-card">
-        <h2>${title}</h2>
-        <div class="market-status">
-          ${onChain.resolved
-            ? '<span class="status resolved">🔴 Resolvido</span>'
-            : `<span class="status active">🟢 Ativo • Fecha: ${closeDate.toLocaleDateString('pt-BR')}</span>`}
-        </div>
-        <div class="options-bet">
-          <div class="option-card a"><strong>A:</strong> ${optionA}</div>
-          <div class="option-card b"><strong>B:</strong> ${optionB}</div>
- 
-          <div class="position-warning">
-          ⚠️ Só é possível apostar em uma opção por mercado
-        </div>
+    await setDoc(balanceRef, {
+      balanceRaw: next.toString(),
+      balanceFormatted: formatted,
+      balance: Number(formatted),
+      lastType: 'bet_placed',
+      updatedAt: serverTimestamp()
+    }, { merge: true })
 
-        ${!onChain.resolved ? `
-          <div class="bet-section">
-            <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
-            <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
-            <div class="bet-buttons">
-  <button id="betA" class="bet-btn a">A</button>
-  <button id="betB" class="bet-btn b">B</button>
-</div>
-          </div>` : ''}
-      </div>
-    `
+    console.log(`✅ Débito aposta: -${amount} vWALA`)
+  } catch (e) {
+    console.error('Erro saveBetToBalanceFirebase:', e)
+  }
+}
 
-    if (!onChain.resolved) {
-      document.getElementById('betA').onclick = () => placeBet(0)
-      document.getElementById('betB').onclick = () => placeBet(1)
+// ==================== ATUALIZAR SALDO APÓS RESGATE ====================
+async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
+  if (!userId || !payoutAmount) return
+  try {
+    const amountRaw = parseUnits(String(payoutAmount), 18)
+    if (amountRaw <= 0n) return
+
+    const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala')
+    const snap = await getDoc(balanceRef)
+
+    let current = 0n
+    if (snap.exists()) {
+      const d = snap.data()
+      current = d.balanceRaw ? BigInt(d.balanceRaw) : parseUnits(String(d.balanceFormatted || d.balance || '0'), 18)
     }
-  } catch (error) {
-    console.error(error)
-    content.innerHTML = `<p class="error-text">Aposta não encontrada.<br><small>${error.message}</small></p>`
+
+    const next = current + amountRaw
+    const formatted = formatUnits(next, 18)
+
+    await setDoc(balanceRef, {
+      balanceRaw: next.toString(),
+      balanceFormatted: formatted,
+      balance: Number(formatted),
+      lastType: 'redeem_win',
+      updatedAt: serverTimestamp()
+    }, { merge: true })
+
+    console.log(`✅ Crédito resgate: +${payoutAmount} vWALA`)
+  } catch (e) {
+    console.error('Erro saveRedeemToFirebase:', e)
   }
 }
 
@@ -245,8 +238,15 @@ async function placeBet(option) {
     return
   }
 
-  const signer = await getInternalWalletSigner()
-  if (!signer) return
+  let signer
+  try {
+    signer = await getInternalWalletSigner()
+    if (!signer) return
+  } catch (e) {
+    hideLoadingModal()
+    showAlert('Erro na carteira', 'Não foi possível conectar.', 'error')
+    return
+  }
 
   try {
     const amountWei = parseUnits(amount.toString(), 18)
@@ -257,7 +257,6 @@ async function placeBet(option) {
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
-    // Abre o modal grande
     showLoadingModal('Aprovando vWALA...', 'Aguarde um momento')
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
@@ -279,68 +278,147 @@ async function placeBet(option) {
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
+    if (currentGoogleUser?.uid) {
+      Promise.allSettled([
+        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
+        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+      ])
+    }
 
-    setTimeout(loadMarket, 3000)
+    setTimeout(loadMarket, 2000)
+
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro na aposta:', error)
+    showAlert('Erro na transação', error.shortMessage || error.message, 'error')
+  }
+}
+
+// ==================== RESGATAR PRÊMIO ====================
+window.redeemWinnings = async function(marketId) {
+  const signer = await getInternalWalletSigner()
+  if (!signer) return
+
+  try {
+    showLoadingModal('Verificando Prêmio...', '')
+
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
+    const market = await contract.getMarket(BigInt(marketId))
+    const position = await contract.getPosition(BigInt(marketId), state.userAddress)
+
+    if (!market.resolved) throw new Error('Mercado ainda não resolvido.')
+    if (!position.exists || position.claimed) throw new Error('Prêmio já resgatado.')
+    if (position.option !== market.winningOption) throw new Error('Você não ganhou esta aposta.')
+
+    const winningPool = position.option === 0 ? market.poolA : market.poolB
+    const payoutRaw = (BigInt(position.amount) * BigInt(market.totalPool)) / BigInt(winningPool)
+    const payoutFormatted = formatUnits(payoutRaw, 18)
+
+    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon...')
+
+    const tx = await contract.connect(signer).claim(BigInt(marketId))
+    await tx.wait()
+
+    hideLoadingModal()
+
+    await saveRedeemToFirebase(currentGoogleUser.uid, state.userAddress, marketId, payoutFormatted)
+
+    showAlert('✅ Resgate realizado!', `Você recebeu <strong>${Number(payoutFormatted).toFixed(4)} vWALA</strong>`, 'success')
+
+    setTimeout(loadUserHistory, 1500)
 
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+    showAlert('Erro no resgate', error.shortMessage || error.message, 'error')
   }
 }
 
+// ==================== SALVAR HISTÓRICO DE APOSTA ====================
+async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
+  if (!currentGoogleUser?.uid) return
 
+  const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString())
 
-// ==================== TABS (Buscar / Histórico) ====================
+  try {
+    const existingSnap = await getDoc(betRef)
+    if (existingSnap.exists()) {
+      const existing = existingSnap.data()
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(existing.amount || 0) + Number(amount),
+        title: title || existing.title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),
+        resolved: existing.resolved || false,
+        redeemed: existing.redeemed || false
+      })
+    } else {
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(amount),
+        title: title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),
+        resolved: false,
+        redeemed: false
+      })
+    }
+  } catch (e) {
+    console.error('Erro saveBetToFirestore:', e)
+  }
+}
+
+// ==================== TABS E HISTÓRICO ====================
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'))
+  document.querySelectorAll('.tab-content').forEach(content => content.style.display = 'none')
 
   if (tab === 'search') {
-    document.getElementById('tabSearch').classList.add('active');
-    document.getElementById('searchTab').style.display = 'block';
+    document.getElementById('tabSearch').classList.add('active')
+    document.getElementById('searchTab').style.display = 'block'
   } else {
-    document.getElementById('tabHistory').classList.add('active');
-    document.getElementById('historyTab').style.display = 'block';
-    loadUserHistory();
+    document.getElementById('tabHistory').classList.add('active')
+    document.getElementById('historyTab').style.display = 'block'
+    loadUserHistory()
   }
 }
 
-// ==================== CARREGAR HISTÓRICO ====================
 async function loadUserHistory() {
-  const container = document.getElementById('historyList');
-  if (!container) return;
-  
-  container.innerHTML = '<div class="loading-history">Carregando seu histórico...</div>';
+  const container = document.getElementById('historyList')
+  if (!container) return
+
+  container.innerHTML = '<div class="loading-history">Carregando seu histórico...</div>'
 
   if (!currentGoogleUser?.uid) {
-    container.innerHTML = `<div class="empty-history">Faça login para ver seu histórico.</div>`;
-    return;
+    container.innerHTML = `<div class="empty-history">Faça login para ver seu histórico.</div>`
+    return
   }
 
   try {
-    const betsRef = collection(db, 'users', currentGoogleUser.uid, 'myBets');
-    const q = query(betsRef, orderBy('timestamp', 'desc'));
-    const snapshot = await getDocs(q);
+    const betsRef = collection(db, 'users', currentGoogleUser.uid, 'myBets')
+    const q = query(betsRef, orderBy('timestamp', 'desc'))
+    const snapshot = await getDocs(q)
 
     if (snapshot.empty) {
-      container.innerHTML = `<div class="empty-history">Você ainda não tem apostas.</div>`;
-      return;
+      container.innerHTML = `<div class="empty-history">Você ainda não tem apostas.</div>`
+      return
     }
 
-    let html = '';
+    let html = ''
     for (const docSnap of snapshot.docs) {
-      const bet = docSnap.data();
-      const marketId = bet.marketId;
+      const bet = docSnap.data()
+      const marketId = bet.marketId
 
-      const isResolved = bet.resolved === true;
-      const isRedeemed = bet.redeemed === true;
-      const won = bet.winningOption !== undefined && Number(bet.option) === Number(bet.winningOption);
+      const isResolved = bet.resolved === true
+      const isRedeemed = bet.redeemed === true
+      const won = isResolved && Number(bet.option) === Number(bet.winningOption)
 
       let statusHTML = isResolved 
         ? (won ? `<span class="history-status status-resolved">🏆 Ganho</span>` : `<span class="history-status status-resolved">🔴 Perdido</span>`)
-        : `<span class="history-status status-active">🟢 Ativo</span>`;
+        : `<span class="history-status status-active">🟢 Ativo</span>`
 
       html += `
         <div class="history-item">
@@ -354,82 +432,12 @@ async function loadUserHistory() {
           ${isResolved && !isRedeemed && won ? `
             <button class="redeem-btn" onclick="redeemWinnings('${marketId}')">🎁 Resgatar Prêmio</button>` : ''}
         </div>
-      `;
+      `
     }
-    container.innerHTML = html;
+    container.innerHTML = html
   } catch (error) {
-    console.error(error);
-    container.innerHTML = `<div class="empty-history">Erro ao carregar histórico.</div>`;
-  }
-}
-
-window.redeemWinnings = async function(marketId) {
-  const signer = await getInternalWalletSigner();
-  if (!signer) return;
-
-  try {
-    showLoadingModal('Resgatando Prêmio...', 'Confirmando na Polygon');
-
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
-    const tx = await contract.redeemWinnings(BigInt(marketId));
-    await tx.wait();
-
-    // Atualiza Firestore
-    const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-    await setDoc(betRef, { redeemed: true, redeemedAt: serverTimestamp() }, { merge: true });
-
-    hideLoadingModal();
-    showAlert('✅ Resgate realizado!', 'O prêmio foi enviado para sua carteira.', 'success');
-
-    // Atualiza a página automaticamente
-    setTimeout(() => {
-      loadMarket();        // Atualiza a aposta atual
-      loadUserHistory();   // Atualiza o histórico
-    }, 1500);
-
-  } catch (error) {
-    hideLoadingModal();
-    console.error(error);
-    showAlert('Erro no resgate', error.shortMessage || error.message, 'error');
-  }
-};
-
-
-// ==================== SALVAR / ATUALIZAR APOSTA NO FIRESTORE (ACUMULA) ====================
-async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
-  if (!currentGoogleUser?.uid) return;
-
-  const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
-
-  try {
-    const existingSnap = await getDoc(betRef);
-
-    if (existingSnap.exists()) {
-      const existing = existingSnap.data();
-      await setDoc(betRef, {
-        marketId: marketId.toString(),
-        option: Number(option),
-        amount: Number(existing.amount || 0) + Number(amount),   // ← ACUMULA
-        title: title || existing.title,
-        closeAt: Number(closeAt),
-        timestamp: Date.now(),
-        resolved: existing.resolved || false,
-        redeemed: existing.redeemed || false
-      });
-    } else {
-      await setDoc(betRef, {
-        marketId: marketId.toString(),
-        option: Number(option),
-        amount: Number(amount),
-        title: title,
-        closeAt: Number(closeAt),
-        timestamp: Date.now(),
-        resolved: false,
-        redeemed: false
-      });
-    }
-  } catch (e) {
-    console.error('Erro ao salvar aposta no Firestore:', e);
+    console.error(error)
+    container.innerHTML = `<div class="empty-history">Erro ao carregar histórico.</div>`
   }
 }
 
@@ -447,20 +455,19 @@ async function boot() {
 
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
 
-  // === TABS ===
-  document.getElementById('tabSearch').addEventListener('click', () => switchTab('search'));
-  document.getElementById('tabHistory').addEventListener('click', () => switchTab('history'));
+  // TABS
+  document.getElementById('tabSearch')?.addEventListener('click', () => switchTab('search'))
+  document.getElementById('tabHistory')?.addEventListener('click', () => switchTab('history'))
 
   // Busca
-  document.getElementById('searchBtn').addEventListener('click', loadMarket)
-  document.getElementById('marketId').addEventListener('keypress', e => {
+  document.getElementById('searchBtn')?.addEventListener('click', loadMarket)
+  document.getElementById('marketId')?.addEventListener('keypress', e => {
     if (e.key === 'Enter') loadMarket()
   })
 
-  // Inicia na aba de busca
   switchTab('search')
 
-  console.log('📄 Página Ver Aposta + Histórico v2.16 ✅')
+  console.log('📄 Página Ver Aposta + Histórico v2.17 ✅')
 }
 
 boot()
