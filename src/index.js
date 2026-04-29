@@ -9,6 +9,42 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers'
 
+// ======================
+// ANTI-WALLET INJECTION (MetaMask, Phantom, etc)
+// ======================
+if (typeof window !== 'undefined') {
+  try {
+    Object.defineProperty(window, 'ethereum', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    })
+
+    Object.defineProperty(window, 'solana', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    })
+
+    Object.defineProperty(window, 'phantom', {
+      value: undefined,
+      writable: true,
+      configurable: true
+    })
+
+    // Proteção extra após o carregamento
+    window.addEventListener('load', () => {
+      if (window.ethereum) delete window.ethereum
+      if (window.solana) delete window.solana
+      if (window.phantom) delete window.phantom
+    })
+
+    console.log('%cAnti-wallet injection ativado', 'color: #888; font-size: 12px')
+  } catch (e) {
+    console.warn('Anti-wallet injection falhou (não crítico)', e)
+  }
+}
+
 const app = document.querySelector('#app')
 
 if (!app) {
