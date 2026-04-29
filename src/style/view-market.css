@@ -579,3 +579,27 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
+
+/* SPINNER VERDE INLINE */
+.loading-spinner {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border: 3px solid rgba(37, 255, 138, 0.3);
+  border-top: 3px solid #25ff8a;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.bet-loading {
+  text-align: center;
+  color: #25ff8a;
+  font-weight: 500;
+  margin: 12px 0;
+}
