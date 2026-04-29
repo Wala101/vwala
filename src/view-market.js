@@ -11,10 +11,8 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
-'function bet(uint256 marketId, bool option, uint256 amount) external',
-'function placeBet(uint256 marketId, bool option, uint256 amount) external',
-'function buy(uint256 marketId, bool option, uint256 amount) external',
-'function makeBet(uint256 marketId, bool option, uint256 amount) external'
+  'function bet(uint256 marketId, bool option, uint256 amount) external',
+  'function placeBet(uint256 marketId, bool option, uint256 amount) external'
 ]
 
 const ERC20_ABI = [
@@ -198,7 +196,7 @@ async function loadMarket() {
 
     if (!onChain.resolved) {
       document.getElementById('betA').onclick = () => placeBet(true)
-document.getElementById('betB').onclick = () => placeBet(false)
+      document.getElementById('betB').onclick = () => placeBet(false)
     }
 
   } catch (err) {
@@ -207,8 +205,8 @@ document.getElementById('betB').onclick = () => placeBet(false)
   }
 }
 
-// ==================== APOSTAR COM APPROVE ====================
-async function placeBet(option) {
+// ==================== APOSTAR ====================
+async function placeBet(option) {   // option = true (A) ou false (B)
   const amountStr = document.getElementById('betAmount').value
   const amount = parseFloat(amountStr)
 
@@ -232,20 +230,17 @@ async function placeBet(option) {
     if (allowance < amountWei) {
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
       await approveTx.wait()
+      console.log('Aprovação feita')
     }
 
     hideLoadingModal()
     showLoadingModal('Enviando aposta...', 'Confirmando na Polygon')
 
-    // Tentativa de aposta
-const tx = await predictions.bet(currentMarket.id, option, amountWei)
-
-    if (!tx) throw new Error('Função de aposta não encontrada')
-
+    const tx = await predictions.bet(BigInt(currentMarket.id), option, amountWei)
     await tx.wait()
 
     hideLoadingModal()
-    showAlert('✅ Sucesso!', `Apostou ${amount} vWALA`, 'success')
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success')
     setTimeout(loadMarket, 3000)
 
   } catch (err) {
@@ -274,7 +269,7 @@ async function boot() {
     if (e.key === 'Enter') loadMarket()
   })
 
-  console.log("📄 Página Ver Aposta v2.9 (com Approve) ✅")
+  console.log("📄 Página Ver Aposta v2.9 (bet com amount) ✅")
 }
 
 boot()
