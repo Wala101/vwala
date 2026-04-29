@@ -10,45 +10,21 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { Contract, JsonRpcProvider, formatUnits, parseUnits } from 'ethers'
 
 // ======================
-// ANTI-WALLET INJECTION v2 (MetaMask, Phantom, Rabby, etc)
+// ANTI-WALLET INJECTION v3 - AGRESSIVO
 // ======================
 if (typeof window !== 'undefined') {
   try {
-    const wallets = [
-      'ethereum',
-      'solana',
-      'phantom',
-      'binance',
-      'trustWallet',
-      'coinbase',
-      'rabby',
-      'metamask'
+    const walletKeys = [
+      'ethereum', 'solana', 'phantom', 'binance', 'trustWallet',
+      'coinbase', 'rabby', 'metamask', 'wallet'
     ]
 
-    wallets.forEach(name => {
-      try {
-        // Tenta deletar primeiro (mais efetivo)
-        if (window[name]) {
-          delete window[name]
-        }
-
-        // Depois redefine como undefined
-        Object.defineProperty(window, name, {
-          value: undefined,
-          writable: true,
-          configurable: true
-        })
-      } catch (e) {
-        // Ignora se não conseguir redefinir (non-configurable)
-      }
-    })
-
-    // Proteção contínua (algumas extensões reinjetam)
-    const blockWalletInjection = () => {
-      wallets.forEach(name => {
+    // 1. Bloqueio inicial forte
+    const blockWallets = () => {
+      walletKeys.forEach(key => {
         try {
-          if (window[name]) delete window[name]
-          Object.defineProperty(window, name, {
+          if (window[key]) delete window[key]
+          Object.defineProperty(window, key, {
             value: undefined,
             writable: true,
             configurable: true
@@ -57,17 +33,33 @@ if (typeof window !== 'undefined') {
       })
     }
 
-    window.addEventListener('load', blockWalletInjection)
-    window.addEventListener('DOMContentLoaded', blockWalletInjection)
-    
-    // Roda várias vezes para pegar injeções tardias
-    setTimeout(blockWalletInjection, 100)
-    setTimeout(blockWalletInjection, 500)
-    setTimeout(blockWalletInjection, 1000)
+    blockWallets()
 
-    console.log('%cAnti-wallet injection v2 ativado', 'color: #28a745; font-size: 12px')
+    // 2. Proteção contínua contra reinjeção
+    window.addEventListener('load', blockWallets)
+    window.addEventListener('DOMContentLoaded', blockWallets)
+    setTimeout(blockWallets, 50)
+    setTimeout(blockWallets, 300)
+    setTimeout(blockWallets, 800)
+
+    // 3. Bloqueio de postMessage (principal causa dos erros da MetaMask)
+    const originalPostMessage = window.postMessage
+    window.postMessage = function (message, targetOrigin, ...args) {
+      if (message && typeof message === 'object') {
+        const str = JSON.stringify(message).toLowerCase()
+        if (str.includes('metamask') || 
+            str.includes('ethereum') || 
+            str.includes('phantom') || 
+            str.includes('wallet')) {
+          return // bloqueia mensagem da carteira
+        }
+      }
+      return originalPostMessage.call(this, message, targetOrigin, ...args)
+    }
+
+    console.log('%cAnti-wallet injection v3 (agressivo) ativado', 'color: #28a745; font-size: 13px')
   } catch (e) {
-    console.warn('Anti-wallet injection falhou (não crítico)', e)
+    console.warn('Anti-wallet falhou parcialmente', e)
   }
 }
 
