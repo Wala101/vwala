@@ -70,16 +70,16 @@ contract VWalaUserPredictions {
 
     function bootstrapTreasury(uint256 amount) external {
         require(!treasuryActive, "Already bootstrapped");
-        require(amount > 0);
-
+        require(amount > 0, "Invalid amount");
         require(token.transferFrom(msg.sender, address(this), amount), "Transfer failed");
+
         treasuryActive = true;
     }
 
     function createMarket(
-        string calldata title,      // mantido mas não armazenado no struct para economizar stack
-        string calldata optionA,
-        string calldata optionB,
+        string calldata, // title
+        string calldata, // optionA
+        string calldata, // optionB
         uint256 closeAt,
         uint16 feeBps,
         uint16 probA,
@@ -108,11 +108,11 @@ contract VWalaUserPredictions {
         });
 
         emit MarketCreated(marketId, msg.sender);
-        return marketId;
     }
 
     function resolveMarket(uint256 marketId, uint8 winningOption) external {
         Market storage m = markets[marketId];
+
         require(m.exists, "Market not found");
         require(!m.resolved, "Already resolved");
         require(msg.sender == m.creator, "Not creator");
@@ -128,25 +128,38 @@ contract VWalaUserPredictions {
 
     function buyPosition(uint256 marketId, uint8 option, uint256 amount) external {
         Market storage m = markets[marketId];
+
         require(m.exists, "Market not found");
         require(!m.resolved, "Market resolved");
         require(block.timestamp < m.closeAt, "Market closed");
-        require(option == 0 || option == 1);
-        require(amount > 0);
+        require(option == 0 || option == 1, "Invalid option");
+        require(amount > 0, "Invalid amount");
+
+        Position storage p = positions[marketId][msg.sender];
+
+        if (p.exists) {
+            require(!p.claimed, "Position already claimed");
+            require(p.option == option, "Cannot switch sides");
+        }
 
         require(token.transferFrom(msg.sender, address(this), amount), "Transfer failed");
 
-        if (option == 0) m.poolA += amount;
-        else m.poolB += amount;
+        if (option == 0) {
+            m.poolA += amount;
+        } else {
+            m.poolB += amount;
+        }
 
         m.totalPool += amount;
 
-        positions[marketId][msg.sender] = Position({
-            exists: true,
-            option: option,
-            amount: amount,
-            claimed: false
-        });
+        if (!p.exists) {
+            p.exists = true;
+            p.option = option;
+            p.amount = amount;
+            p.claimed = false;
+        } else {
+            p.amount += amount;
+        }
 
         emit PositionBought(marketId, msg.sender, option, amount);
     }
