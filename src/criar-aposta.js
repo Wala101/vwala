@@ -540,11 +540,99 @@ async function resolveMarket(marketId, title) {
 
 // ==================== RESOLVER MERCADO ====================
 async function resolveMarket(marketId, title) {
-  // ... todo o código da função que você já tem ...
+  if (!currentGoogleUser?.uid) {
+    showAlert('Erro', 'Usuário não identificado', 'error')
+    return
+  }
+
+  const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId)
+  const snap = await getDoc(marketRef)
+
+  if (!snap.exists()) {
+    showAlert('Erro', 'Mercado não encontrado', 'error')
+    return
+  }
+
+  const market = snap.data()
+  if (market.status !== 'active') {
+    showAlert('Já resolvido', 'Este mercado já foi resolvido.', 'error')
+    return
+  }
+
+  // Modal de escolha do vencedor
+  const winner = await new Promise(resolve => {
+    const modal = document.createElement('div')
+    modal.className = 'modal-overlay'
+    modal.innerHTML = `
+      <div class="modal-content resolve-modal">
+        <div class="modal-icon">🔧</div>
+        <h2 class="modal-title">Resolver Mercado</h2>
+        <p><strong>${title}</strong></p>
+        <p>Qual opção ganhou?</p>
+        
+        <div style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
+          <button class="resolve-option-btn" data-winner="true" style="padding: 16px; font-size: 1.1em; background: #10b981; color: white; border: none; border-radius: 12px; cursor: pointer;">
+            ✅ ${market.optionA}
+          </button>
+          <button class="resolve-option-btn" data-winner="false" style="padding: 16px; font-size: 1.1em; background: #ef4444; color: white; border: none; border-radius: 12px; cursor: pointer;">
+            ✅ ${market.optionB}
+          </button>
+        </div>
+
+        <button class="modal-btn cancel-btn" onclick="this.closest('.modal-overlay').remove(); resolve(null)">Cancelar</button>
+      </div>
+    `
+    document.body.appendChild(modal)
+    modal.style.display = 'flex'
+
+    modal.querySelectorAll('.resolve-option-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        modal.remove()
+        resolve(btn.dataset.winner === 'true')
+      })
+    })
+  })
+
+  if (winner === null) return
+
+  const signer = await getInternalWalletSigner()
+  if (!signer) return
+
+  const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+
+  try {
+    showLoadingModal('Resolvendo Mercado', 'Confirmando transação na Polygon...')
+
+    const tx = await contract.resolveMarket(marketId, winner)
+    await tx.wait()
+
+    hideLoadingModal()
+
+    await setDoc(marketRef, {
+      status: 'resolved',
+      winningOption: winner ? 'A' : 'B',
+      resolvedAt: serverTimestamp(),
+      resolveTxHash: tx.hash
+    }, { merge: true })
+
+    showAlert(
+      '✅ Mercado Resolvido com Sucesso!',
+      `Vencedor: <strong>${winner ? market.optionA : market.optionB}</strong><br>Tx: <small>${tx.hash}</small>`,
+      'success'
+    )
+
+    await loadMyMarkets()
+
+  } catch (error) {
+    hideLoadingModal()
+    console.error(error)
+    showAlert('Erro na resolução', error.shortMessage || error.message || 'Erro desconhecido', 'error')
+  }
 }
 
-// ←←← ADICIONE ESTA LINHA AQUI ←←←
+// ==================== EXPOR FUNÇÕES GLOBAIS (OBRIGATÓRIO) ====================
 window.resolveMarket = resolveMarket;
+window.createMarket = createMarket;
 
 // ==================== RENDER ====================
 function renderPage() {
@@ -609,7 +697,6 @@ async function boot() {
   const connectBtn = document.getElementById('connectBtn');
   if (connectBtn) connectBtn.textContent = `${balance} ${TOKEN_SYMBOL}`;
 
-  // Pequeno delay para garantir que o usuário esteja carregado
   setTimeout(async () => {
     await loadMyMarkets();
   }, 800);
@@ -617,4 +704,4 @@ async function boot() {
 
 boot();
 
-console.log("📄 Página Criar Aposta v2 - Premium + Minhas Apostas")
+console.log("📄 Página Criar Aposta v2 - Premium + Minhas Apostas ✅");
