@@ -9,7 +9,7 @@ const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toSt
 const CONTRACT_ADDRESS = '0x25F9007ef8E62796C1ed0259B6266d097577e133'
 
 const USER_PREDICTIONS_ABI = [
-  'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt,string title,string optionA,string optionB))',
+  'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
   'function bet(uint256 marketId, uint8 option) external payable'
 ]
 
@@ -17,12 +17,12 @@ let currentGoogleUser = null
 let currentMarket = null
 let state = { provider: null, signer: null, userAddress: '' }
 
-// ==================== MODAIS PREMIUM ====================
+// ==================== MODAIS (igual ao criar) ====================
 window.showAlert = (title, message, type = 'success') => {
-  let modal = document.getElementById('premium-modal')
-  if (modal) modal.remove()
+  const existing = document.getElementById('premium-modal')
+  if (existing) existing.remove()
 
-  modal = document.createElement('div')
+  const modal = document.createElement('div')
   modal.id = 'premium-modal'
   modal.className = `modal-overlay ${type}`
   modal.innerHTML = `
@@ -38,9 +38,9 @@ window.showAlert = (title, message, type = 'success') => {
 }
 
 window.showLoadingModal = (title = 'Processando', message = 'Enviando transação...') => {
-  let modal = document.getElementById('loading-modal')
-  if (modal) return
-  modal = document.createElement('div')
+  const existing = document.getElementById('loading-modal')
+  if (existing) return
+  const modal = document.createElement('div')
   modal.id = 'loading-modal'
   modal.className = 'modal-overlay loading'
   modal.innerHTML = `<div class="modal-content"><div class="premium-spinner"></div><h2>${title}</h2><p>${message}</p></div>`
@@ -54,10 +54,10 @@ window.hideLoadingModal = () => {
 }
 
 window.showPinModal = () => new Promise(resolve => {
-  let modal = document.getElementById('pin-modal')
-  if (modal) modal.remove()
+  const existing = document.getElementById('pin-modal')
+  if (existing) existing.remove()
 
-  modal = document.createElement('div')
+  const modal = document.createElement('div')
   modal.id = 'pin-modal'
   modal.className = 'modal-overlay'
   modal.innerHTML = `
@@ -99,10 +99,7 @@ async function syncWalletProfileFromFirebase() {
       addr = unlocked.address
     }
 
-    if (addr) {
-      state.userAddress = addr
-      localStorage.setItem('vwala_wallet_profile', JSON.stringify({ uid: currentGoogleUser.uid, walletAddress: addr }))
-    }
+    if (addr) state.userAddress = addr
   } catch (e) { console.error(e) }
 }
 
@@ -111,12 +108,12 @@ async function getInternalWalletSigner() {
 
   const vault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!vault?.walletKeystoreLocal) {
-    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
+    showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error')
     return null
   }
 
   if (state.userAddress.toLowerCase() !== String(vault.walletAddress || '').toLowerCase()) {
-    showAlert('Carteira incompatível', 'Faça login novamente', 'error')
+    showAlert('Carteira incompatível', '', 'error')
     return null
   }
 
@@ -139,7 +136,7 @@ async function loadMarket() {
   const content = document.getElementById('marketContent')
 
   if (!marketId) {
-    showAlert('ID vazio', 'Cole o Tx Hash ou ID da aposta', 'error')
+    showAlert('ID obrigatório', 'Cole o ID ou Tx Hash da aposta', 'error')
     return
   }
 
@@ -159,7 +156,7 @@ async function loadMarket() {
 
     content.innerHTML = `
       <div class="market-detail-card">
-        <h2>${data.title || 'Mercado #' + marketId}</h2>
+        <h2>Mercado #${marketId}</h2>
         
         <div class="market-status">
           ${data.resolved 
@@ -170,11 +167,11 @@ async function loadMarket() {
 
         <div class="options-bet">
           <div class="option-card">
-            <strong>A:</strong> ${data.optionA}<br>
+            <strong>A:</strong> [Opção A]<br>
             <small>${(Number(data.probA)/100).toFixed(1)}% • Pool: ${data.poolA}</small>
           </div>
           <div class="option-card">
-            <strong>B:</strong> ${data.optionB}<br>
+            <strong>B:</strong> [Opção B]<br>
             <small>${(Number(data.probB)/100).toFixed(1)}% • Pool: ${data.poolB}</small>
           </div>
         </div>
@@ -205,7 +202,7 @@ async function loadMarket() {
 async function placeBet(option) {
   const amount = parseFloat(document.getElementById('betAmount').value)
   if (!amount || amount <= 0) {
-    showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error')
+    showAlert('Valor inválido', 'Digite uma quantidade válida', 'error')
     return
   }
 
@@ -241,7 +238,7 @@ async function boot() {
 
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
 
-  // Adiciona os listeners nos elementos que já existem no HTML
+  // Listeners
   document.getElementById('searchBtn').addEventListener('click', loadMarket)
   document.getElementById('marketId').addEventListener('keypress', e => {
     if (e.key === 'Enter') loadMarket()
