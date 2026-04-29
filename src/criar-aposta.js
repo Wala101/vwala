@@ -350,7 +350,7 @@ async function createMarket() {
     
     // Redireciona para página de carteira/swap
     setTimeout(() => {
-      window.location.href = '/swap';   // ← Altere se o caminho for diferente
+      window.location.href = '/carteira';   // ← Altere se o caminho for diferente
     }, 1500);
     
     return;

@@ -233,7 +233,7 @@ async function placeBet(option) {
       'error'
     )
     setTimeout(() => {
-      window.location.href = '/swap'   // ← Mude se o caminho for diferente
+      window.location.href = '/carteira'   // ← Mude se o caminho for diferente
     }, 1800)
     return
   }
