@@ -108,7 +108,92 @@ async function getInternalWalletSigner() {
   }
 }
 
-// ==================== FUNÇÕES DE SALDO (PROTEGIDAS) ====================
+// ==================== SALDO ====================
+async function getUserVWalaBalance() {
+  if (!state.userAddress) return '0.00'
+  try {
+    const token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
+    const balance = await token.balanceOf(state.userAddress)
+    return formatUnits(balance, 18)
+  } catch (error) {
+    console.error('Erro ao buscar saldo:', error)
+    return '0.00'
+  }
+}
+
+// ==================== CARREGAR MERCADO (FUNÇÃO QUE FALTAVA) ====================
+async function loadMarket() {
+  const marketIdStr = document.getElementById('marketId').value.trim()
+  const content = document.getElementById('marketContent')
+
+  if (!marketIdStr) {
+    showAlert('ID obrigatório', 'Digite o Market ID.', 'error')
+    return
+  }
+
+  content.style.display = 'block'
+  content.innerHTML = '<p class="loading-text">Carregando aposta...</p>'
+
+  try {
+    const marketId = BigInt(marketIdStr)
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
+    const onChain = await contract.getMarket(marketId)
+
+    if (!onChain.exists) throw new Error('Mercado não encontrado')
+
+    let title = `Mercado #${marketIdStr}`
+    let optionA = 'Opção A'
+    let optionB = 'Opção B'
+
+    const fbSnap = await getDoc(doc(db, 'markets', marketIdStr))
+    if (fbSnap.exists()) {
+      const fb = fbSnap.data()
+      title = fb.title || title
+      optionA = fb.optionA || optionA
+      optionB = fb.optionB || optionB
+    }
+
+    currentMarket = { id: marketIdStr, ...onChain, title, optionA, optionB }
+
+    const closeDate = new Date(Number(onChain.closeAt) * 1000)
+    const userBalance = await getUserVWalaBalance()
+
+    content.innerHTML = `
+      <div class="market-detail-card">
+        <h2>${title}</h2>
+        <div class="market-status">
+          ${onChain.resolved
+            ? '<span class="status resolved">🔴 Resolvido</span>'
+            : `<span class="status active">🟢 Ativo • Fecha: ${closeDate.toLocaleDateString('pt-BR')}</span>`}
+        </div>
+        <div class="options-bet">
+          <div class="option-card a"><strong>A:</strong> ${optionA}</div>
+          <div class="option-card b"><strong>B:</strong> ${optionB}</div>
+        </div>
+
+        ${!onChain.resolved ? `
+          <div class="bet-section">
+            <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>
+            <input type="number" id="betAmount" class="input" placeholder="Quantidade vWALA" min="0.1" step="0.1" value="2"/>
+            <div class="bet-buttons">
+              <button id="betA" class="bet-btn a">A</button>
+              <button id="betB" class="bet-btn b">B</button>
+            </div>
+          </div>` : ''}
+      </div>
+    `
+
+    if (!onChain.resolved) {
+      document.getElementById('betA').onclick = () => placeBet(0)
+      document.getElementById('betB').onclick = () => placeBet(1)
+    }
+  } catch (error) {
+    console.error(error)
+    content.innerHTML = `<p class="error-text">Aposta não encontrada.<br><small>${error.message}</small></p>`
+  }
+}
+
+// ==================== FUNÇÕES DE SALDO ====================
 async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   if (!userId || !amount) return
   try {
@@ -182,7 +267,6 @@ async function placeBet(option) {
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
     showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    setTimeout(() => window.location.href = '/carteira', 1800)
     return
   }
 
@@ -418,7 +502,7 @@ async function boot() {
   })
 
   switchTab('search')
-  console.log('📄 Página Ver Aposta + Histórico v2.19 ✅')
+  console.log('📄 Página Ver Aposta + Histórico v2.20 ✅')
 }
 
 boot()
