@@ -108,7 +108,7 @@ async function getInternalWalletSigner() {
   }
 }
 
-// ==================== FUNÇÕES DE SALDO ====================
+// ==================== FUNÇÕES DE SALDO (PROTEGIDAS) ====================
 async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   if (!userId || !amount) return
   try {
@@ -175,9 +175,9 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
   }
 }
 
-// ==================== APOSTAR (VERSÃO FINAL PROTEGIDA) ====================
+// ==================== APOSTAR ====================
 async function placeBet(option) {
-  hideLoadingModal() // limpa loading pendente
+  hideLoadingModal()
 
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
@@ -231,11 +231,9 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    // SUCESSO
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Firebase em background (não trava a tela)
     if (currentGoogleUser?.uid) {
       setTimeout(() => {
         saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {})
@@ -420,7 +418,7 @@ async function boot() {
   })
 
   switchTab('search')
-  console.log('📄 Página Ver Aposta + Histórico v2.18 ✅')
+  console.log('📄 Página Ver Aposta + Histórico v2.19 ✅')
 }
 
 boot()
