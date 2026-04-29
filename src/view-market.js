@@ -228,6 +228,63 @@ async function loadMarket() {
   }
 }
 
+// ==================== APOSTAR ====================
+async function placeBet(option) {
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+  if (!deviceVault?.walletKeystoreLocal) {
+    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
+    setTimeout(() => window.location.href = '/carteira', 1800)
+    return
+  }
+
+  const amountStr = document.getElementById('betAmount').value.trim()
+  const amount = parseFloat(amountStr)
+
+  if (!amount || amount <= 0) {
+    showAlert('Valor inválido', 'Digite uma quantidade maior que zero.', 'error')
+    return
+  }
+
+  let signer
+  try {
+    signer = await getInternalWalletSigner()
+    if (!signer) return
+  } catch (e) {
+    hideLoadingModal?.()
+    showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
+    return
+  }
+
+  showLoadingModal('Verificando...', 'Aguarde')
+
+  try {
+    const amountWei = parseUnits(amount.toString(), 18)
+    const now = Math.floor(Date.now() / 1000)
+    const userBalance = await getUserVWalaBalance()
+
+    // Validações
+    if (currentMarket.resolved) throw new Error('Mercado já resolvido')
+    if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
+    if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
+
+    // ====================== ON-CHAIN ======================
+    showLoadingModal('Aprovando vWALA...', 'Confirmando na blockchain...')
+
+    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
+    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+
+    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
+    if (allowance < amountWei) {
+      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
+      await approveTx.wait()
+    }
+
+    showLoadingModal('Enviando aposta...', 'Confirmando transação na Polygon...')
+
+    const marketId = BigInt(currentMarket.id)
+    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
+    await tx.wait()
+
     // ====================== SUCESSO ======================
     hideLoadingModal()
     showAlert('✅ Aposta realizada com sucesso!', `Você apostou ${amount} vWALA.`, 'success')
@@ -238,9 +295,7 @@ async function loadMarket() {
         Promise.allSettled([
           saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
           saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
-        ]).catch(e => {
-          console.warn('Firebase falhou (não afeta a aposta):', e)
-        })
+        ]).catch(e => console.warn('Firebase falhou (não afeta a aposta):', e))
       }, 800)
     }
 
