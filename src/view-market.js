@@ -25,7 +25,7 @@ let state = { provider: null, signer: null, userAddress: '' }
 
 // ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
-  console.log(`[ALERT] ${type}: ${title} - ${message}`);
+  console.log(`[ALERT] ${type}: ${title} | ${message}`);
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
 
@@ -45,6 +45,7 @@ window.showAlert = (title, message, type = 'success') => {
 }
 
 window.showLoadingModal = (title = 'Processando', message = '') => {
+  console.log(`[LOADING] ${title} - ${message}`);
   const existing = document.getElementById('loading-modal')
   if (existing) return
   const modal = document.createElement('div')
@@ -56,6 +57,7 @@ window.showLoadingModal = (title = 'Processando', message = '') => {
 }
 
 window.hideLoadingModal = () => {
+  console.log('[LOADING] Fechando');
   const modal = document.getElementById('loading-modal')
   if (modal) modal.remove()
 }
