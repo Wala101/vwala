@@ -358,12 +358,11 @@ async function createMarket() {
   const closeAt = Math.floor(closeAtDate.getTime() / 1000)
   const now = Math.floor(Date.now() / 1000)
 
-  // Validação importante
   if (closeAt <= now) {
-    showAlert('Data inválida', 'A data de fechamento deve ser no futuro (pelo menos 1 hora à frente).', 'error')
+    showAlert('Data inválida', 'A data de fechamento deve ser no futuro.', 'error')
     return
   }
-  if (closeAt - now < 3600) { // menos de 1 hora
+  if (closeAt - now < 3600) {
     showAlert('Data muito próxima', 'A aposta deve fechar com pelo menos 1 hora de antecedência.', 'error')
     return
   }
@@ -381,65 +380,58 @@ async function createMarket() {
     showLoadingModal('Criando Mercado', 'Confirmando transação na Polygon...')
 
     const tx = await contract.createMarket(
-      title, 
-      optionA, 
-      optionB, 
-      closeAt, 
-      300, 
-      probA * 100, 
-      probB * 100
+      title, optionA, optionB, closeAt, 300, probA * 100, probB * 100
     )
 
     const receipt = await tx.wait()
-hideLoadingModal()
+    hideLoadingModal()
 
-const marketCreatedLog = receipt.logs.find(log => {
-  try {
-    const parsed = contract.interface.parseLog(log)
-    return parsed && parsed.name === 'MarketCreated'
-  } catch {
-    return false
-  }
-})
+    const marketCreatedLog = receipt.logs.find(log => {
+      try {
+        const parsed = contract.interface.parseLog(log)
+        return parsed && parsed.name === 'MarketCreated'
+      } catch { return false }
+    })
 
-if (!marketCreatedLog) {
-  throw new Error('Evento MarketCreated não encontrado na transação.')
-}
+    if (!marketCreatedLog) throw new Error('Evento MarketCreated não encontrado.')
 
-const parsedEvent = contract.interface.parseLog(marketCreatedLog)
-const marketId = parsedEvent.args.marketId.toString()
+    const parsedEvent = contract.interface.parseLog(marketCreatedLog)
+    const marketId = parsedEvent.args.marketId.toString()
 
-if (currentGoogleUser?.uid) {
-  const txHash = tx.hash
+    if (currentGoogleUser?.uid) {
+      const txHash = tx.hash
 
-  const marketData = {
-    marketId,
-    title,
-    optionA,
-    optionB,
-    closeAt,
-    closeAtDate,
-    probA,
-    probB,
-    feeBps: 300,
-    creator: state.userAddress,
-    txHash,
-    createdAt: serverTimestamp(),
-    status: 'active',
-    resolved: false
-  }
+      const marketData = {
+        marketId,
+        title,
+        optionA,
+        optionB,
+        closeAt,
+        closeAtDate,
+        probA,
+        probB,
+        feeBps: 300,
+        creator: state.userAddress,
+        txHash,
+        createdAt: serverTimestamp(),
+        status: 'active',
+        resolved: false
+      }
 
-await setDoc(
-  doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId),
-  marketData
-)
-}
+      // Salva no usuário (privado)
+      await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId), marketData)
 
-showAlert(
-  '✅ Mercado Criado com Sucesso!',
-  `Transação confirmada!<br>Hash: <small>${tx.hash}</small>`,
-  'success'
-)
+      // Salva na coleção pública (para página Ver Aposta)
+      await setDoc(doc(db, 'markets', marketId), marketData)
+
+      console.log(`✅ Mercado salvo publicamente → markets/${marketId}`)
+    }
+
+    showAlert(
+      '✅ Mercado Criado com Sucesso!',
+      `Market ID: <strong>${marketId}</strong><br>Hash: <small>${tx.hash}</small>`,
+      'success'
+    )
 
     // Limpar formulário
     document.getElementById('title').value = ''
@@ -453,13 +445,12 @@ showAlert(
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Falha na Transação', error.shortMessage || error.message || 'Erro desconhecido', 'error')
+    showAlert('Falha na Transação', error.shortMessage || error.message, 'error')
   } finally {
     btn.disabled = false
     btn.textContent = "🎲 Criar Mercado"
   }
 }
-
 
 
 // ==================== RESOLVER MERCADO ====================
@@ -469,29 +460,24 @@ async function resolveUserMarket(marketId, title) {
     return
   }
 
-  const marketRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', String(marketId))
-const snap = await getDoc(marketRef)
+  const privateRef = doc(db, 'users', currentGoogleUser.uid, 'myMarkets', String(marketId))
+  const publicRef   = doc(db, 'markets', String(marketId))   // ← Coleção pública
 
-if (!snap.exists()) {
-  showAlert('Erro', 'Mercado não encontrado', 'error')
-  return
-}
+  const snap = await getDoc(privateRef)
+  if (!snap.exists()) {
+    showAlert('Erro', 'Mercado não encontrado', 'error')
+    return
+  }
 
-const market = snap.data()
+  const market = snap.data()
 
-  const now = Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000)
+  if (now < market.closeAt) {
+    const minutes = Math.ceil((market.closeAt - now) / 60)
+    showAlert('Mercado ainda aberto', `Poderá ser resolvido em ${minutes} minuto(s).`, 'error')
+    return
+  }
 
-if (now < market.closeAt) {
-  const remaining = market.closeAt - now;
-  const minutes = Math.ceil(remaining / 60);
-
-  showAlert(
-    'Mercado ainda aberto',
-    `Este mercado poderá ser resolvido em aproximadamente ${minutes} minuto(s).`,
-    'error'
-  );
-  return;
-}
   if (market.status !== 'active') {
     showAlert('Já resolvido', 'Este mercado já foi resolvido.', 'error')
     return
@@ -536,23 +522,28 @@ if (now < market.closeAt) {
   const signer = await getInternalWalletSigner()
   if (!signer) return
 
-  const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
-
   try {
     showLoadingModal('Resolvendo Mercado', 'Confirmando transação na Polygon...')
 
-    const winningOption = winner ? 0 : 1;
-const tx = await contract.resolveMarket(marketId, winningOption);
+    const winningOption = winner ? 0 : 1
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const tx = await contract.resolveMarket(marketId, winningOption)
     await tx.wait()
 
-    hideLoadingModal()
-
-    await setDoc(marketRef, {
+    const updateData = {
       status: 'resolved',
       winningOption: winningOption === 0 ? 'A' : 'B',
       resolvedAt: serverTimestamp(),
       resolveTxHash: tx.hash
-    }, { merge: true })
+    }
+
+    // Atualiza coleção PRIVADA
+    await setDoc(privateRef, updateData, { merge: true })
+
+    // Atualiza coleção PÚBLICA
+    await setDoc(publicRef, updateData, { merge: true })
+
+    hideLoadingModal()
 
     showAlert(
       '✅ Mercado Resolvido com Sucesso!',
@@ -565,7 +556,7 @@ const tx = await contract.resolveMarket(marketId, winningOption);
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Erro na resolução', error.shortMessage || error.message || 'Erro desconhecido', 'error')
+    showAlert('Erro na resolução', error.shortMessage || error.message, 'error')
   }
 }
 
