@@ -11,10 +11,10 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
-'function bet(uint256 marketId, uint8 option, uint256 amount) external',
-'function placeBet(uint256 marketId, uint8 option, uint256 amount) external',
-'function buy(uint256 marketId, uint8 option, uint256 amount) external',
-'function makeBet(uint256 marketId, uint8 option, uint256 amount) external'
+'function bet(uint256 marketId, bool option, uint256 amount) external',
+'function placeBet(uint256 marketId, bool option, uint256 amount) external',
+'function buy(uint256 marketId, bool option, uint256 amount) external',
+'function makeBet(uint256 marketId, bool option, uint256 amount) external'
 ]
 
 const ERC20_ABI = [
@@ -197,8 +197,8 @@ async function loadMarket() {
     `
 
     if (!onChain.resolved) {
-      document.getElementById('betA').onclick = () => placeBet(0)
-      document.getElementById('betB').onclick = () => placeBet(1)
+      document.getElementById('betA').onclick = () => placeBet(true)
+document.getElementById('betB').onclick = () => placeBet(false)
     }
 
   } catch (err) {
@@ -238,13 +238,7 @@ async function placeBet(option) {
     showLoadingModal('Enviando aposta...', 'Confirmando na Polygon')
 
     // Tentativa de aposta
-    let tx
-    for (const fn of ['bet', 'placeBet', 'buy', 'makeBet']) {
-      if (typeof predictions[fn] === 'function') {
-        tx = await predictions[fn](currentMarket.id, option, amountWei)
-        break
-      }
-    }
+const tx = await predictions.bet(currentMarket.id, option, amountWei)
 
     if (!tx) throw new Error('Função de aposta não encontrada')
 
