@@ -72,7 +72,6 @@ window.showPinModal = () => new Promise(resolve => {
     <div class="modal-content pin-modal">
       <div class="modal-icon">🎲</div>
       <h2>Confirmar PIN</h2>
-      <p>Digite seu PIN para apostar</p>
       <input type="password" id="pin-input" class="input pin-input" maxlength="6" autocomplete="off">
       <div class="pin-buttons">
         <button class="modal-btn cancel-btn" id="cancel-pin-btn">Cancelar</button>
