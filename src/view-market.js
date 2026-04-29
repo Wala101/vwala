@@ -223,6 +223,8 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
 
 // ==================== APOSTAR ====================
 async function placeBet(option) {
+  hideLoadingModal(); // limpa qualquer loading pendente
+
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
     showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
@@ -238,13 +240,13 @@ async function placeBet(option) {
     return
   }
 
-  let signer
+  let signer;
   try {
     signer = await getInternalWalletSigner()
     if (!signer) return
   } catch (e) {
     hideLoadingModal()
-    showAlert('Erro na carteira', 'Não foi possível conectar.', 'error')
+    showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
     return
   }
 
@@ -275,22 +277,24 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
+    // SUCESSO
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
+    // Firebase em background
     if (currentGoogleUser?.uid) {
-      Promise.allSettled([
-        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt),
-        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
-      ])
+      setTimeout(() => {
+        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {})
+        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount).catch(() => {})
+      }, 100)
     }
 
     setTimeout(loadMarket, 2000)
 
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro na aposta:', error)
-    showAlert('Erro na transação', error.shortMessage || error.message, 'error')
+    console.error('Erro completo na aposta:', error)
+    showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
 }
 
