@@ -474,7 +474,19 @@ async function resolveUserMarket(marketId, title) {
     return
   }
 
-  const market = snap.data()
+  const now = Math.floor(Date.now() / 1000);
+
+if (now < market.closeAt) {
+  const remaining = market.closeAt - now;
+  const minutes = Math.ceil(remaining / 60);
+
+  showAlert(
+    'Mercado ainda aberto',
+    `Este mercado poderá ser resolvido em aproximadamente ${minutes} minuto(s).`,
+    'error'
+  );
+  return;
+}
   if (market.status !== 'active') {
     showAlert('Já resolvido', 'Este mercado já foi resolvido.', 'error')
     return
