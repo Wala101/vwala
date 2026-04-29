@@ -316,10 +316,13 @@ async function placeBet(option) {
 
     // ==================== VERIFICAÇÃO DE LADO (MELHOR MENSAGEM) ====================
     const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
-    const position = await predictions.userPosition(BigInt(currentMarket.id), state.userAddress)
+    const position = await predictions.getPosition(
+  BigInt(currentMarket.id),
+  state.userAddress
+)
     
-    const hasA = position.amountA > 0
-    const hasB = position.amountB > 0
+    const hasA = position.exists && position.option === 0 && position.amount > 0
+const hasB = position.exists && position.option === 1 && position.amount > 0
 
     if ((option === 0 && hasB) || (option === 1 && hasA)) {
       showAlert(
