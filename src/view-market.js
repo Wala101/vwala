@@ -63,38 +63,6 @@ window.hideLoadingModal = () => {
   if (modal) modal.remove()
 }
 
-window.showPinModal = () => new Promise(resolve => {
-  const existing = document.getElementById('pin-modal')
-  if (existing) existing.remove()
-
-  const modal = document.createElement('div')
-  modal.id = 'pin-modal'
-  modal.className = 'modal-overlay'
-  modal.innerHTML = `
-    <div class="modal-content pin-modal">
-      <div class="modal-icon">🎲</div>
-      <h2>Confirmar PIN</h2>
-      <input type="password" id="pin-input" class="input pin-input" maxlength="6" autocomplete="off">
-      <div class="pin-buttons">
-        <button class="modal-btn cancel-btn" id="cancel-pin-btn">Cancelar</button>
-        <button class="modal-btn confirm-btn" id="confirm-pin-btn">Confirmar</button>
-      </div>
-    </div>
-  `
-
-  document.body.appendChild(modal)
-  modal.style.display = 'flex'
-
-  setTimeout(() => document.getElementById('pin-input')?.focus(), 150)
-
-  document.getElementById('cancel-pin-btn').onclick = () => { modal.remove(); resolve(null) }
-  document.getElementById('confirm-pin-btn').onclick = () => {
-    const pin = document.getElementById('pin-input').value.trim()
-    modal.remove()
-    resolve(pin)
-  }
-})
-
 // ==================== WALLET ====================
 async function syncWalletProfileFromFirebase() {
   if (!currentGoogleUser?.uid) return
@@ -140,20 +108,7 @@ async function getInternalWalletSigner() {
   }
 }
 
-// ==================== SALDO ====================
-async function getUserVWalaBalance() {
-  if (!state.userAddress) return '0.00'
-  try {
-    const token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
-    const balance = await token.balanceOf(state.userAddress)
-    return formatUnits(balance, 18)
-  } catch (error) {
-    console.error('Erro ao buscar saldo:', error)
-    return '0.00'
-  }
-}
-
-// ==================== ATUALIZAR SALDO AO APOSTAR ====================
+// ==================== FUNÇÕES DE SALDO ====================
 async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   if (!userId || !amount) return
   try {
@@ -188,7 +143,6 @@ async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
   }
 }
 
-// ==================== ATUALIZAR SALDO APÓS RESGATE ====================
 async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
   if (!userId || !payoutAmount) return
   try {
@@ -221,9 +175,9 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
   }
 }
 
-// ==================== APOSTAR ====================
+// ==================== APOSTAR (VERSÃO FINAL PROTEGIDA) ====================
 async function placeBet(option) {
-  hideLoadingModal(); // limpa qualquer loading pendente
+  hideLoadingModal() // limpa loading pendente
 
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
@@ -240,13 +194,13 @@ async function placeBet(option) {
     return
   }
 
-  let signer;
+  let signer
   try {
     signer = await getInternalWalletSigner()
     if (!signer) return
   } catch (e) {
     hideLoadingModal()
-    showAlert('Erro na carteira', 'Não foi possível conectar a carteira.', 'error')
+    showAlert('Erro na carteira', 'Não foi possível conectar.', 'error')
     return
   }
 
@@ -281,24 +235,24 @@ async function placeBet(option) {
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Firebase em background
+    // Firebase em background (não trava a tela)
     if (currentGoogleUser?.uid) {
       setTimeout(() => {
         saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {})
         saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount).catch(() => {})
-      }, 100)
+      }, 300)
     }
 
     setTimeout(loadMarket, 2000)
 
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro completo na aposta:', error)
+    console.error('Erro na aposta:', error)
     showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
 }
 
-// ==================== RESGATAR PRÊMIO ====================
+// ==================== RESGATAR ====================
 window.redeemWinnings = async function(marketId) {
   const signer = await getInternalWalletSigner()
   if (!signer) return
@@ -338,12 +292,10 @@ window.redeemWinnings = async function(marketId) {
   }
 }
 
-// ==================== SALVAR HISTÓRICO DE APOSTA ====================
+// ==================== SALVAR HISTÓRICO ====================
 async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
   if (!currentGoogleUser?.uid) return
-
   const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString())
-
   try {
     const existingSnap = await getDoc(betRef)
     if (existingSnap.exists()) {
@@ -459,19 +411,16 @@ async function boot() {
 
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
 
-  // TABS
   document.getElementById('tabSearch')?.addEventListener('click', () => switchTab('search'))
   document.getElementById('tabHistory')?.addEventListener('click', () => switchTab('history'))
 
-  // Busca
   document.getElementById('searchBtn')?.addEventListener('click', loadMarket)
   document.getElementById('marketId')?.addEventListener('keypress', e => {
     if (e.key === 'Enter') loadMarket()
   })
 
   switchTab('search')
-
-  console.log('📄 Página Ver Aposta + Histórico v2.17 ✅')
+  console.log('📄 Página Ver Aposta + Histórico v2.18 ✅')
 }
 
 boot()
