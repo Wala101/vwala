@@ -279,13 +279,18 @@ async function placeBet(option) {
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
 
-    // Atualizações no Firebase (com proteção)
+    // Atualizações no Firebase com proteção máxima
     if (currentGoogleUser?.uid) {
-      await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
-      await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+      try {
+        await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
+        await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount)
+      } catch (fbError) {
+        console.error('Erro ao salvar no Firebase (não crítico):', fbError)
+        // Não quebra a experiência do usuário
+      }
     }
 
-    setTimeout(loadMarket, 2500)
+    setTimeout(loadMarket, 2000)
 
   } catch (error) {
     hideLoadingModal()   // ← GARANTIDO
@@ -293,7 +298,6 @@ async function placeBet(option) {
     showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
   }
 }
-
 
 
 // ==================== TABS (Buscar / Histórico) ====================
