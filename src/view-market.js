@@ -1,5 +1,5 @@
 import { auth, db } from './firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { JsonRpcProvider, Contract, Wallet, parseUnits, formatUnits } from 'ethers'
 
@@ -279,12 +279,61 @@ async function placeBet(option) {
 
     hideLoadingModal()
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
+
+    // Salva / acumula no Firebase
+    await saveBetToFirestore(
+      marketId, 
+      option, 
+      amount, 
+      currentMarket.title, 
+      currentMarket.closeAt
+    );
+
     setTimeout(loadMarket, 3000)
 
   } catch (error) {
     hideLoadingModal()
     console.error(error)
     showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+  }
+}
+
+
+// ==================== SALVAR / ATUALIZAR APOSTA NO FIRESTORE (ACUMULA) ====================
+async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
+  if (!currentGoogleUser?.uid) return;
+
+  const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
+
+  try {
+    const existingSnap = await getDoc(betRef);
+
+    if (existingSnap.exists()) {
+      const existing = existingSnap.data();
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(existing.amount || 0) + Number(amount),   // ← ACUMULA
+        title: title || existing.title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),
+        resolved: existing.resolved || false,
+        redeemed: existing.redeemed || false
+      });
+    } else {
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(amount),
+        title: title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),
+        resolved: false,
+        redeemed: false
+      });
+    }
+  } catch (e) {
+    console.error('Erro ao salvar aposta no Firestore:', e);
   }
 }
 
