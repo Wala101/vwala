@@ -12,7 +12,8 @@ const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const USER_PREDICTIONS_ABI = [
   'function getMarket(uint256 marketId) view returns (tuple(bool exists,address creator,uint256 closeAt,uint16 feeBps,uint16 probA,uint16 probB,uint256 poolA,uint256 poolB,uint256 totalPool,bool resolved,uint8 winningOption,uint256 resolvedAt))',
   'function buyPosition(uint256 marketId, uint8 option, uint256 amount) external',
-  'function redeemWinnings(uint256 marketId) external'
+  'function redeemWinnings(uint256 marketId) external',
+  'function userPosition(uint256 marketId, address user) view returns (uint256 amountA, uint256 amountB)'
 ]
 
 const ERC20_ABI = [
@@ -242,22 +243,45 @@ async function loadMarket() {
   }
 }
 
-// ==================== SALVAR APOSTA NO FIRESTORE ====================
+// ==================== SALVAR / ATUALIZAR APOSTA NO FIRESTORE ====================
 async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
-  if (!currentGoogleUser?.uid) return
+  if (!currentGoogleUser?.uid) return;
+
+  const betRef = doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString());
+
   try {
-    await setDoc(doc(db, 'users', currentGoogleUser.uid, 'myBets', marketId.toString()), {
-      marketId: marketId.toString(),
-      option: Number(option),
-      amount: Number(amount),
-      title: title,
-      closeAt: Number(closeAt),
-      timestamp: Date.now(),
-      resolved: false,
-      redeemed: false
-    })
+    const existingSnap = await getDoc(betRef);
+
+    if (existingSnap.exists()) {
+      const existing = existingSnap.data();
+      
+      // Acumula o valor se já existir aposta no mesmo lado
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(existing.amount || 0) + Number(amount),   // ← ACUMULA
+        title: title || existing.title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),                    // atualiza timestamp
+        resolved: existing.resolved || false,
+        redeemed: existing.redeemed || false,
+        winningOption: existing.winningOption
+      });
+    } else {
+      // Primeira aposta
+      await setDoc(betRef, {
+        marketId: marketId.toString(),
+        option: Number(option),
+        amount: Number(amount),
+        title: title,
+        closeAt: Number(closeAt),
+        timestamp: Date.now(),
+        resolved: false,
+        redeemed: false
+      });
+    }
   } catch (e) {
-    console.error('Erro ao salvar aposta no Firestore:', e)
+    console.error('Erro ao salvar/atualizar aposta no Firestore:', e);
   }
 }
 
@@ -290,10 +314,27 @@ async function placeBet(option) {
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
 
+    // ==================== VERIFICAÇÃO DE LADO (MELHOR MENSAGEM) ====================
+    const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, state.provider)
+    const position = await predictions.userPosition(BigInt(currentMarket.id), state.userAddress)
+    
+    const hasA = position.amountA > 0
+    const hasB = position.amountB > 0
+
+    if ((option === 0 && hasB) || (option === 1 && hasA)) {
+      showAlert(
+        'Não é possível trocar de lado',
+        'Você já escolheu um lado neste mercado.<br>Não é permitido apostar na outra opção.',
+        'error'
+      )
+      return
+    }
+    // ===========================================================================
+
     showLoadingModal('Aprovando vWALA...')
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    const predictions = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
 
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
     if (allowance < amountWei) {
@@ -305,13 +346,12 @@ async function placeBet(option) {
     showLoadingModal('Enviando aposta...')
 
     const marketId = BigInt(currentMarket.id)
-    const tx = await predictions.buyPosition(marketId, option, amountWei)
+    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
     hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA na opção ${option === 0 ? 'A' : 'B'}.`, 'success')
 
-    // Salva no Firestore
     await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
 
     setTimeout(loadMarket, 3000)
@@ -319,7 +359,16 @@ async function placeBet(option) {
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+
+    let title = 'Erro na transação'
+    let msg = error.shortMessage || error.reason || error.message || 'Erro desconhecido'
+
+    if (msg.includes("Cannot switch sides") || msg.includes("switch")) {
+      title = 'Não é possível trocar de lado'
+      msg = 'Você já escolheu um lado neste mercado.<br>Não é permitido apostar na outra opção.'
+    }
+
+    showAlert(title, msg, 'error')
   }
 }
 
