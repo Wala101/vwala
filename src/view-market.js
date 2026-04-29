@@ -203,38 +203,44 @@ async function loadMarket() {
 
 // ==================== APOSTAR (com vários nomes possíveis) ====================
 async function placeBet(option) {
-  const amount = parseFloat(document.getElementById('betAmount').value)
-  if (!amount || amount <= 0) return showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error')
+  const amountStr = document.getElementById('betAmount').value
+  const amount = parseFloat(amountStr)
+
+  if (!amount || amount <= 0) {
+    return showAlert('Valor inválido', 'Digite uma quantidade maior que zero', 'error')
+  }
 
   const signer = await getInternalWalletSigner()
   if (!signer) return
 
   try {
-    showLoadingModal('Confirmando aposta...')
+    showLoadingModal('Confirmando aposta...', 'Estimando gas...')
 
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
-    let tx
 
-    // Tenta diferentes nomes de função
-    for (const fnName of ['bet', 'placeBet', 'buy', 'makeBet']) {
-      if (typeof contract[fnName] === 'function') {
-        tx = await contract[fnName](currentMarket.id, option)
+    let tx
+    // Tenta diferentes nomes possíveis
+    for (const fn of ['bet', 'placeBet', 'buy', 'makeBet']) {
+      if (typeof contract[fn] === 'function') {
+        console.log(`Tentando função: ${fn}`)
+        tx = await contract[fn](currentMarket.id, option)
         break
       }
     }
 
-    if (!tx) throw new Error('Função de aposta não encontrada no contrato')
+    if (!tx) throw new Error('Nenhuma função de aposta encontrada no contrato')
 
+    console.log('Transação enviada:', tx.hash)
     await tx.wait()
 
     hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA`, 'success')
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA na opção ${option === 0 ? 'A' : 'B'}`, 'success')
     setTimeout(loadMarket, 3000)
 
   } catch (err) {
     hideLoadingModal()
     console.error(err)
-    showAlert('Erro na transação', err.shortMessage || err.message || 'Verifique o contrato', 'error')
+    showAlert('Erro na transação', err.shortMessage || err.reason || err.message, 'error')
   }
 }
 
