@@ -437,7 +437,8 @@ app.innerHTML = `
   <a href="/carteira">Carteira</a>
   <a href="/criar-aposta">Criar Apostas</a>
   <a href="/posicoes">H/Futebol</a>
-  <a href="/historico">H/Futures</a>
+      <a href="/historico">H/Futures</a>
+        <a href="/whitepaper">Whitepaper</a>
 </aside>
 
       <main class="app-content">
@@ -569,28 +570,7 @@ app.innerHTML = `
             </div>
           </article>
 
-          <article
-            class="feature-card clickable-card"
-            data-href="/whitepaper"
-            role="button"
-            tabindex="0"
-            aria-label="Abrir página Whitepaper"
-          >
-            <div class="feature-card-top">
-              <span class="feature-badge">📘</span>
-              <span class="feature-chip">Sobre</span>
-            </div>
-
-            <h3>Whitepaper</h3>
-            <p>
-              Conheça a proposta do projeto, visão, estrutura e objetivos do ecossistema WALA.
-            </p>
-
-            <div class="feature-card-footer">
-              <span>Abrir</span>
-              <strong style="display: none;">whitepaper.html</strong>
-            </div>
-          </article>
+          
         </section>
         <section class="section-head">
           <div>
