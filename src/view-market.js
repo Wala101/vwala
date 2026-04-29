@@ -201,9 +201,11 @@ async function loadMarket() {
         <div class="options-bet">
           <div class="option-card a"><strong>A:</strong> ${optionA}</div>
           <div class="option-card b"><strong>B:</strong> ${optionB}</div>
+ 
+          <div class="position-warning">
+          ⚠️ Só é possível apostar em uma opção por mercado
         </div>
-<div> <span class="position-warning">Só é possível apostar em uma opção por mercado</span> </div>
-
+ 
         ${!onChain.resolved ? `
           <div class="bet-section">
             <div class="user-balance">Seu saldo: <strong>${Number(userBalance).toFixed(2)} vWALA</strong></div>

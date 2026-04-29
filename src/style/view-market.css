@@ -566,12 +566,15 @@
   }
 }
 .position-warning {
-  background: rgba(234, 179, 8, 0.2);
-  border: 1px solid #eab308;
-  color: #fcd34d;
-  padding: 14px;
+  background: rgba(234, 179, 8, 0.25);
+  border: 1px solid #facc15;
+  color: #fde047;
+  padding: 14px 18px;
   border-radius: 12px;
-  margin: 16px 0;
+  margin: 16px 0 20px 0;
   text-align: center;
   font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
