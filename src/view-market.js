@@ -276,17 +276,21 @@ async function placeBet(option) {
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
     await tx.wait()
 
-    hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
+        hideLoadingModal();
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success');
 
-    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
+    // Salva histórico da aposta
+    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt);
 
-    setTimeout(loadMarket, 3000)
+    // 🔥 Atualiza saldo no Firebase (desconta o valor apostado)
+    await saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount);
+
+    setTimeout(loadMarket, 3000);
 
   } catch (error) {
-    hideLoadingModal()
-    console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+    hideLoadingModal();
+    console.error(error);
+    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error');
   }
 }
 
@@ -469,22 +473,74 @@ async function saveBetToFirestore(marketId, option, amount, title, closeAt) {
 }
 
 
-// ==================== ATUALIZAR SALDO FIREBASE APÓS RESGATE ====================
-async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
-  if (!userId) return;
-
-  const amountRaw = parseUnits(String(payoutAmount || '0'), 18);
-  if (amountRaw <= 0n) return;
-
-  const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
+// ==================== ATUALIZAR SALDO FIREBASE AO APOSTAR ====================
+async function saveBetToBalanceFirebase(userId, walletAddress, amount) {
+  if (!userId || !amount) return;
 
   try {
-    const balanceSnap = await getDoc(balanceRef);
-    const currentData = balanceSnap.exists() ? balanceSnap.data() : {};
+    const amountRaw = parseUnits(String(amount), 18);
+    if (amountRaw <= 0n) return;
 
-    const currentBalanceRaw = currentData.balanceRaw 
-      ? BigInt(currentData.balanceRaw) 
-      : parseUnits(String(currentData.balanceFormatted || currentData.balance || '0'), 18);
+    const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
+    const balanceSnap = await getDoc(balanceRef);
+
+    let currentBalanceRaw = 0n;
+
+    if (balanceSnap.exists()) {
+      const data = balanceSnap.data();
+      currentBalanceRaw = data.balanceRaw 
+        ? BigInt(data.balanceRaw) 
+        : parseUnits(String(data.balanceFormatted || data.balance || '0'), 18);
+    }
+
+    if (currentBalanceRaw < amountRaw) {
+      console.warn('⚠️ Saldo insuficiente no Firebase para debitar aposta');
+      return;
+    }
+
+    const nextBalanceRaw = currentBalanceRaw - amountRaw;
+    const nextBalanceFormatted = formatUnits(nextBalanceRaw, 18);
+
+    await setDoc(balanceRef, {
+      assetId: 'vwala',
+      token: 'vWALA',
+      tokenAddress: VWALA_TOKEN,
+      walletAddress: walletAddress,
+      balanceRaw: nextBalanceRaw.toString(),
+      balance: Number(nextBalanceFormatted),
+      balanceFormatted: nextBalanceFormatted,
+      lastType: 'bet_placed',
+      lastTxHash: `bet-${Date.now()}`,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log(`✅ Aposta debitada do saldo Firebase: -${amount} vWALA`);
+
+  } catch (e) {
+    console.error('Erro ao debitar aposta do saldo Firebase:', e);
+  }
+}
+
+
+// ==================== ATUALIZAR SALDO FIREBASE APÓS RESGATE ====================
+async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmount) {
+  if (!userId || !payoutAmount) return;
+
+  try {
+    const amountRaw = parseUnits(String(payoutAmount), 18);
+    if (amountRaw <= 0n) return;
+
+    const balanceRef = doc(db, 'users', userId, 'swap_balances', 'vwala');
+    const balanceSnap = await getDoc(balanceRef);
+
+    let currentBalanceRaw = 0n;
+
+    if (balanceSnap.exists()) {
+      const data = balanceSnap.data();
+      currentBalanceRaw = data.balanceRaw 
+        ? BigInt(data.balanceRaw) 
+        : parseUnits(String(data.balanceFormatted || data.balance || '0'), 18);
+    }
 
     const nextBalanceRaw = currentBalanceRaw + amountRaw;
     const nextBalanceFormatted = formatUnits(nextBalanceRaw, 18);
@@ -502,7 +558,7 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Saldo Firebase atualizado: +${payoutAmount} vWALA`);
+    console.log(`✅ Saldo Firebase atualizado com sucesso: +${payoutAmount} vWALA`);
 
   } catch (e) {
     console.error('Erro ao atualizar saldo Firebase após resgate:', e);
