@@ -425,10 +425,10 @@ if (currentGoogleUser?.uid) {
     resolved: false
   }
 
-  await setDoc(
-    doc(db, 'users', currentGoogleUser.uid, 'myMarkets', txHash),
-    marketData
-  )
+await setDoc(
+  doc(db, 'users', currentGoogleUser.uid, 'myMarkets', marketId),
+  marketData
+)
 }
 
 showAlert(
