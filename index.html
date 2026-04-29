@@ -13,14 +13,11 @@
   <title>vWala</title>
   <link rel="icon" type="image/png" href="./public/logo.png" />
   <link rel="stylesheet" href="./src/style/index.css" />
-  <!-- ====================== SUPRIME ERROS DE EXTENSÕES (MetaMask, etc) ====================== -->
+
+  <!-- ====================== SUPRIME ERROS DE EXTENSÕES ====================== -->
   <script>
     (function() {
       const originalError = console.error;
-      const originalWarn = console.warn;
-      const originalLog = console.log;
-
-      // Suprime console.error
       console.error = function(...args) {
         const msg = String(args[0] || '');
         if (
@@ -36,38 +33,8 @@
         }
         originalError.apply(console, args);
       };
-
-      // Suprime console.warn
-      console.warn = function(...args) {
-        const msg = String(args[0] || '');
-        if (
-          msg.includes('Unchecked runtime.lastError') ||
-          msg.includes('Could not establish connection') ||
-          msg.includes('MetaMask') ||
-          msg.includes('SES Removing unpermitted intrinsics')
-        ) {
-          return;
-        }
-        originalWarn.apply(console, args);
-      };
-
-      // Suprime alguns logs excessivos
-      console.log = function(...args) {
-        const msg = String(args[0] || '');
-        if (
-          msg.includes('FIREBASE_API_KEY') ||
-          msg.includes('VWALA_FIREBASE_BALANCE_READ') ||
-          msg.includes('HISTORICO') ||
-          msg.includes('lockdown-install')
-        ) {
-          return;
-        }
-        originalLog.apply(console, args);
-      };
     })();
   </script>
-  <!-- ====================================================================================== -->
-   
 </head>
 <body>
   <div id="app"></div>
