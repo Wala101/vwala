@@ -528,6 +528,7 @@ const receipt = await Promise.race([
     console.error(error)
     showAlert('Falha na Transação', error.shortMessage || error.message, 'error')
   } finally {
+    state.signer = null
     btn.disabled = false
     btn.textContent = "🎲 Criar Mercado"
   }
@@ -559,10 +560,14 @@ async function resolveUserMarket(marketId, title) {
     return
   }
 
+
+  
   if (market.status !== 'active') {
     showAlert('Já resolvido', 'Este mercado já foi resolvido.', 'error')
     return
   }
+
+  
 
   // Modal de escolha do vencedor
   const winner = await new Promise(resolve => {
@@ -616,7 +621,7 @@ async function resolveUserMarket(marketId, title) {
   try {
     showLoadingModal('Resolvendo Mercado', 'Confirmando transação na Polygon...')
 
-    const winningOption = winner ? 0 : 1
+    const winningOption = winner === 0 ? 0 : 1
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
     const tx = await contract.resolveMarket(marketId, winningOption)
     await tx.wait()
@@ -636,17 +641,16 @@ async function resolveUserMarket(marketId, title) {
 
     showAlert(
       '✅ Mercado Resolvido com Sucesso!',
-      `Vencedor: <strong>${winner ? market.optionA : market.optionB}</strong><br>Tx: <small>${tx.hash}</small>`,
+      `Vencedor: <strong>${winner === 0 ? market.optionA : market.optionB}</strong><br>Tx: <small>${tx.hash}</small>`,
       'success'
     )
 
     await loadMyMarkets()
 
-  } catch (error) {
-    hideLoadingModal()
-    console.error(error)
-    showAlert('Erro na resolução', error.shortMessage || error.message, 'error')
-  }
+ } catch (error) {
+   hideLoadingModal()
+    console.error(error) 
+    showAlert('Erro na resolução', error.shortMessage || error.message, 'error') } finally { state.signer = null }
 }
 
 // ==================== EXPOR FUNÇÕES GLOBAIS (OBRIGATÓRIO) ====================
