@@ -433,10 +433,9 @@ const feeData = await state.provider.getFeeData()
 const signerAddress = await internalSigner.getAddress()
 
 const nonce = await state.provider.getTransactionCount(
-  state.userAddress,
+  signerAddress,
   'pending'
 )
-
 console.log('Nonce pendente:', nonce)
 
 const tx = await contract.createMarket(
