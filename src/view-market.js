@@ -301,6 +301,8 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
     console.error('Erro saveRedeemToFirebase:', e)
   }
 }
+
+
 async function placeBet(option) {
   hideLoadingModal();
   console.log("🚀 Iniciando placeBet... Opção:", option);
@@ -355,11 +357,11 @@ async function placeBet(option) {
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
       console.log("📤 Approve tx enviada:", approveTx.hash);
 
-      // Proteção contra hang no wait()
-      console.log("⏳ Aguardando confirmação do approve...");
+      // Timeout maior (90 segundos)
+      console.log("⏳ Aguardando confirmação do approve (90s)...");
       const receipt = await Promise.race([
         approveTx.wait(),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout no approve")), 45000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout no approve")), 90000))
       ]);
 
       console.log("✅ Approve confirmado! Block:", receipt.blockNumber);
@@ -375,7 +377,7 @@ async function placeBet(option) {
 
     const buyReceipt = await Promise.race([
       tx.wait(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout na aposta")), 45000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout na aposta")), 90000))
     ]);
 
     console.log("✅ Transação confirmada! Block:", buyReceipt.blockNumber);
@@ -395,9 +397,15 @@ async function placeBet(option) {
   } catch (error) {
     hideLoadingModal();
     console.error('❌ ERRO FINAL NA APOSTA:', error);
-    showAlert('Erro na transação', error.shortMessage || error.message || 'Verifique POL e tente novamente', 'error');
+
+    if (error.message.includes("Timeout")) {
+      showAlert('⏳ Tempo esgotado', 'A transação foi enviada, mas demorou para confirmar.<br>Verifique no Polygonscan.', 'error');
+    } else {
+      showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error');
+    }
   }
 }
+
 
 // ==================== RESGATAR ====================
 window.redeemWinnings = async function(marketId) {
