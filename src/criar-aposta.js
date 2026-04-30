@@ -163,81 +163,77 @@ async function getInternalWalletSigner() {
 
 // ==================== CRIAR MERCADO (CORRIGIDO) ====================
 async function createMarket() {
-  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null');
   if (!deviceVault?.walletKeystoreLocal) {
-    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    return
+    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error');
+    return;
   }
 
-  const title = document.getElementById('title').value.trim()
-  const optionA = document.getElementById('optionA').value.trim()
-  const optionB = document.getElementById('optionB').value.trim()
-  const closeAtStr = document.getElementById('closeAt').value
-  const probA = parseInt(document.getElementById('probA').value)
-  const probB = parseInt(document.getElementById('probB').value)
+  const title = document.getElementById('title').value.trim();
+  const optionA = document.getElementById('optionA').value.trim();
+  const optionB = document.getElementById('optionB').value.trim();
+  const closeAtStr = document.getElementById('closeAt').value;
+  const probA = parseInt(document.getElementById('probA').value);
+  const probB = parseInt(document.getElementById('probB').value);
 
   if (!title || !optionA || !optionB || !closeAtStr) {
-    showAlert('Campos incompletos', 'Preencha todos os campos.', 'error')
-    return
+    showAlert('Campos incompletos', 'Preencha todos os campos.', 'error');
+    return;
   }
   if (probA + probB !== 100) {
-    showAlert('Probabilidades inválidas', 'A + B deve ser 100%.', 'error')
-    return
+    showAlert('Probabilidades inválidas', 'A + B deve ser 100%.', 'error');
+    return;
   }
 
-  const closeAt = Math.floor(new Date(closeAtStr).getTime() / 1000)
+  const closeAt = Math.floor(new Date(closeAtStr).getTime() / 1000);
   if (closeAt <= Math.floor(Date.now() / 1000)) {
-    showAlert('Data inválida', 'Escolha uma data no futuro.', 'error')
-    return
+    showAlert('Data inválida', 'Escolha uma data no futuro.', 'error');
+    return;
   }
 
-  const btn = document.getElementById('createBtn')
-  btn.disabled = true
-  btn.textContent = "Criando..."
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true;
+  btn.textContent = "Criando...";
 
   try {
-    const signer = await getInternalWalletSigner()
-    if (!signer) return
+    const signer = await getInternalWalletSigner();
+    if (!signer) return;
 
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
 
-    showLoadingModal('Criando Mercado', 'Enviando transação...')
+    showLoadingModal('Criando Mercado', 'Enviando transação...');
 
-    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100)
-    console.log("📤 Create tx enviada:", tx.hash)
+    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
+    console.log("📤 Create tx enviada:", tx.hash);
 
-    // Timeout para não travar
-    const receipt = await Promise.race([
-      tx.wait(1),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 60000))
-    ])
+    const receipt = await tx.wait(1);   // 1 confirmação
 
-    hideLoadingModal()
+    hideLoadingModal();
 
     const marketCreatedLog = receipt.logs.find(log => {
       try {
-        return contract.interface.parseLog(log).name === 'MarketCreated'
-      } catch { return false }
-    })
+        return contract.interface.parseLog(log).name === 'MarketCreated';
+      } catch { return false; }
+    });
 
-    const marketId = marketCreatedLog ? contract.interface.parseLog(marketCreatedLog).args.marketId.toString() : 'N/A'
+    const marketId = marketCreatedLog ? contract.interface.parseLog(marketCreatedLog).args.marketId.toString() : 'N/A';
 
-    showAlert('✅ Mercado Criado!', `Market ID: <strong>${marketId}</strong>`, 'success')
+    showAlert('✅ Mercado Criado!', `Market ID: <strong>${marketId}</strong>`, 'success');
 
     // Limpar formulário
-    document.getElementById('title').value = ''
-    document.getElementById('optionA').value = ''
-    document.getElementById('optionB').value = ''
-    document.getElementById('probA').value = '50'
-    document.getElementById('probB').value = '50'
+    document.getElementById('title').value = '';
+    document.getElementById('optionA').value = '';
+    document.getElementById('optionB').value = '';
+    document.getElementById('probA').value = '50';
+    document.getElementById('probB').value = '50';
 
   } catch (error) {
-    hideLoadingModal()
-    console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.message, 'error')
+    hideLoadingModal();
+    console.error(error);
+    showAlert('Erro na transação', error.shortMessage || error.message, 'error');
   } finally {
-    btn.disabled = false
-    btn.textContent = "🎲 Criar Mercado"
+    btn.disabled = false;
+    btn.textContent = "🎲 Criar Mercado";
   }
 }
 
