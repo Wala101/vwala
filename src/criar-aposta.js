@@ -16,7 +16,9 @@ import {
 } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract } from 'ethers'
 
+const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
 const POLYGON_RPC_PRIMARY_URL = "https://polygon-rpc.com"
+
 const CONTRACT_ADDRESS = '0xb6b57B6146e535d2D850B0Ea086D29EdBacB5A0C'
 const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
 const TOKEN_SYMBOL = 'vWALA'
