@@ -16,12 +16,12 @@ import {
 } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract } from 'ethers'
 
-const POLYGON_CHAIN_ID = Number(import.meta.env.VITE_POLYGON_CHAIN_ID || 137)
-const POLYGON_RPC_PRIMARY_URL = new URL('/api/rpc', window.location.origin).toString()
+const POLYGON_CHAIN_ID = 137
+// ✅ RPC RÁPIDO E ESTÁVEL (Ankr)
+const POLYGON_RPC = "https://rpc.ankr.com/polygon"
 
 const CONTRACT_ADDRESS = '0xb6b57B6146e535d2D850B0Ea086D29EdBacB5A0C'
 const VWALA_TOKEN = '0x7bD1f6f4F5CEf026b643758605737CB48b4B7D83'
-const TOKEN_SYMBOL = 'vWALA'
 
 const USER_PREDICTIONS_ABI = [
   'function createMarket(string title, string optionA, string optionB, uint256 closeAt, uint16 feeBps, uint16 probA, uint16 probB) external returns (uint256)',
@@ -58,7 +58,7 @@ window.showLoadingModal = (title = 'Processando', message = '') => {
   const existing = document.getElementById('loading-modal')
   if (existing) {
     existing.querySelector('h2').textContent = title
-    existing.querySelector('p').textContent = message
+    existing.querySelector('p').innerHTML = message
     return
   }
   const modal = document.createElement('div')
@@ -162,98 +162,111 @@ async function getInternalWalletSigner() {
   }
 }
 
+// ==================== ESPERA INTELIGENTE (anti-travamento) ====================
+async function waitForTransaction(tx, timeoutMs = 180000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const receipt = await tx.provider.getTransactionReceipt(tx.hash)
+      if (receipt) {
+        if (receipt.status === 1) return receipt
+        else throw new Error("Transação revertida")
+      }
+    } catch (e) {}
+    await new Promise(r => setTimeout(r, 3500)) // verifica a cada 3.5s
+  }
+  throw new Error("timeout")
+}
+
 // ==================== CRIAR MERCADO ====================
 async function createMarket() {
-  const btn = document.getElementById('createBtn');
-  const title = document.getElementById('title').value.trim();
-  const optionA = document.getElementById('optionA').value.trim();
-  const optionB = document.getElementById('optionB').value.trim();
-  const closeAtStr = document.getElementById('closeAt').value;
-  const probA = parseInt(document.getElementById('probA').value);
-  const probB = parseInt(document.getElementById('probB').value);
+  const btn = document.getElementById('createBtn')
+  const title = document.getElementById('title').value.trim()
+  const optionA = document.getElementById('optionA').value.trim()
+  const optionB = document.getElementById('optionB').value.trim()
+  const closeAtStr = document.getElementById('closeAt').value
+  const probA = parseInt(document.getElementById('probA').value)
+  const probB = parseInt(document.getElementById('probB').value)
 
   if (!title || !optionA || !optionB || !closeAtStr) {
-    showAlert('Campos incompletos', 'Preencha todos os campos.', 'error');
-    return;
+    showAlert('Campos incompletos', 'Preencha todos os campos.', 'error')
+    return
   }
   if (probA + probB !== 100) {
-    showAlert('Probabilidades inválidas', 'A + B deve ser 100%.', 'error');
-    return;
+    showAlert('Probabilidades inválidas', 'A + B deve ser 100%.', 'error')
+    return
   }
 
-  const closeAt = Math.floor(new Date(closeAtStr).getTime() / 1000);
+  const closeAt = Math.floor(new Date(closeAtStr).getTime() / 1000)
   if (closeAt <= Math.floor(Date.now() / 1000)) {
-    showAlert('Data inválida', 'Escolha uma data no futuro.', 'error');
-    return;
+    showAlert('Data inválida', 'Escolha uma data no futuro.', 'error')
+    return
   }
 
-  btn.disabled = true;
-  btn.textContent = "Assinando...";
+  btn.disabled = true
+  btn.textContent = "Assinando..."
+
+  let txHash = null
 
   try {
-    const signer = await getInternalWalletSigner();
+    const signer = await getInternalWalletSigner()
     if (!signer) {
-      btn.disabled = false;
-      btn.textContent = "🎲 Criar Mercado";
-      return;
+      btn.disabled = false
+      btn.textContent = "🎲 Criar Mercado"
+      return
     }
 
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
-    showLoadingModal('Processando', 'Solicitando assinatura da transação...');
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
 
-    // Envio da transação
-    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
-    const txHash = tx.hash;
-    console.log("📤 Transação enviada:", txHash);
+    showLoadingModal('Assinando...', 'Confirme no MetaMask / Wallet')
 
-    // Aviso de espera na rede
-    showLoadingModal('Aguardando Rede', `Transação enviada!<br><small>${txHash.slice(0,20)}...</small><br>Aguardando confirmação da Polygon...`);
+    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100)
+    txHash = tx.hash
 
-    // Espera com Timeout de 3 minutos
-    try {
-      const receipt = await Promise.race([
-        tx.wait(1), 
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Rede lenta")), 180000))
-      ]);
+    console.log("📤 Transação enviada:", txHash)
 
-      hideLoadingModal();
+    showLoadingModal('Aguardando Confirmação', 
+      `Transação enviada!<br>
+       <small><a href="https://polygonscan.com/tx/${txHash}" target="_blank">${txHash.slice(0, 16)}...</a></small>`)
 
-      let marketId = 'N/A';
-      for (const log of receipt.logs) {
-        try {
-          const parsed = contract.interface.parseLog(log);
-          if (parsed.name === 'MarketCreated') {
-            marketId = parsed.args.marketId.toString();
-            break;
-          }
-        } catch {}
-      }
+    const receipt = await waitForTransaction(tx)
 
-      showAlert('✅ Mercado Criado!', 
-        `Sua aposta foi criada com sucesso.<br>ID: <strong>${marketId}</strong>`, 
-        'success');
+    hideLoadingModal()
 
-      // Limpar campos
-      document.getElementById('title').value = '';
-      document.getElementById('optionA').value = '';
-      document.getElementById('optionB').value = '';
-
-    } catch (waitError) {
-      hideLoadingModal();
-      if (waitError.message === "Rede lenta") {
-        showAlert('Aviso', `A transação foi enviada, mas a rede está demorada. Sua aposta aparecerá em instantes.<br><br>Hash: <small>${txHash}</small>`, 'success');
-      } else {
-        throw waitError;
-      }
+    let marketId = 'N/A'
+    for (const log of receipt.logs) {
+      try {
+        const parsed = contract.interface.parseLog(log)
+        if (parsed.name === 'MarketCreated') {
+          marketId = parsed.args.marketId.toString()
+          break
+        }
+      } catch (e) {}
     }
+
+    showAlert('✅ Mercado Criado com Sucesso!', 
+      `ID: <strong>${marketId}</strong><br>
+       <a href="https://polygonscan.com/tx/${txHash}" target="_blank">Ver no Polygonscan →</a>`, 
+      'success')
+
+    // Limpar formulário
+    document.getElementById('title').value = ''
+    document.getElementById('optionA').value = ''
+    document.getElementById('optionB').value = ''
+    document.getElementById('closeAt').value = ''
 
   } catch (error) {
-    hideLoadingModal();
-    console.error("❌ Erro completo:", error);
-    showAlert('Erro ao criar', error.shortMessage || error.message || 'Erro inesperado', 'error');
+    hideLoadingModal()
+    console.error("❌ Erro:", error)
+
+    let msg = error.message || 'Erro desconhecido'
+    if (msg.includes("timeout")) msg = "Transação enviada, mas demorando. Verifique no Polygonscan."
+    if (msg.includes("user rejected")) msg = "Transação cancelada pelo usuário."
+
+    showAlert('Erro ao criar mercado', msg + (txHash ? `<br><small>Hash: ${txHash}</small>` : ''), 'error')
   } finally {
-    btn.disabled = false;
-    btn.textContent = "🎲 Criar Mercado";
+    btn.disabled = false
+    btn.textContent = "🎲 Criar Mercado"
   }
 }
 
@@ -297,9 +310,9 @@ function renderPage() {
 
 async function boot() {
   await initFirebaseSession()
-  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
+  state.provider = new JsonRpcProvider(POLYGON_RPC)
   renderPage()
-  console.log("📄 Página Criar Aposta v2.4 - Estável ✅")
+  console.log("📄 Página Criar Aposta v2.5 - RPC Ankr + Anti-travamento ✅")
 }
 
-boot();
+boot()
