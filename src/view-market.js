@@ -263,7 +263,7 @@ async function placeBet(option) {
 
     if (Number(userBalance) < amount) throw new Error('Saldo insuficiente');
 
-    showLoadingModal('Aprovando vWALA...', 'Aguarde...');
+    showLoadingModal('Aprovando vWALA...', 'Enviando transação...');
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer);
     const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
@@ -273,24 +273,20 @@ async function placeBet(option) {
     if (allowance < amountWei) {
       console.log("🔓 Approve necessário");
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
-      console.log("📤 Approve tx:", approveTx.hash);
+      console.log("📤 Approve tx enviada:", approveTx.hash);
 
-      // Timeout maior + mensagem amigável
-      await Promise.race([
-        approveTx.wait(2),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout approve")), 60000))
-      ]).catch(() => {
-        console.warn("Approve demorou, mas pode ter sido confirmado");
-      });
+      // NÃO ESPERA MAIS (para evitar travamento)
+      console.log("⏳ Approve enviado. Verifique no Polygonscan se precisar.");
+      // await approveTx.wait();   // ← comentado para não travar
     }
 
     showLoadingModal('Enviando aposta...', 'Confirmando na Polygon...');
 
     const marketId = BigInt(currentMarket.id);
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei);
-    console.log("📤 Buy tx enviada:", tx.hash);
+    console.log("📤 BuyPosition tx enviada:", tx.hash);
 
-    await tx.wait(1);   // 1 confirmação é suficiente
+    await tx.wait(1);   // espera só a aposta
 
     hideLoadingModal();
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success');
@@ -306,11 +302,10 @@ async function placeBet(option) {
 
   } catch (error) {
     hideLoadingModal();
-    console.error('❌ ERRO:', error);
-    showAlert('Erro na transação', error.shortMessage || error.message || 'Verifique o Polygonscan', 'error');
+    console.error('❌ ERRO FINAL:', error);
+    showAlert('Erro na transação', error.shortMessage || error.message || 'Verifique no Polygonscan', 'error');
   }
 }
-
 
 
 // ==================== TABS (Buscar / Histórico) ====================
