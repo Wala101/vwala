@@ -433,11 +433,8 @@ if (!internalSigner) {
 const feeData = await state.provider.getFeeData()
 const signerAddress = await internalSigner.getAddress()
 
-const nonce = await state.provider.getTransactionCount(
-  signerAddress,
-  'pending'
-)
-console.log('Nonce pendente:', nonce)
+console.log('Signer:', signerAddress) 
+console.log('Preparando envio da transação...')
 
 const tx = await contract.createMarket(
   title,
@@ -448,7 +445,7 @@ const tx = await contract.createMarket(
   probA * 100,
   probB * 100,
   {
-    nonce,
+   
     maxFeePerGas: feeData.maxFeePerGas ?? undefined,
     maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
     gasLimit: 500000
