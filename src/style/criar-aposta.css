@@ -1,0 +1,614 @@
+@import './index.css';
+
+.create-page {
+  max-width: 540px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  width: 100%;
+  box-sizing: border-box;
+  
+  /* Centralização perfeita */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.form-card {
+  width: 100%;
+  background: linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 24px;
+  padding: 44px 36px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+}
+
+.create-header {
+  text-align: center;
+  margin-bottom: 48px;          /* mais espaço entre header e card */
+}
+
+.create-header h1 {
+  font-size: 32px;
+  margin: 0 0 12px 0;
+  color: #fff;
+  font-weight: 700;
+}
+
+.create-header p {
+  color: #8c95a0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* ==================== CARD ==================== */
+.form-card {
+  background: linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 24px;
+  padding: 40px 32px;           /* aumento significativo de padding interno */
+  box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+}
+
+/* ==================== INPUTS ==================== */
+.input {
+  width: 100%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 16px 18px;
+  color: #fff;
+  font-size: 16px;
+  margin-bottom: 20px;          /* mais espaço entre campos */
+  transition: all 0.2s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #25ff8a;
+  box-shadow: 0 0 0 4px rgba(37,255,138,0.18);
+}
+
+/* ==================== GRIDS ==================== */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;                    /* aumentado */
+  margin-bottom: 24px;
+}
+
+.prob-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;                    /* mais espaço entre os dois lados */
+  margin-bottom: 32px;          /* bastante espaço antes do botão */
+}
+
+.prob-row label {
+  display: block;
+  font-size: 13.5px;
+  color: #8c95a0;
+  margin-bottom: 8px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* ==================== BOTÃO ==================== */
+.launch-btn {
+  width: 100%;
+  padding: 18px;
+  font-size: 17.5px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
+  border: none;
+  border-radius: 18px;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.25s ease;
+  box-shadow: 0 8px 25px rgba(37, 255, 138, 0.25);
+}
+
+.launch-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(37, 255, 138, 0.35);
+}
+
+.launch-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+/* ==================== STATUS ==================== */
+.status {
+  margin-top: 28px;
+  text-align: center;
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.status.success {
+  background: rgba(37,255,138,0.12);
+  color: #25ff8a;
+  border: 1px solid rgba(37,255,138,0.3);
+}
+
+.status.error {
+  background: rgba(255,60,60,0.12);
+  color: #ff6060;
+  border: 1px solid rgba(255,60,60,0.3);
+}
+
+
+/* ==================== MODAIS / ALERTAS ==================== */
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  backdrop-filter: blur(8px);
+}
+
+.modal-content {
+  background: linear-gradient(180deg, #1a2333, #111827);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 20px;
+  padding: 28px 32px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+  animation: modalPop 0.3s ease;
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-title {
+  font-size: 20px;
+  margin: 0 0 12px 0;
+  color: #fff;
+}
+
+.modal-message {
+  font-size: 15.5px;
+  color: #b0b7c4;
+  line-height: 1.5;
+  margin-bottom: 24px;
+}
+
+.modal-btn {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
+  font-weight: 700;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* ==================== TIPOS DE ALERTA ==================== */
+
+.alert-success .modal-title { color: #25ff8a; }
+.alert-error .modal-title { color: #ff6060; }
+
+/* ==================== LOADING MODAL ==================== */
+
+.loading-modal .modal-content {
+  padding: 40px 32px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255,255,255,0.1);
+  border-top-color: #25ff8a;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 20px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+
+/* ==================== MINHAS APOSTAS ==================== */
+
+.my-markets-section {
+  margin-top: 52px;
+}
+
+.my-markets-section h2 {
+  font-size: 22px;
+  color: #fff;
+  margin-bottom: 20px;
+}
+
+.markets-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.market-item {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 18px;
+  padding: 20px;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.market-item:hover {
+  background: rgba(255,255,255,0.09);
+  border-color: rgba(37, 255, 138, 0.25);
+  transform: translateY(-3px);
+}
+
+.market-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.market-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 14.5px;
+  color: #b0b7c4;
+  margin-bottom: 12px;
+}
+
+.market-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  color: #8c95a0;
+}
+
+.status {
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.status.active {
+  background: rgba(37, 255, 138, 0.15);
+  color: #25ff8a;
+  border: 1px solid rgba(37, 255, 138, 0.3);
+}
+
+.loading-text, .empty-state, .error-text {
+  text-align: center;
+  color: #8c95a0;
+  padding: 30px 20px;
+  font-style: italic;
+}
+
+
+.pin-modal {
+  max-width: 340px;
+}
+
+.pin-input {
+  text-align: center;
+  font-size: 28px;
+  letter-spacing: 8px;
+  font-weight: 600;
+  margin-bottom: 24px;
+}
+
+.pin-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.cancel-btn {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}
+
+.market-hash {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px;
+  color: #94a3b8;
+  font-family: monospace;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+.break-text {
+  word-break: break-all;
+  overflow-wrap: anywhere;
+}
+
+.modal-message small {
+  display: block;
+  margin-top: 10px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.5;
+}
+
+.copy-market-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #25ff8a, #176e2d);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+
+.market-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.market-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  flex: 1;
+  padding-right: 12px;
+  line-height: 1.35;
+}
+
+.status {
+  padding: 6px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.status.active {
+  background: rgba(37, 255, 138, 0.18);
+  color: #25ff8a;
+  border: 1px solid rgba(37, 255, 138, 0.4);
+}
+
+.status.finalizada,
+.status.inactive {
+  background: rgba(255, 80, 80, 0.15);
+  color: #ff8080;
+  border: 1px solid rgba(255, 80, 80, 0.4);
+}
+
+/* ==================== RESTO ==================== */
+.market-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  color: #b0b7c4;
+  margin-bottom: 12px;
+}
+
+.market-info {
+  font-size: 14px;
+  color: #8c95a0;
+  margin-bottom: 16px;
+}
+
+.market-actions {
+  margin-top: 12px;
+}
+
+.copy-market-btn {
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 12px;
+  background: rgba(37, 255, 138, 0.15);
+  color: #25ff8a;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.copy-market-btn:hover {
+  background: rgba(37, 255, 138, 0.25);
+  color: #fff;
+}
+
+.resolve-btn {
+  width: 100%;
+  margin-top: 10px;
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.resolve-btn:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+.winner {
+  color: #10b981;
+  font-weight: 600;
+}
+
+.options-resolve button {
+  width: 100%;
+  margin: 8px 0;
+  padding: 14px;
+  font-size: 1.1em;
+}
+
+
+/* ====================== MODAL PIN PADRONIZADO (igual em todas as páginas) ====================== */
+
+#appPinOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 1200;
+  display: none;
+}
+
+#appPinModal {
+  position: fixed;
+  inset: 0;
+  z-index: 1210;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#appPinModal.active,
+#appPinOverlay.active {
+  display: flex !important;
+}
+
+/* Container */
+#appPinModal .app-pin-modal-card {
+  width: min(92vw, 420px);
+  background: linear-gradient(180deg, rgba(18,22,30,0.98), rgba(10,12,18,0.98));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 22px;
+  box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+
+/* Header */
+.app-pin-modal-header {
+  padding: 20px 20px 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.app-pin-modal-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-pin-modal-badge {
+  width: 42px;
+  height: 42px;
+  background: linear-gradient(135deg, #5cffb4, #25ff8a);
+  color: #04110a;
+  font-weight: 900;
+  font-size: 20px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 10px 24px rgba(37,255,138,0.25);
+}
+
+.app-pin-modal-headings h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.app-pin-modal-subtitle {
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 2px;
+}
+
+/* Body */
+.app-pin-modal-body {
+  padding: 12px 20px 20px;
+}
+
+.app-pin-modal-text {
+  margin: 0 0 16px 0;
+  font-size: 14.5px;
+  line-height: 1.55;
+  color: #cfd6df;
+  text-align: center;
+}
+
+.app-pin-input-wrap {
+  padding: 8px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.app-pin-input {
+  width: 100%;
+  height: 54px;
+  background: rgba(8,10,14,0.95);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  font-size: 17px;
+  text-align: center;
+  letter-spacing: 3px;
+  color: #fff;
+}
+
+.app-pin-input:focus {
+  border-color: #25ff8a;
+  box-shadow: 0 0 0 4px rgba(37,255,138,0.2);
+  outline: none;
+}
+
+/* Footer */
+.app-pin-modal-footer {
+  padding: 0 20px 24px;
+}
+
+.app-pin-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+#appPinConfirmBtn {
+  width: 100%;
+  min-height: 52px;
+  background: linear-gradient(90deg, #5cffb4, #25ff8a);
+  color: #000;
+  font-weight: 800;
+  font-size: 16px;
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 10px 25px rgba(37,255,138,0.22);
+}
+
+#appPinConfirmBtn:hover {
+  transform: translateY(-1px);
+}
