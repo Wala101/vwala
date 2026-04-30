@@ -428,7 +428,7 @@ if (!internalSigner) {
 
     showLoadingModal('Criando Mercado', 'Confirmando transação na Polygon...')
 
-const feeData = await state.provider.getFeeData()
+
 
 const feeData = await state.provider.getFeeData()
 
