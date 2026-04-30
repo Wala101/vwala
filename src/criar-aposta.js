@@ -34,7 +34,7 @@ const USER_PREDICTIONS_ABI = [
 let currentGoogleUser = null
 const state = { provider: null, signer: null, userAddress: '' }
 
-// ==================== MODAIS (SEGURAS) ====================
+// ==================== MODAIS ====================
 window.showAlert = (title, message, type = 'success') => {
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
@@ -46,7 +46,7 @@ window.showAlert = (title, message, type = 'success') => {
     <div class="modal-content">
       <div class="modal-icon">${type === 'success' ? '🎉' : '⚠️'}</div>
       <h2 class="modal-title">${title}</h2>
-      <p class="modal-message">${message}</p>
+      <div class="modal-message">${message}</div>
       <button class="modal-btn" onclick="this.closest('.modal-overlay').remove()">FECHAR</button>
     </div>
   `
@@ -56,7 +56,11 @@ window.showAlert = (title, message, type = 'success') => {
 
 window.showLoadingModal = (title = 'Processando', message = '') => {
   const existing = document.getElementById('loading-modal')
-  if (existing) return
+  if (existing) {
+    existing.querySelector('h2').textContent = title
+    existing.querySelector('p').textContent = message
+    return
+  }
   const modal = document.createElement('div')
   modal.id = 'loading-modal'
   modal.className = 'modal-overlay loading'
@@ -90,7 +94,6 @@ window.showPinModal = () => new Promise(resolve => {
   `
   document.body.appendChild(modal)
   modal.style.display = 'flex'
-
   setTimeout(() => document.getElementById('pin-input').focus(), 100)
 
   document.getElementById('cancel-pin').onclick = () => { modal.remove(); resolve(null) }
@@ -115,7 +118,7 @@ async function syncWalletProfileFromFirebase() {
     }
     if (addr) state.userAddress = addr
   } catch (error) {
-    console.error(error)
+    console.error("Erro syncWallet:", error)
   }
 }
 
@@ -130,19 +133,17 @@ async function initFirebaseSession() {
       })
     })
   } catch (error) {
-    console.error(error)
+    console.error("Erro Firebase Session:", error)
   }
 }
 
 async function getInternalWalletSigner() {
   if (state.signer) return state.signer
-
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
     showAlert('Carteira não encontrada', 'Crie um PIN na página de Swap primeiro.', 'error')
     return null
   }
-
   if (state.userAddress.toLowerCase() !== String(deviceVault.walletAddress || '').toLowerCase()) {
     showAlert('Carteira incompatível', '', 'error')
     return null
@@ -161,14 +162,9 @@ async function getInternalWalletSigner() {
   }
 }
 
-// ==================== CRIAR MERCADO (CORRIGIDO) ====================
+// ==================== CRIAR MERCADO ====================
 async function createMarket() {
-  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null');
-  if (!deviceVault?.walletKeystoreLocal) {
-    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error');
-    return;
-  }
-
+  const btn = document.getElementById('createBtn');
   const title = document.getElementById('title').value.trim();
   const optionA = document.getElementById('optionA').value.trim();
   const optionB = document.getElementById('optionB').value.trim();
@@ -191,61 +187,70 @@ async function createMarket() {
     return;
   }
 
-  const btn = document.getElementById('createBtn');
   btn.disabled = true;
-  btn.textContent = "Criando...";
+  btn.textContent = "Assinando...";
 
   try {
     const signer = await getInternalWalletSigner();
-    if (!signer) return;
-
-    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
-
-    showLoadingModal('Criando Mercado', 'Enviando transação...');
-
-    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
-    console.log("📤 Create tx enviada:", tx.hash);
-
-    // Ajuste: Aumentado timeout para 120s e reduzido espera para 1 bloco
-    showLoadingModal('Aguardando Rede', 'Transação enviada. Aguardando confirmação...');
-    const receipt = await Promise.race([
-      tx.wait(1), 
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Rede lenta")), 120000))
-    ]);
-
-    hideLoadingModal();
-
-    // Extrair Market ID do evento
-    let marketId = 'N/A';
-    for (const log of receipt.logs) {
-      try {
-        const parsed = contract.interface.parseLog(log);
-        if (parsed.name === 'MarketCreated') {
-          marketId = parsed.args.marketId.toString();
-          break;
-        }
-      } catch {}
+    if (!signer) {
+      btn.disabled = false;
+      btn.textContent = "🎲 Criar Mercado";
+      return;
     }
 
-    showAlert('✅ Mercado Criado com Sucesso!', 
-      `Market ID: <strong>${marketId}</strong><br>Tx: <small>${tx.hash.slice(0,12)}...</small>`, 
-      'success');
+    const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
+    showLoadingModal('Processando', 'Solicitando assinatura da transação...');
 
-    // Limpar formulário
-    document.getElementById('title').value = '';
-    document.getElementById('optionA').value = '';
-    document.getElementById('optionB').value = '';
-    document.getElementById('probA').value = '50';
-    document.getElementById('probB').value = '50';
+    // Envio da transação
+    const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
+    const txHash = tx.hash;
+    console.log("📤 Transação enviada:", txHash);
+
+    // Aviso de espera na rede
+    showLoadingModal('Aguardando Rede', `Transação enviada!<br><small>${txHash.slice(0,20)}...</small><br>Aguardando confirmação da Polygon...`);
+
+    // Espera com Timeout de 3 minutos
+    try {
+      const receipt = await Promise.race([
+        tx.wait(1), 
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Rede lenta")), 180000))
+      ]);
+
+      hideLoadingModal();
+
+      let marketId = 'N/A';
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog(log);
+          if (parsed.name === 'MarketCreated') {
+            marketId = parsed.args.marketId.toString();
+            break;
+          }
+        } catch {}
+      }
+
+      showAlert('✅ Mercado Criado!', 
+        `Sua aposta foi criada com sucesso.<br>ID: <strong>${marketId}</strong>`, 
+        'success');
+
+      // Limpar campos
+      document.getElementById('title').value = '';
+      document.getElementById('optionA').value = '';
+      document.getElementById('optionB').value = '';
+
+    } catch (waitError) {
+      hideLoadingModal();
+      if (waitError.message === "Rede lenta") {
+        showAlert('Aviso', `A transação foi enviada, mas a rede está demorada. Sua aposta aparecerá em instantes.<br><br>Hash: <small>${txHash}</small>`, 'success');
+      } else {
+        throw waitError;
+      }
+    }
 
   } catch (error) {
     hideLoadingModal();
     console.error("❌ Erro completo:", error);
-    if(error.message === "Rede lenta") {
-        showAlert('Aviso', 'A transação foi enviada, mas a rede está lenta. Verifique seu histórico em instantes.', 'warning');
-    } else {
-        showAlert('Erro ao criar mercado', error.shortMessage || error.message || 'Tente novamente', 'error');
-    }
+    showAlert('Erro ao criar', error.shortMessage || error.message || 'Erro inesperado', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = "🎲 Criar Mercado";
@@ -287,7 +292,6 @@ function renderPage() {
       </div>
     </div>
   `
-
   document.getElementById('createBtn').addEventListener('click', createMarket)
 }
 
@@ -295,7 +299,7 @@ async function boot() {
   await initFirebaseSession()
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
   renderPage()
-  console.log("📄 Página Criar Aposta v2.3 - Limpa e sem conflito ✅")
+  console.log("📄 Página Criar Aposta v2.4 - Estável ✅")
 }
 
-boot()
+boot();
