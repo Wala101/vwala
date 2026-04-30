@@ -1202,25 +1202,62 @@ async function getInternalWalletSigner() {
 }
 
 
-
 async function initWalletSession() {
   try {
-    const walletAddress = getCurrentWalletAddress()
+    // ==================== RPCS ATUALIZADOS (Abril 2026) ====================
+    const rpcList = [
+      "https://polygon.drpc.org",           // Melhor no momento
+      "https://polygon.publicnode.com",
+      "https://poly.api.pocket.network",
+      "https://1rpc.io/matic"
+    ];
 
-    state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
-    state.userAddress = walletAddress
-    state.signer = null
-    state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider)
-    state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider)
-    state.decimals = Number(await state.token.decimals())
+    let connected = false;
 
-    await ensureFootballCouponsLoaded()
-    await loadUserTokenBalance()
-    state.matches = loadCouponsForMatches(state.matches)
-    renderMatches()
+    for (const url of rpcList) {
+      try {
+        state.provider = new JsonRpcProvider(url, POLYGON_CHAIN_ID);
+        
+        // Testa conexão real
+        await Promise.race([
+          state.provider.getNetwork(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000))
+        ]);
+
+        console.log(`✅ RPC conectado com sucesso: ${url}`);
+        connected = true;
+        break;
+      } catch (e) {
+        console.warn(`❌ RPC falhou: ${url}`);
+      }
+    }
+
+    if (!connected) {
+      showAlert('Erro de Conexão', 'Nenhum servidor da Polygon está respondendo no momento. Tente recarregar em 20 segundos.', 'error');
+      return;
+    }
+
+    // ====================== CONTINUAÇÃO NORMAL ======================
+    const walletAddress = getCurrentWalletAddress();
+    state.userAddress = walletAddress;
+    state.signer = null;
+    state.token = new Contract(VWALA_TOKEN, ERC20_ABI, state.provider);
+    state.betting = new Contract(BETTING_ADDRESS, BETTING_ABI, state.provider);
+
+    try {
+      state.decimals = Number(await state.token.decimals());
+    } catch (e) {
+      state.decimals = 18;
+    }
+
+    await ensureFootballCouponsLoaded();
+    await loadUserTokenBalance();
+    state.matches = loadCouponsForMatches(state.matches);
+    renderMatches();
+
   } catch (error) {
-    console.error('Erro ao iniciar carteira da página de apostas:', error)
-    setConnectButtonText('Sem carteira')
+    console.error('Erro ao iniciar sessão da carteira:', error);
+    showAlert('Erro de Rede', 'Não foi possível conectar à Polygon.', 'error');
   }
 }
 
