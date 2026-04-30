@@ -431,6 +431,7 @@ if (!internalSigner) {
 
 
 const feeData = await state.provider.getFeeData()
+const signerAddress = await internalSigner.getAddress()
 
 const nonce = await state.provider.getTransactionCount(
   state.userAddress,
