@@ -436,21 +436,22 @@ const signerAddress = await internalSigner.getAddress()
 console.log('Signer:', signerAddress) 
 console.log('Preparando envio da transação...')
 
-const tx = await contract.createMarket(
+const txRequest = await contract.createMarket.populateTransaction(
   title,
   optionA,
   optionB,
   closeAt,
   300,
   probA * 100,
-  probB * 100,
-  {
-   
-    maxFeePerGas: feeData.maxFeePerGas ?? undefined,
-    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
-    gasLimit: 500000
-  }
+  probB * 100
 )
+
+txRequest.gasLimit = 500000n
+txRequest.maxFeePerGas = feeData.maxFeePerGas ?? undefined
+txRequest.maxPriorityFeePerGas =
+  feeData.maxPriorityFeePerGas ?? undefined
+
+const tx = await internalSigner.sendTransaction(txRequest)
 
 const receipt = await Promise.race([
   tx.wait(),
