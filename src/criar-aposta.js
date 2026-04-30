@@ -206,19 +206,29 @@ async function createMarket() {
     const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
     console.log("📤 Create tx enviada:", tx.hash);
 
-    const receipt = await tx.wait(1);   // 1 confirmação
+    // Timeout de segurança (60 segundos)
+    const receipt = await Promise.race([
+      tx.wait(2),  // 2 confirmações
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout na confirmação")), 60000))
+    ]);
 
     hideLoadingModal();
 
-    const marketCreatedLog = receipt.logs.find(log => {
+    // Extrair Market ID do evento (mais robusto)
+    let marketId = 'N/A';
+    for (const log of receipt.logs) {
       try {
-        return contract.interface.parseLog(log).name === 'MarketCreated';
-      } catch { return false; }
-    });
+        const parsed = contract.interface.parseLog(log);
+        if (parsed.name === 'MarketCreated') {
+          marketId = parsed.args.marketId.toString();
+          break;
+        }
+      } catch {}
+    }
 
-    const marketId = marketCreatedLog ? contract.interface.parseLog(marketCreatedLog).args.marketId.toString() : 'N/A';
-
-    showAlert('✅ Mercado Criado!', `Market ID: <strong>${marketId}</strong>`, 'success');
+    showAlert('✅ Mercado Criado com Sucesso!', 
+      `Market ID: <strong>${marketId}</strong><br>Tx: <small>${tx.hash.slice(0,12)}...</small>`, 
+      'success');
 
     // Limpar formulário
     document.getElementById('title').value = '';
@@ -229,8 +239,8 @@ async function createMarket() {
 
   } catch (error) {
     hideLoadingModal();
-    console.error(error);
-    showAlert('Erro na transação', error.shortMessage || error.message, 'error');
+    console.error("❌ Erro completo:", error);
+    showAlert('Erro ao criar mercado', error.shortMessage || error.message || 'Tente novamente', 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = "🎲 Criar Mercado";
