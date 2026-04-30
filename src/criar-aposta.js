@@ -34,7 +34,7 @@ const USER_PREDICTIONS_ABI = [
 let currentGoogleUser = null
 const state = { provider: null, signer: null, userAddress: '' }
 
-// ==================== MODAIS (SEGURAS - sem conflito) ====================
+// ==================== MODAIS (SEGURAS) ====================
 window.showAlert = (title, message, type = 'success') => {
   const existing = document.getElementById('premium-modal')
   if (existing) existing.remove()
@@ -54,7 +54,7 @@ window.showAlert = (title, message, type = 'success') => {
   modal.style.display = 'flex'
 }
 
-window.showLoadingModal = (title = 'Processando', message = 'Enviando transação...') => {
+window.showLoadingModal = (title = 'Processando', message = '') => {
   const existing = document.getElementById('loading-modal')
   if (existing) return
   const modal = document.createElement('div')
@@ -70,38 +70,36 @@ window.hideLoadingModal = () => {
   if (modal) modal.remove()
 }
 
-window.showPinModal = (title = 'Confirmar PIN', message = 'Digite seu PIN') => {
-  return new Promise(resolve => {
-    const existing = document.getElementById('pin-modal')
-    if (existing) existing.remove()
+window.showPinModal = () => new Promise(resolve => {
+  const existing = document.getElementById('pin-modal')
+  if (existing) existing.remove()
 
-    const modal = document.createElement('div')
-    modal.id = 'pin-modal'
-    modal.className = 'modal-overlay'
-    modal.innerHTML = `
-      <div class="modal-content pin-modal">
-        <div class="modal-icon">🔑</div>
-        <h2>${title}</h2>
-        <input type="password" id="pin-input" class="input" maxlength="6" placeholder="Digite seu PIN">
-        <div class="pin-buttons">
-          <button class="modal-btn cancel-btn" id="cancel-pin">Cancelar</button>
-          <button class="modal-btn confirm-btn" id="confirm-pin">Confirmar</button>
-        </div>
+  const modal = document.createElement('div')
+  modal.id = 'pin-modal'
+  modal.className = 'modal-overlay'
+  modal.innerHTML = `
+    <div class="modal-content pin-modal">
+      <div class="modal-icon">🔑</div>
+      <h2>Confirmar PIN</h2>
+      <input type="password" id="pin-input" class="input" maxlength="6" placeholder="Digite seu PIN">
+      <div class="pin-buttons">
+        <button class="modal-btn cancel-btn" id="cancel-pin">Cancelar</button>
+        <button class="modal-btn confirm-btn" id="confirm-pin">Confirmar</button>
       </div>
-    `
-    document.body.appendChild(modal)
-    modal.style.display = 'flex'
+    </div>
+  `
+  document.body.appendChild(modal)
+  modal.style.display = 'flex'
 
-    setTimeout(() => document.getElementById('pin-input').focus(), 100)
+  setTimeout(() => document.getElementById('pin-input').focus(), 100)
 
-    document.getElementById('cancel-pin').onclick = () => { modal.remove(); resolve(null) }
-    document.getElementById('confirm-pin').onclick = () => {
-      const pin = document.getElementById('pin-input').value.trim()
-      modal.remove()
-      resolve(pin)
-    }
-  })
-}
+  document.getElementById('cancel-pin').onclick = () => { modal.remove(); resolve(null) }
+  document.getElementById('confirm-pin').onclick = () => {
+    const pin = document.getElementById('pin-input').value.trim()
+    modal.remove()
+    resolve(pin)
+  }
+})
 
 // ==================== CARTEIRA ====================
 async function syncWalletProfileFromFirebase() {
@@ -163,23 +161,6 @@ async function getInternalWalletSigner() {
   }
 }
 
-// ==================== SALDO ====================
-async function loadUserTokenBalance() {
-  if (!currentGoogleUser?.uid || !state.userAddress) return '0'
-  try {
-    const balanceRef = doc(db, 'users', currentGoogleUser.uid, 'swap_balances', 'vwala')
-    const snap = await getDoc(balanceRef)
-    if (snap.exists()) {
-      const data = snap.data()
-      return String(data.balanceFormatted || data.balance || '0')
-    }
-    return '0'
-  } catch (e) {
-    console.error(e)
-    return '0'
-  }
-}
-
 // ==================== CRIAR MERCADO (CORRIGIDO) ====================
 async function createMarket() {
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
@@ -223,17 +204,23 @@ async function createMarket() {
     showLoadingModal('Criando Mercado', 'Enviando transação...')
 
     const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100)
-    const receipt = await tx.wait()
+    console.log("📤 Create tx enviada:", tx.hash)
+
+    // Timeout para não travar
+    const receipt = await Promise.race([
+      tx.wait(1),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout")), 60000))
+    ])
 
     hideLoadingModal()
 
-    // Extrair Market ID
-    const log = receipt.logs.find(l => {
+    const marketCreatedLog = receipt.logs.find(log => {
       try {
-        return contract.interface.parseLog(l).name === 'MarketCreated'
+        return contract.interface.parseLog(log).name === 'MarketCreated'
       } catch { return false }
     })
-    const marketId = log ? contract.interface.parseLog(log).args.marketId.toString() : 'N/A'
+
+    const marketId = marketCreatedLog ? contract.interface.parseLog(marketCreatedLog).args.marketId.toString() : 'N/A'
 
     showAlert('✅ Mercado Criado!', `Market ID: <strong>${marketId}</strong>`, 'success')
 
@@ -247,7 +234,7 @@ async function createMarket() {
   } catch (error) {
     hideLoadingModal()
     console.error(error)
-    showAlert('Erro', error.shortMessage || error.message, 'error')
+    showAlert('Erro na transação', error.shortMessage || error.message, 'error')
   } finally {
     btn.disabled = false
     btn.textContent = "🎲 Criar Mercado"
@@ -297,7 +284,7 @@ async function boot() {
   await initFirebaseSession()
   state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID)
   renderPage()
-  console.log("📄 Página Criar Aposta v2.3 - Limpa ✅")
+  console.log("📄 Página Criar Aposta v2.3 - Limpa e sem conflito ✅")
 }
 
 boot()
