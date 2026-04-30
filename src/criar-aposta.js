@@ -647,11 +647,17 @@ async function resolveUserMarket(marketId, title) {
 
     await loadMyMarkets()
 
- } catch (error) {
-   hideLoadingModal()
-    console.error(error) 
-    showAlert('Erro na resolução', error.shortMessage || error.message, 'error') } finally { state.signer = null }
-}
+ } catch (error) { 
+  hideLoadingModal()
+   console.error(error)
+    showAlert( 
+      'Erro na resolução',
+       error.shortMessage || error.message,
+       'error' ) 
+  } finally {
+     state.signer = null 
+    }
+  }
 
 // ==================== EXPOR FUNÇÕES GLOBAIS (OBRIGATÓRIO) ====================
 window.resolveUserMarket = resolveUserMarket;
