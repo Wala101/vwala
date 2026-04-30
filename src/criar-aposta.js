@@ -451,7 +451,6 @@ txRequest.maxFeePerGas = feeData.maxFeePerGas ?? undefined
 txRequest.maxPriorityFeePerGas =
   feeData.maxPriorityFeePerGas ?? undefined
 
-const tx = await internalSigner.sendTransaction(txRequest)
 
 const tx = await internalSigner.sendTransaction(txRequest)
 
