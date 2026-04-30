@@ -453,15 +453,19 @@ txRequest.maxPriorityFeePerGas =
 
 const tx = await internalSigner.sendTransaction(txRequest)
 
-const receipt = await Promise.race([
-  tx.wait(),
-  new Promise((_, reject) =>
-    setTimeout(
-      () => reject(new Error('Timeout: transação demorou mais de 3 minutos.')),
-      180000
-    )
-  )
-])
+const tx = await internalSigner.sendTransaction(txRequest)
+
+showLoadingModal(
+  'Aguardando Confirmação',
+  `Transação enviada. Hash: ${tx.hash.slice(0, 12)}...`
+)
+
+const receipt = await state.provider.waitForTransaction(tx.hash, 1, 180000)
+
+if (!receipt) {
+  throw new Error('Timeout: transação não confirmada em 3 minutos.')
+}
+
 
     hideLoadingModal()
 
