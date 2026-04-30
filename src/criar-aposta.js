@@ -664,7 +664,7 @@ function renderPage() {
 async function boot() {
   await initFirebaseSession();
 
-  state.provider = new JsonRpcProvider(POLYGON_RPC_PRIMARY_URL, POLYGON_CHAIN_ID);
+  state.provider = new JsonRpcProvider("https://polygon-rpc.com", POLYGON_CHAIN_ID);
 
   renderPage();
 
