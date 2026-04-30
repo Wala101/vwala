@@ -230,63 +230,98 @@ async function loadMarket() {
 
 // ==================== APOSTAR ====================
 async function placeBet(option) {
-  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
+  hideLoadingModal();
+  console.log("🚀 Iniciando placeBet... Opção:", option);
+
+  const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null');
   if (!deviceVault?.walletKeystoreLocal) {
-    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error')
-    setTimeout(() => window.location.href = '/carteira', 1800)
-    return
+    showAlert('Carteira não configurada', 'Crie um PIN na página de Swap primeiro.', 'error');
+    return;
   }
 
-  const amountStr = document.getElementById('betAmount').value.trim()
-  const amount = parseFloat(amountStr)
+  const amountStr = document.getElementById('betAmount').value.trim();
+  const amount = parseFloat(amountStr);
 
   if (!amount || amount <= 0) {
-    showAlert('Valor inválido', 'Digite uma quantidade maior que zero.', 'error')
-    return
+    showAlert('Valor inválido', 'Digite uma quantidade maior que zero.', 'error');
+    return;
   }
 
-  const signer = await getInternalWalletSigner()
-  if (!signer) return
+  let signer;
+  try {
+    signer = await getInternalWalletSigner();
+    if (!signer) return;
+    console.log("✅ Signer OK:", signer.address);
+  } catch (e) {
+    hideLoadingModal();
+    console.error("Erro no signer:", e);
+    showAlert('Erro na carteira', 'Não foi possível conectar.', 'error');
+    return;
+  }
 
   try {
-    const amountWei = parseUnits(amount.toString(), 18)
-    const now = Math.floor(Date.now() / 1000)
-    const userBalance = await getUserVWalaBalance()
+    const amountWei = parseUnits(amount.toString(), 18);
+    const userBalance = await getUserVWalaBalance();
 
-    if (currentMarket.resolved) throw new Error('Mercado já resolvido')
-    if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado')
-    if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA')
+    if (currentMarket.resolved) throw new Error('Mercado já resolvido');
+    if (Number(userBalance) < amount) throw new Error('Saldo insuficiente de vWALA');
 
-    // Abre o modal grande
-    showLoadingModal('Aprovando vWALA...', 'Aguarde um momento')
+    showLoadingModal('Verificando aprovação...', '');
 
-    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
-    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+    const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer);
+    const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
 
-    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
+    const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS);
+
     if (allowance < amountWei) {
-      showLoadingModal('Aprovando vWALA...', 'Confirmando na blockchain...')
-      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei)
-      await approveTx.wait()
+      console.log("🔓 Precisa de approve...");
+      showLoadingModal('Aprovando vWALA...', 'Enviando transação...');
+
+      const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
+      console.log("📤 Approve enviado:", approveTx.hash);
+
+      // Timeout maior + mensagem clara
+      await approveTx.wait(1).catch(err => {
+        console.warn("Approve demorou, mas pode ter sido confirmado:", err.message);
+      });
+
+      console.log("✅ Approve processado");
     }
 
-    showLoadingModal('Enviando aposta...', 'Confirmando transação na Polygon')
+    showLoadingModal('Enviando aposta...', 'Confirmando na Polygon...');
 
-    const marketId = BigInt(currentMarket.id)
-    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
-    await tx.wait()
+    const marketId = BigInt(currentMarket.id);
+    const tx = await predictionsSigner.buyPosition(marketId, option, amountWei);
+    console.log("📤 BuyPosition enviado:", tx.hash);
 
-    hideLoadingModal()
-    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success')
+    await tx.wait(1);   // 1 confirmação é suficiente no Polygon
 
-    await saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt)
+    console.log("✅ Aposta confirmada!");
 
-    setTimeout(loadMarket, 3000)
+    hideLoadingModal();
+    showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success');
+
+    // Atualizações em background
+    if (currentGoogleUser?.uid) {
+      setTimeout(() => {
+        saveBetToFirestore(marketId, option, amount, currentMarket.title, currentMarket.closeAt).catch(() => {});
+        saveBetToBalanceFirebase(currentGoogleUser.uid, state.userAddress, amount).catch(() => {});
+      }, 500);
+    }
+
+    setTimeout(loadMarket, 2500);
 
   } catch (error) {
-    hideLoadingModal()
-    console.error(error)
-    showAlert('Erro na transação', error.shortMessage || error.reason || error.message, 'error')
+    hideLoadingModal();
+    console.error('❌ ERRO FINAL:', error);
+
+    if (error.message.includes("insufficient funds") || error.code === 'INSUFFICIENT_FUNDS') {
+      showAlert('POL insuficiente', 'Adicione mais POL para pagar a taxa de gás.', 'error');
+    } else if (error.message.includes("Timeout")) {
+      showAlert('⏳ Transação enviada', 'Verifique no Polygonscan se foi confirmada.', 'error');
+    } else {
+      showAlert('Erro na transação', error.shortMessage || error.message, 'error');
+    }
   }
 }
 
