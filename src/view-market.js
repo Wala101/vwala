@@ -301,7 +301,6 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
     console.error('Erro saveRedeemToFirebase:', e)
   }
 }
-
 async function placeBet(option) {
   hideLoadingModal();
   console.log("🚀 Iniciando placeBet... Opção:", option);
@@ -323,10 +322,7 @@ async function placeBet(option) {
   let signer;
   try {
     signer = await getInternalWalletSigner();
-    if (!signer) {
-      console.log("❌ Falha ao obter signer");
-      return;
-    }
+    if (!signer) return;
     console.log("✅ Signer OK:", signer.address);
   } catch (e) {
     hideLoadingModal();
@@ -337,11 +333,8 @@ async function placeBet(option) {
 
   try {
     const amountWei = parseUnits(amount.toString(), 18);
-    console.log("💰 AmountWei:", amountWei.toString());
-
     const now = Math.floor(Date.now() / 1000);
     const userBalance = await getUserVWalaBalance();
-    console.log("💰 Saldo atual:", userBalance);
 
     if (currentMarket.resolved) throw new Error('Mercado já resolvido');
     if (now >= Number(currentMarket.closeAt)) throw new Error('Mercado encerrado');
@@ -352,31 +345,40 @@ async function placeBet(option) {
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer);
     const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer);
 
-    console.log("🔍 Verificando allowance...");
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS);
     console.log("Allowance atual:", allowance.toString());
 
     if (allowance < amountWei) {
       console.log("🔓 Fazendo approve...");
       showLoadingModal('Aprovando vWALA...', 'Confirmando na blockchain...');
+
       const approveTx = await vWala.approve(CONTRACT_ADDRESS, amountWei);
       console.log("📤 Approve tx enviada:", approveTx.hash);
-      await approveTx.wait();
-      console.log("✅ Approve confirmado");
+
+      // Proteção contra hang no wait()
+      console.log("⏳ Aguardando confirmação do approve...");
+      const receipt = await Promise.race([
+        approveTx.wait(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout no approve")), 45000))
+      ]);
+
+      console.log("✅ Approve confirmado! Block:", receipt.blockNumber);
     } else {
-      console.log("✅ Allowance suficiente, pulando approve");
+      console.log("✅ Allowance suficiente");
     }
 
     showLoadingModal('Enviando aposta...', 'Confirmando transação na Polygon');
 
     const marketId = BigInt(currentMarket.id);
-    console.log("📤 Enviando buyPosition... Market:", marketId.toString(), "Opção:", option);
-
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei);
     console.log("📤 BuyPosition tx enviada:", tx.hash);
 
-    await tx.wait();
-    console.log("✅ Transação confirmada na blockchain!");
+    const buyReceipt = await Promise.race([
+      tx.wait(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout na aposta")), 45000))
+    ]);
+
+    console.log("✅ Transação confirmada! Block:", buyReceipt.blockNumber);
 
     hideLoadingModal();
     showAlert('✅ Aposta realizada!', `Você apostou ${amount} vWALA.`, 'success');
@@ -393,7 +395,7 @@ async function placeBet(option) {
   } catch (error) {
     hideLoadingModal();
     console.error('❌ ERRO FINAL NA APOSTA:', error);
-    showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error');
+    showAlert('Erro na transação', error.shortMessage || error.message || 'Verifique POL e tente novamente', 'error');
   }
 }
 
