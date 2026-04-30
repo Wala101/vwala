@@ -466,6 +466,9 @@ if (!receipt) {
   throw new Error('Timeout: transação não confirmada em 3 minutos.')
 }
 
+if (receipt.status !== 1) {
+  throw new Error('Transação falhou.')
+}
 
     hideLoadingModal()
 
