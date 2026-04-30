@@ -63,6 +63,39 @@ window.hideLoadingModal = () => {
   if (modal) modal.remove()
 }
 
+
+// ==================== PIN MODAL (OBRIGATÓRIO) ====================
+window.showPinModal = () => new Promise(resolve => {
+  const existing = document.getElementById('pin-modal')
+  if (existing) existing.remove()
+
+  const modal = document.createElement('div')
+  modal.id = 'pin-modal'
+  modal.className = 'modal-overlay'
+  modal.innerHTML = `
+    <div class="modal-content pin-modal">
+      <div class="modal-icon">🔑</div>
+      <h2>Confirmar PIN</h2>
+      <input type="password" id="pin-input" class="input" maxlength="6" autocomplete="off" placeholder="Digite seu PIN">
+      <div class="pin-buttons">
+        <button class="modal-btn cancel-btn" id="cancel-pin">Cancelar</button>
+        <button class="modal-btn confirm-btn" id="confirm-pin">Confirmar</button>
+      </div>
+    </div>
+  `
+  document.body.appendChild(modal)
+  modal.style.display = 'flex'
+
+  setTimeout(() => document.getElementById('pin-input').focus(), 100)
+
+  document.getElementById('cancel-pin').onclick = () => { modal.remove(); resolve(null) }
+  document.getElementById('confirm-pin').onclick = () => {
+    const pin = document.getElementById('pin-input').value.trim()
+    modal.remove()
+    resolve(pin)
+  }
+})
+
 // ==================== WALLET ====================
 async function syncWalletProfileFromFirebase() {
   if (!currentGoogleUser?.uid) return
