@@ -659,24 +659,40 @@ function renderPage() {
   document.getElementById('createBtn').addEventListener('click', createMarket)
   document.getElementById('connectBtn').addEventListener('click', loadUserTokenBalance)
 }
-
 // ==================== BOOT ====================
 async function boot() {
   await initFirebaseSession();
 
-  state.provider = new JsonRpcProvider("https://polygon-rpc.com", POLYGON_CHAIN_ID);
+  // ✅ RPCs estáveis e gratuitos (sem chave)
+  const rpcList = [
+    "https://polygon.drpc.org",           // Muito bom
+    "https://poly.api.pocket.network",    // Bom e estável
+    "https://polygon.publicnode.com",     // Confiável
+    "https://1rpc.io/matic"               // Alternativa
+  ];
+
+  let connected = false;
+  for (const url of rpcList) {
+    try {
+      state.provider = new JsonRpcProvider(url, POLYGON_CHAIN_ID);
+      await state.provider.getNetwork();   // Testa conexão
+      console.log(`✅ RPC conectado: ${url}`);
+      connected = true;
+      break;
+    } catch (e) {
+      console.warn(`❌ RPC falhou: ${url}`);
+    }
+  }
+
+  if (!connected) {
+    showAlert('Erro de Conexão', 'Nenhum RPC disponível no momento. Tente recarregar em 30s.', 'error');
+    return;
+  }
 
   renderPage();
+  setTimeout(() => loadMyMarkets(), 800);
 
-  const balance = await loadUserTokenBalance();
-  const connectBtn = document.getElementById('connectBtn');
-  if (connectBtn) connectBtn.textContent = `${balance} ${TOKEN_SYMBOL}`;
-
-  setTimeout(async () => {
-    await loadMyMarkets();
-  }, 800);
+  console.log("📄 Página Criar Aposta v2.7 - Múltiplos RPCs ✅");
 }
 
 boot();
-
-console.log("📄 Página Criar Aposta v2 - Premium + Minhas Apostas ✅");
