@@ -128,19 +128,28 @@ async function getInternalWalletSigner() {
     return null
   }
 
+  // Loop de PIN com logs
   while (true) {
+    console.log("🟡 Abrindo modal de PIN...")
     const pin = await window.showPinModal()
-    if (!pin) return null
+    console.log("🔑 PIN digitado:", pin ? "sim" : "cancelado")
+
+    if (!pin) {
+      hideLoadingModal()
+      return null
+    }
+
     try {
       const wallet = await Wallet.fromEncryptedJson(vault.walletKeystoreLocal, pin)
       state.signer = wallet.connect(state.provider)
+      console.log("✅ Signer criado com sucesso:", state.signer.address)
       return state.signer
-    } catch {
+    } catch (err) {
+      console.error("❌ Erro ao descriptografar PIN:", err)
       showAlert('PIN inválido', 'Tente novamente.', 'error')
     }
   }
 }
-
 // ==================== SALDO ====================
 async function getUserVWalaBalance() {
   if (!state.userAddress) return '0.00'
@@ -293,9 +302,10 @@ async function saveRedeemToFirebase(userId, walletAddress, marketId, payoutAmoun
   }
 }
 
-// ==================== APOSTAR ====================
 async function placeBet(option) {
   hideLoadingModal()
+
+  console.log("🚀 Iniciando placeBet...")
 
   const deviceVault = JSON.parse(localStorage.getItem('vwala_device_wallet') || 'null')
   if (!deviceVault?.walletKeystoreLocal) {
@@ -314,9 +324,13 @@ async function placeBet(option) {
   let signer
   try {
     signer = await getInternalWalletSigner()
-    if (!signer) return
+    if (!signer) {
+      console.log("❌ Signer não obtido")
+      return
+    }
   } catch (e) {
     hideLoadingModal()
+    console.error("Erro ao pegar signer:", e)
     showAlert('Erro na carteira', 'Não foi possível conectar.', 'error')
     return
   }
@@ -346,6 +360,7 @@ async function placeBet(option) {
 
     const marketId = BigInt(currentMarket.id)
     const tx = await predictionsSigner.buyPosition(marketId, option, amountWei)
+    console.log("📤 Transação enviada:", tx.hash)
     await tx.wait()
 
     hideLoadingModal()
@@ -362,7 +377,7 @@ async function placeBet(option) {
 
   } catch (error) {
     hideLoadingModal()
-    console.error('Erro na aposta:', error)
+    console.error('❌ Erro completo na aposta:', error)
     showAlert('Erro na transação', error.shortMessage || error.message || 'Tente novamente', 'error')
   }
 }
