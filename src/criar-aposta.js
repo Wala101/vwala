@@ -4,15 +4,13 @@ import {
   onAuthStateChanged,
   setPersistence
 } from 'firebase/auth'
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
+import {
+  doc,
+  getDoc,
+  setDoc,
   serverTimestamp,
   collection,
-  query,
-  getDocs,
-  orderBy 
+  getDocs
 } from 'firebase/firestore'
 import { JsonRpcProvider, Wallet, Contract } from 'ethers'
 
@@ -420,17 +418,43 @@ async function createMarket() {
 
   try {
     const internalSigner = await getInternalWalletSigner()
-    if (!internalSigner) return
+if (!internalSigner) {
+  btn.disabled = false
+  btn.textContent = '🎲 Criar Mercado'
+  return
+}
 
     const contract = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, internalSigner)
 
     showLoadingModal('Criando Mercado', 'Confirmando transação na Polygon...')
 
-    const tx = await contract.createMarket(
-      title, optionA, optionB, closeAt, 300, probA * 100, probB * 100
-    )
+const feeData = await state.provider.getFeeData()
 
-    const receipt = await tx.wait()
+const tx = await contract.createMarket(
+  title,
+  optionA,
+  optionB,
+  closeAt,
+  300,
+  probA * 100,
+  probB * 100,
+  {
+    maxFeePerGas: feeData.maxFeePerGas,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas,
+    gasLimit: 500000
+  }
+)
+
+const receipt = await Promise.race([
+  tx.wait(),
+  new Promise((_, reject) =>
+    setTimeout(
+      () => reject(new Error('Timeout: transação demorou mais de 3 minutos.')),
+      180000
+    )
+  )
+])
+
     hideLoadingModal()
 
     const marketCreatedLog = receipt.logs.find(log => {
@@ -532,37 +556,47 @@ async function resolveUserMarket(marketId, title) {
 
   // Modal de escolha do vencedor
   const winner = await new Promise(resolve => {
-    const modal = document.createElement('div')
-    modal.className = 'modal-overlay'
-    modal.innerHTML = `
-      <div class="modal-content resolve-modal">
-        <div class="modal-icon">🔧</div>
-        <h2 class="modal-title">Resolver Mercado</h2>
-        <p><strong>${title}</strong></p>
-        <p>Qual opção ganhou?</p>
-        
-        <div style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
-          <button class="resolve-option-btn" data-winner="true" style="padding: 16px; font-size: 1.1em; background: #10b981; color: white; border: none; border-radius: 12px; cursor: pointer;">
-            ✅ ${market.optionA}
-          </button>
-          <button class="resolve-option-btn" data-winner="false" style="padding: 16px; font-size: 1.1em; background: #ef4444; color: white; border: none; border-radius: 12px; cursor: pointer;">
-            ✅ ${market.optionB}
-          </button>
-        </div>
+  const modal = document.createElement('div')
+  modal.className = 'modal-overlay'
+  modal.innerHTML = `
+    <div class="modal-content resolve-modal">
+      <div class="modal-icon">🔧</div>
+      <h2 class="modal-title">Resolver Mercado</h2>
+      <p><strong>${title}</strong></p>
+      <p>Qual opção ganhou?</p>
 
-        <button class="modal-btn cancel-btn" onclick="this.closest('.modal-overlay').remove(); resolve(null)">Cancelar</button>
+      <div style="display:flex;flex-direction:column;gap:12px;margin:20px 0;">
+        <button class="resolve-option-btn" data-winner="0"
+          style="padding:16px;font-size:1.1em;background:#10b981;color:white;border:none;border-radius:12px;cursor:pointer;">
+          ✅ ${market.optionA}
+        </button>
+
+        <button class="resolve-option-btn" data-winner="1"
+          style="padding:16px;font-size:1.1em;background:#ef4444;color:white;border:none;border-radius:12px;cursor:pointer;">
+          ✅ ${market.optionB}
+        </button>
       </div>
-    `
-    document.body.appendChild(modal)
-    modal.style.display = 'flex'
 
-    modal.querySelectorAll('.resolve-option-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        modal.remove()
-        resolve(btn.dataset.winner === 'true')
-      })
+      <button id="cancelResolveBtn" class="modal-btn cancel-btn">Cancelar</button>
+    </div>
+  `
+
+  document.body.appendChild(modal)
+  modal.style.display = 'flex'
+
+  modal.querySelectorAll('.resolve-option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const selected = Number(btn.dataset.winner)
+      modal.remove()
+      resolve(selected)
     })
   })
+
+  document.getElementById('cancelResolveBtn').addEventListener('click', () => {
+    modal.remove()
+    resolve(null)
+  })
+})
 
   if (winner === null) return
 

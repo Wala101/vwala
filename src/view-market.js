@@ -1,5 +1,5 @@
 import { auth, db } from './firebase'
-import { doc, getDoc, setDoc, collection, query, orderBy, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, collection, query, orderBy, getDocs, serverTimestamp } from 'firebase/firestore'
 import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
 import { JsonRpcProvider, Contract, Wallet, parseUnits, formatUnits } from 'ethers'
 
@@ -262,6 +262,19 @@ async function placeBet(option) {
 
     const vWala = new Contract(VWALA_TOKEN, ERC20_ABI, signer)
     const predictionsSigner = new Contract(CONTRACT_ADDRESS, USER_PREDICTIONS_ABI, signer)
+
+const [amountA, amountB] = await predictionsSigner.userPosition(
+  BigInt(currentMarket.id),
+  state.userAddress
+)
+
+if (option === 0 && amountB > 0n) {
+  throw new Error('Você já apostou na opção B deste mercado.')
+}
+
+if (option === 1 && amountA > 0n) {
+  throw new Error('Você já apostou na opção A deste mercado.')
+}
 
     const allowance = await vWala.allowance(state.userAddress, CONTRACT_ADDRESS)
     if (allowance < amountWei) {
