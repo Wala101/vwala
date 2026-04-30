@@ -206,15 +206,16 @@ async function createMarket() {
     const tx = await contract.createMarket(title, optionA, optionB, closeAt, 300, probA * 100, probB * 100);
     console.log("📤 Create tx enviada:", tx.hash);
 
-    // Timeout de segurança (60 segundos)
+    // Ajuste: Aumentado timeout para 120s e reduzido espera para 1 bloco
+    showLoadingModal('Aguardando Rede', 'Transação enviada. Aguardando confirmação...');
     const receipt = await Promise.race([
-      tx.wait(2),  // 2 confirmações
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Timeout na confirmação")), 60000))
+      tx.wait(1), 
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Rede lenta")), 120000))
     ]);
 
     hideLoadingModal();
 
-    // Extrair Market ID do evento (mais robusto)
+    // Extrair Market ID do evento
     let marketId = 'N/A';
     for (const log of receipt.logs) {
       try {
@@ -240,7 +241,11 @@ async function createMarket() {
   } catch (error) {
     hideLoadingModal();
     console.error("❌ Erro completo:", error);
-    showAlert('Erro ao criar mercado', error.shortMessage || error.message || 'Tente novamente', 'error');
+    if(error.message === "Rede lenta") {
+        showAlert('Aviso', 'A transação foi enviada, mas a rede está lenta. Verifique seu histórico em instantes.', 'warning');
+    } else {
+        showAlert('Erro ao criar mercado', error.shortMessage || error.message || 'Tente novamente', 'error');
+    }
   } finally {
     btn.disabled = false;
     btn.textContent = "🎲 Criar Mercado";
