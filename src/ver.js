@@ -231,7 +231,7 @@ document.querySelector('#app').innerHTML = `
         </p>
 
         <div class="app-pin-input-wrap">
-  <input
+           <input
     id="appPinInput"
     class="input app-pin-input"
     type="tel"                    <!-- Melhor para teclado numérico -->
@@ -246,7 +246,7 @@ document.querySelector('#app').innerHTML = `
     enterkeyhint="done"
     data-form-type="other"        <!-- Bloqueia autofill do Google -->
   />
-</div>
+        </div>
       </div>
 
       <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
@@ -2133,17 +2133,12 @@ function createCard(match) {
       </div>
 
       <input
-  class="input bet-amount-input js-bet-amount-input"
-  type="tel"
-  inputmode="decimal"
-  pattern="[0-9]*\.?[0-9]*"
-  placeholder="0,00"
-  autocomplete="off"
-  autocorrect="off"
-  autocapitalize="none"
-  spellcheck="false"
-  data-form-type="other"
-/>
+        class="input bet-amount-input js-bet-amount-input"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="Digite o valor da posição"
+      />
 
       <div class="bet-hint-text js-bet-hint-text">
         Digite o valor e escolha um lado.
