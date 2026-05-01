@@ -2427,20 +2427,21 @@ app.innerHTML = `
   </div>
 </div>
 
-      <section class="wallet-main-card">
-        <div class="wallet-balance-label">Saldo em Polygon</div>
-        <div class="wallet-balance-value">
-          ${Number(walletState.polBalance).toLocaleString('pt-BR', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 6
-          })}
-          <span class="wallet-balance-symbol">POL</span>
-        </div>
-        <div class="wallet-network">Polygon Mainnet</div>
-        <div class="wallet-network" id="walletAddressText">
-          ${formatWalletAddress(currentWalletAddress)}
-        </div>
-      </section>
+<!-- SALDO PRINCIPAL (OCULTO DO USUÁRIO) -->
+<section class="wallet-main-card hidden" id="walletMainBalanceSection">
+    <div class="wallet-balance-label">Saldo em Polygon</div>
+    <div class="wallet-balance-value" id="polBalanceDisplay">
+      ${Number(walletState.polBalance).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6
+      })}
+      <span class="wallet-balance-symbol">POL</span>
+    </div>
+    <div class="wallet-network">Polygon Mainnet</div>
+    <div class="wallet-network" id="walletAddressText">
+      ${formatWalletAddress(currentWalletAddress)}
+    </div>
+</section>
 
 
 
