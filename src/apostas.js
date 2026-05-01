@@ -2369,21 +2369,18 @@ async function boot() {
 
 boot()
 
-// ====================== FORÇA TECLADO NUMÉRICO NO PIN DE APOSTAS ======================
-const appPinInput = document.getElementById('appPinInput');
+// ====================== PROTEÇÃO ANTIAUTOFILL + TECLADO NUMÉRICO ======================
 
+// PIN (já existe no HTML)
 if (appPinInput) {
-  // Só permite números
   appPinInput.addEventListener('input', function () {
     this.value = this.value.replace(/[^0-9]/g, '');
   });
 
-  // Limpa qualquer sugestão do Chrome ao focar
   appPinInput.addEventListener('focus', function () {
     this.value = '';
   });
 
-  // Evita autofill ao colar
   appPinInput.addEventListener('paste', function (e) {
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text');
@@ -2391,29 +2388,26 @@ if (appPinInput) {
   });
 }
 
-// ====================== PROTEÇÃO ANTIAUTOFILL NOS OUTROS INPUTS ======================
-const searchInput = document.getElementById('searchInput');
-const betAmountInputs = document.querySelectorAll('.js-bet-amount-input');
-
+// Campo de Busca
 if (searchInput) {
   searchInput.addEventListener('focus', () => {
-    searchInput.value = searchInput.value; // força reset do autofill
+    searchInput.value = searchInput.value;
   });
 }
 
+// Campo de Valor da Aposta
+const betAmountInputs = document.querySelectorAll('.js-bet-amount-input');
+
 betAmountInputs.forEach(input => {
   input.addEventListener('input', function () {
-    // Permite números e ponto decimal
-    this.value = this.value.replace(/[^0-9.]/g, '');
-    
-    // Evita múltiplos pontos
-    const parts = this.value.split('.');
-    if (parts.length > 2) {
-      this.value = parts[0] + '.' + parts.slice(1).join('');
-    }
+    let value = this.value.replace(/[^0-9.,]/g, '');
+    value = value.replace(',', '.');
+    const parts = value.split('.');
+    if (parts.length > 2) value = parts[0] + '.' + parts.slice(1).join('');
+    this.value = value;
   });
 
   input.addEventListener('focus', function () {
-    this.value = this.value; // força reset do autofill
+    this.value = this.value;
   });
 });
