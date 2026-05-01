@@ -226,9 +226,17 @@ document.querySelector('#app').innerHTML = `
           <input
             id="appPinInput"
             class="input app-pin-input"
-            type="password"
-            placeholder="Digite seu PIN"
-            autocomplete="current-password"
+            type="tel"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="6"
+            placeholder="******"
+            autocomplete="new-password"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
+            enterkeyhint="done"
+            data-form-type="other"
           />
         </div>
       </div>
@@ -238,6 +246,7 @@ document.querySelector('#app').innerHTML = `
       </div>
     </div>
   </div>
+  
   
   <div id="appLoadingOverlay" class="overlay"></div>
   <div id="appLoadingModal" class="custom-modal">
@@ -2348,3 +2357,51 @@ async function boot() {
 }
 
 boot()
+
+// ====================== PIN - TECLADO NUMÉRICO + ANTI AUTOFILL GOOGLE ======================
+if (appPinInput) {
+  appPinInput.addEventListener('input', function () {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+  });
+
+  appPinInput.addEventListener('focus', function () {
+    this.value = '';                    // limpa ao focar
+    setTimeout(() => this.focus(), 10);
+  });
+
+  appPinInput.addEventListener('paste', function (e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    this.value = text.replace(/[^0-9]/g, '').slice(0, 6);
+  });
+
+  // Enter confirma
+  appPinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      closePinModal(appPinInput.value);
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closePinModal(null);
+    }
+  });
+}
+
+// Reforço de segurança ao abrir o modal
+const originalOpenPinModal = openPinModal;
+openPinModal = function (title, text) {
+  const result = originalOpenPinModal.call(this, title, text);
+  
+  setTimeout(() => {
+    if (appPinInput) {
+      appPinInput.value = '';
+      appPinInput.type = 'tel';
+      appPinInput.setAttribute('autocomplete', 'new-password');
+      appPinInput.setAttribute('data-form-type', 'other');
+      appPinInput.focus();
+    }
+  }, 100);
+  
+  return result;
+};
