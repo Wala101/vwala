@@ -225,10 +225,10 @@ document.querySelector('#app').innerHTML = `
         </p>
 
         <div class="app-pin-input-wrap">
-          <input
+<input
   id="appPinInput"
   class="input app-pin-input"
-  type="text"
+  type="tel"                    <!-- MUDE PARA "tel" -->
   inputmode="numeric"
   pattern="[0-9]*"
   maxlength="6"
@@ -237,6 +237,7 @@ document.querySelector('#app').innerHTML = `
   autocorrect="off"
   autocapitalize="none"
   spellcheck="false"
+  enterkeyhint="done"
 />
         </div>
       </div>
