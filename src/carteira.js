@@ -2410,6 +2410,23 @@ app.innerHTML = `
         </div>
       </header>
 
+
+      <div id="walletContent" class="hidden">
+  <div class="wallet-main-card">
+    <div class="wallet-token-left">
+      <div class="wallet-token-icon pol">
+        <img src="/Polygon-MATIC.webp" alt="Polygon" />
+      </div>
+
+      <div class="wallet-token-info">
+        <div class="wallet-balance-label">Saldo Polygon</div>
+        <div id="polBalance" class="wallet-balance-value">0.00 POL</div>
+        <div id="walletAddressText" class="wallet-address">0x0000...0000</div>
+      </div>
+    </div>
+  </div>
+</div>
+
       <section class="wallet-main-card">
         <div class="wallet-balance-label">Saldo em Polygon</div>
         <div class="wallet-balance-value">
