@@ -792,18 +792,22 @@ function renderPage() {
         <p id="uiModalText"></p>
 
         <input
-          id="uiModalInput"
-          class="swap-modal-input hidden"
-          type="password"
-          placeholder=""
-          autocomplete="new-password"
-          autocapitalize="off"
-          autocorrect="off"
-          spellcheck="false"
-          data-lpignore="true"
-          data-1p-ignore="true"
-          data-form-type="other"
-        />
+  id="uiModalInput"
+  class="swap-modal-input"
+  type="tel"
+  inputmode="numeric"
+  pattern="[0-9]*"
+  maxlength="6"
+  placeholder="Digite seu PIN"
+  autocomplete="new-password"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+  enterkeyhint="done"
+  data-form-type="other"
+  data-lpignore="true"
+  data-1p-ignore="true"
+/>
 
         <div class="swap-modal-actions">
           <button id="uiModalCancelBtn" class="swap-modal-secondary-btn" type="button">
@@ -1980,6 +1984,56 @@ async function handleSubmitSwap() {
   }
 
   await handleSellVWala()
+}
+
+
+// ====================== PIN DO SWAP - TECLADO NUMÉRICO + ANTI-AUTOFILL ======================
+const uiModalInput = document.getElementById('uiModalInput')
+
+if (uiModalInput) {
+  uiModalInput.addEventListener('input', function () {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6)
+  })
+
+  uiModalInput.addEventListener('focus', function () {
+    this.value = ''
+    setTimeout(() => this.focus(), 10)
+  })
+
+  uiModalInput.addEventListener('paste', function (e) {
+    e.preventDefault()
+    const text = (e.clipboardData || window.clipboardData).getData('text')
+    this.value = text.replace(/[^0-9]/g, '').slice(0, 6)
+  })
+
+  uiModalInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      closeUiModal(uiModalInput.value)
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closeUiModal(null)
+    }
+  })
+}
+
+// Reforço ao abrir o modal de PIN
+const originalShowPinModal = showPinModal
+showPinModal = async function (title, text, confirmText = 'Continuar') {
+  const result = await originalShowPinModal.call(this, title, text, confirmText)
+
+  setTimeout(() => {
+    if (uiModalInput) {
+      uiModalInput.value = ''
+      uiModalInput.type = 'tel'
+      uiModalInput.setAttribute('autocomplete', 'new-password')
+      uiModalInput.setAttribute('data-form-type', 'other')
+      uiModalInput.focus()
+    }
+  }, 150)
+
+  return result
 }
 
 async function initFirebaseAuthGate() {
