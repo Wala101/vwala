@@ -2316,47 +2316,6 @@ function renderMarkets() {
   marketEmpty.classList.toggle('show', filtered.length === 0)
 }
 
-async function boot() {
-  setMarketLoading(true)
-  marketGrid.innerHTML = ''
-  menuBtn.addEventListener('click', openSidebar)
-  sidebarOverlay.addEventListener('click', closeSidebar)
-
-  connectBtn.addEventListener('click', async () => {
-    await loadUserTokenBalance()
-  })
-
-  searchInput.addEventListener('input', renderMarkets)
-  closeAppNoticeBtn.addEventListener('click', closeAlert)
-  appNoticeConfirmBtn.addEventListener('click', closeAlert)
-  appNoticeOverlay.addEventListener('click', closeAlert)
-
-  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
-  appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
-  appPinOverlay.addEventListener('click', () => closePinModal(null))
-
-  appPinInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      closePinModal(appPinInput.value)
-      return
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      closePinModal(null)
-    }
-  })
-
-  await initFirebaseSession()
-  await initWalletSession()
-  restoreCouponsFromLocalBinaryPositions()
-  await flushPendingBinaryPositionsToFirebase()
-  await reconcileLocalBinaryPositionsToFirebase()
-  await loadMarkets()
-}
-
-boot()
 
 // ====================== PIN - TECLADO NUMÉRICO + ANTI AUTOFILL GOOGLE ======================
 if (appPinInput) {
@@ -2405,3 +2364,47 @@ openPinModal = function (title, text) {
   
   return result;
 };
+
+
+async function boot() {
+  setMarketLoading(true)
+  marketGrid.innerHTML = ''
+  menuBtn.addEventListener('click', openSidebar)
+  sidebarOverlay.addEventListener('click', closeSidebar)
+
+  connectBtn.addEventListener('click', async () => {
+    await loadUserTokenBalance()
+  })
+
+  searchInput.addEventListener('input', renderMarkets)
+  closeAppNoticeBtn.addEventListener('click', closeAlert)
+  appNoticeConfirmBtn.addEventListener('click', closeAlert)
+  appNoticeOverlay.addEventListener('click', closeAlert)
+
+  closeAppPinBtn.addEventListener('click', () => closePinModal(null))
+  appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
+  appPinOverlay.addEventListener('click', () => closePinModal(null))
+
+  appPinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      closePinModal(appPinInput.value)
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      closePinModal(null)
+    }
+  })
+
+  await initFirebaseSession()
+  await initWalletSession()
+  restoreCouponsFromLocalBinaryPositions()
+  await flushPendingBinaryPositionsToFirebase()
+  await reconcileLocalBinaryPositionsToFirebase()
+  await loadMarkets()
+}
+
+boot()
+
