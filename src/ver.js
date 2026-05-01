@@ -225,29 +225,29 @@ document.querySelector('#app').innerHTML = `
         <button class="modal-close app-pin-modal-close" id="closeAppPinBtn" type="button">✕</button>
       </div>
 
-      <div class="notice-modal-body app-pin-modal-body">
-        <p id="appPinText" class="notice-modal-text app-pin-modal-text">
-          Digite o PIN da carteira para apostar.
-        </p>
+<div class="notice-modal-body app-pin-modal-body">
+  <p id="appPinText" class="notice-modal-text app-pin-modal-text">
+    Digite o PIN da carteira para apostar.
+  </p>
 
-        <div class="app-pin-input-wrap">
-           <input
-    id="appPinInput"
-    class="input app-pin-input"
-    type="tel"                    <!-- Melhor para teclado numérico -->
-    inputmode="numeric"
-    pattern="[0-9]*"
-    maxlength="6"
-    placeholder="******"
-    autocomplete="off"            <!-- Muito importante -->
-    autocorrect="off"
-    autocapitalize="none"
-    spellcheck="false"
-    enterkeyhint="done"
-    data-form-type="other"        <!-- Bloqueia autofill do Google -->
-  />
-        </div>
-      </div>
+  <div class="app-pin-input-wrap">
+    <input
+      id="appPinInput"
+      class="input app-pin-input"
+      type="tel"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      maxlength="6"
+      placeholder="******"
+      autocomplete="off"
+      autocorrect="off"
+      autocapitalize="none"
+      spellcheck="false"
+      enterkeyhint="done"
+      data-form-type="other"
+    />
+  </div>
+</div>
 
       <div class="notice-modal-footer app-pin-actions app-pin-modal-footer">
         <button id="appPinConfirmBtn" class="notice-confirm-btn app-pin-confirm-btn" type="button">Confirmar</button>
