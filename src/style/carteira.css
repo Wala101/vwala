@@ -1151,7 +1151,7 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
     justify-content: center;
     flex-shrink: 0;
     border: 2px solid var(--wallet-accent);
-    box-shadow: 0 0 20px rgba(37, 255, 138, 0.3);
+    box-shadow: 0 0 20px rgba(37, 255, 139, 0);
 }
 
 .wallet-token-icon.pol img {
