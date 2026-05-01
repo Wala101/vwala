@@ -171,7 +171,7 @@ document.querySelector('#app').innerHTML = `
     </div>
   </div>
 
-  <div id="appPinOverlay" class="overlay"></div>
+   <div id="appPinOverlay" class="overlay"></div>
   <div id="appPinModal" class="custom-modal">
     <div class="card modal-card notice-modal-card app-pin-modal-card">
       <div class="modal-header app-pin-modal-header">
@@ -194,9 +194,17 @@ document.querySelector('#app').innerHTML = `
           <input
             id="appPinInput"
             class="input app-pin-input"
-            type="password"
-            placeholder="Digite seu PIN"
-            autocomplete="current-password"
+            type="tel"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="6"
+            placeholder="******"
+            autocomplete="new-password"
+            autocorrect="off"
+            autocapitalize="none"
+            spellcheck="false"
+            enterkeyhint="done"
+            data-form-type="other"
           />
         </div>
       </div>
@@ -1841,6 +1849,54 @@ function renderPositions() {
   positionCount.textContent = String(filtered.length)
   positionsEmpty.classList.toggle('show', filtered.length === 0)
 }
+
+
+// ====================== PIN - TECLADO NUMÉRICO + ANTI-AUTOFILL ======================
+if (appPinInput) {
+  appPinInput.addEventListener('input', function () {
+    this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6);
+  });
+
+  appPinInput.addEventListener('focus', function () {
+    this.value = '';
+    setTimeout(() => this.focus(), 10);
+  });
+
+  appPinInput.addEventListener('paste', function (e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    this.value = text.replace(/[^0-9]/g, '').slice(0, 6);
+  });
+
+  appPinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      closePinModal(appPinInput.value);
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closePinModal(null);
+    }
+  });
+}
+
+// Reforço ao abrir o modal
+const originalOpenPinModal = openPinModal;
+openPinModal = function(title, text) {
+  const result = originalOpenPinModal.call(this, title, text);
+  
+  setTimeout(() => {
+    if (appPinInput) {
+      appPinInput.value = '';
+      appPinInput.type = 'tel';
+      appPinInput.setAttribute('autocomplete', 'new-password');
+      appPinInput.setAttribute('data-form-type', 'other');
+      appPinInput.focus();
+    }
+  }, 100);
+  
+  return result;
+};
 
 async function boot() {
   setHistoryLoading(true)
