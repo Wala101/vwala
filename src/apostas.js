@@ -164,11 +164,16 @@ document.querySelector('#app').innerHTML = `
 
 
           <input
-            id="searchInput"
-            class="input"
-            type="text"
-            placeholder="Buscar por campeonato ou time"
-          />
+  id="searchInput"
+  class="input"
+  type="text"
+  placeholder="Buscar por campeonato ou time"
+  autocomplete="off"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+  data-form-type="other"
+/>
         </section>
 
         <section class="card">
@@ -221,12 +226,18 @@ document.querySelector('#app').innerHTML = `
 
         <div class="app-pin-input-wrap">
           <input
-            id="appPinInput"
-            class="input app-pin-input"
-            type="password"
-            placeholder="Digite seu PIN"
-            autocomplete="current-password"
-          />
+  id="appPinInput"
+  class="input app-pin-input"
+  type="text"
+  inputmode="numeric"
+  pattern="[0-9]*"
+  maxlength="6"
+  placeholder="******"
+  autocomplete="new-password"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+/>
         </div>
       </div>
 
@@ -2084,12 +2095,17 @@ function createCard(match) {
       </div>
 
       <input
-        class="input bet-amount-input js-bet-amount-input"
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="Digite o valor da posição"
-      />
+  class="input bet-amount-input js-bet-amount-input"
+  type="text"                    <!-- mudei de number para text -->
+  inputmode="decimal"
+  pattern="[0-9]*\.?[0-9]*"
+  placeholder="Digite o valor da posição"
+  autocomplete="off"
+  autocorrect="off"
+  autocapitalize="none"
+  spellcheck="false"
+  data-form-type="other"
+/>
 
       <div class="bet-hint-text js-bet-hint-text">
         Digite o valor e escolha um lado.
@@ -2352,3 +2368,52 @@ async function boot() {
 }
 
 boot()
+
+// ====================== FORÇA TECLADO NUMÉRICO NO PIN DE APOSTAS ======================
+const appPinInput = document.getElementById('appPinInput');
+
+if (appPinInput) {
+  // Só permite números
+  appPinInput.addEventListener('input', function () {
+    this.value = this.value.replace(/[^0-9]/g, '');
+  });
+
+  // Limpa qualquer sugestão do Chrome ao focar
+  appPinInput.addEventListener('focus', function () {
+    this.value = '';
+  });
+
+  // Evita autofill ao colar
+  appPinInput.addEventListener('paste', function (e) {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    this.value = text.replace(/[^0-9]/g, '').slice(0, 6);
+  });
+}
+
+// ====================== PROTEÇÃO ANTIAUTOFILL NOS OUTROS INPUTS ======================
+const searchInput = document.getElementById('searchInput');
+const betAmountInputs = document.querySelectorAll('.js-bet-amount-input');
+
+if (searchInput) {
+  searchInput.addEventListener('focus', () => {
+    searchInput.value = searchInput.value; // força reset do autofill
+  });
+}
+
+betAmountInputs.forEach(input => {
+  input.addEventListener('input', function () {
+    // Permite números e ponto decimal
+    this.value = this.value.replace(/[^0-9.]/g, '');
+    
+    // Evita múltiplos pontos
+    const parts = this.value.split('.');
+    if (parts.length > 2) {
+      this.value = parts[0] + '.' + parts.slice(1).join('');
+    }
+  });
+
+  input.addEventListener('focus', function () {
+    this.value = this.value; // força reset do autofill
+  });
+});
