@@ -2332,43 +2332,7 @@ function renderMatches() {
   }
 }
 
-async function boot() {
-  setMarketLoading(true)
-  marketGrid.innerHTML = ''
-  menuBtn.addEventListener('click', openSidebar)
-  sidebarOverlay.addEventListener('click', closeSidebar)
 
-  connectBtn.addEventListener('click', async () => {
-    await loadUserTokenBalance()
-  })
-
-  searchInput.addEventListener('input', renderMatches)
-  closeAppNoticeBtn.addEventListener('click', closeAlert)
-  appNoticeConfirmBtn.addEventListener('click', closeAlert)
-  appNoticeOverlay.addEventListener('click', closeAlert)
-
-  closeAppPinBtn.addEventListener('click', () => {})
-  appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
-  appPinOverlay.addEventListener('click', () => {})
-
-  appPinInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault()
-      closePinModal(appPinInput.value)
-      return
-    }
-
-    if (event.key === 'Escape') {
-      event.preventDefault()
-    }
-  })
-
-  await initFirebaseSession()
-  await initWalletSession()
-  await loadMatches()
-}
-
-boot()
 
 // ====================== PROTEÇÃO ANTIAUTOFILL + TECLADO NUMÉRICO ======================
 
@@ -2412,3 +2376,43 @@ betAmountInputs.forEach(input => {
     this.value = this.value;
   });
 });
+
+
+async function boot() {
+  setMarketLoading(true)
+  marketGrid.innerHTML = ''
+  menuBtn.addEventListener('click', openSidebar)
+  sidebarOverlay.addEventListener('click', closeSidebar)
+
+  connectBtn.addEventListener('click', async () => {
+    await loadUserTokenBalance()
+  })
+
+  searchInput.addEventListener('input', renderMatches)
+  closeAppNoticeBtn.addEventListener('click', closeAlert)
+  appNoticeConfirmBtn.addEventListener('click', closeAlert)
+  appNoticeOverlay.addEventListener('click', closeAlert)
+
+  closeAppPinBtn.addEventListener('click', () => {})
+  appPinConfirmBtn.addEventListener('click', () => closePinModal(appPinInput.value))
+  appPinOverlay.addEventListener('click', () => {})
+
+  appPinInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      closePinModal(appPinInput.value)
+      return
+    }
+
+    if (event.key === 'Escape') {
+      event.preventDefault()
+    }
+  })
+
+  await initFirebaseSession()
+  await initWalletSession()
+  await loadMatches()
+}
+
+boot()
+
