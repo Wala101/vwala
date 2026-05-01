@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <meta name="theme-color" content="#050505" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <title>vWala</title>
+  <link rel="icon" type="image/png" href="/public/logo.png" />
+  <link rel="stylesheet" href="/src/style/index.css" />
+
+  <!-- ====================== SUPRIME ERROS DE EXTENSÕES ====================== -->
+  <script>
+    (function() {
+      const originalError = console.error;
+      console.error = function(...args) {
+        const msg = String(args[0] || '');
+        if (
+          msg.includes('Unchecked runtime.lastError') ||
+          msg.includes('Could not establish connection') ||
+          msg.includes('Receiving end does not exist') ||
+          msg.includes('MetaMask') ||
+          msg.includes('Failed to connect to MetaMask') ||
+          msg.includes('SES Removing unpermitted intrinsics') ||
+          msg.includes('lockdown-install')
+        ) {
+          return;
+        }
+        originalError.apply(console, args);
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="./src/index.js"></script>
+</body>
+</html>

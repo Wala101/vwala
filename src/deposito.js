@@ -1,0 +1,141 @@
+import { auth } from './firebase.js'
+import { onAuthStateChanged, setPersistence, browserLocalPersistence } from 'firebase/auth'
+
+let currentWalletAddress = ''
+let addressCopied = false
+
+function getWalletFromUrl() {
+  const params = new URLSearchParams(window.location.search)
+  return params.get('wallet')
+}
+
+// ==================== COPIAR ENDEREÇO ====================
+async function copiarEndereco() {
+  if (!currentWalletAddress) return
+
+  try {
+    await navigator.clipboard.writeText(currentWalletAddress)
+    addressCopied = true
+
+    const btnCopiar = document.getElementById('btn-copiar')
+    const btnComprar = document.getElementById('btn-comprar')
+
+    if (btnCopiar) btnCopiar.innerHTML = '✅ Endereço Copiado!'
+    if (btnComprar) {
+      btnComprar.disabled = false
+      btnComprar.classList.remove('disabled')
+    }
+
+    await showMessageModal(
+      '✅ Endereço Copiado',
+      'Agora você pode abrir o Changelly e concluir sua compra via PIX.',
+      'Continuar'
+    )
+  } catch (err) {
+    await showMessageModal('Erro', 'Não foi possível copiar o endereço. Tente novamente.')
+  }
+}
+
+// ==================== MODAL DE AVISO ====================
+async function showCopyWalletRequiredModal() {
+  const confirmed = await showMessageModal(
+    'Atenção',
+    'Antes de abrir o Changelly, você precisa copiar o endereço da sua carteira.',
+    '📋 Copiar Endereço',
+    true
+  )
+
+  if (confirmed) {
+    await copiarEndereco()
+    return true
+  }
+  return false
+}
+
+// ==================== ABRIR CHANGELLY ====================
+async function abrirChangelly() {
+  if (!addressCopied) {
+    const liberado = await showCopyWalletRequiredModal()
+    if (!liberado && !addressCopied) return
+  }
+
+  const url = `https://changelly.com/buy-crypto?from=BRL&to=POL&amount=25&address=${currentWalletAddress}&currency=POL&fiatCurrency=BRL`
+  window.open(url, '_blank', 'noopener,noreferrer')
+}
+
+// ==================== RENDER PAGE ====================
+function renderDepositoPage() {
+  const app = document.querySelector('#app')
+
+  app.innerHTML = `
+    <div class="deposito-page">
+      <div class="wallet-shell">
+        <header class="wallet-topbar">
+          <div class="wallet-brand">
+            <div class="wallet-brand-badge">W</div>
+            <div class="wallet-brand-text">
+              <strong>vWALA</strong>
+              <span>Depósito PIX</span>
+            </div>
+          </div>
+        </header>
+
+        <section class="deposito-main">
+        
+
+          <div class="info-text" style="margin-bottom: 24px; font-weight: 700;">
+1. Copie o endereço da sua carteira para liberar o botão de depósito<br>
+2. É necessário fazer verificação KYC apenas uma única vez<br>
+3. Você será redirecionado para o Changelly para finalizar a compra via PIX<br>
+4. Valor mínimo: R$ 25,00 | Valor máximo: R$ 10.000,00
+          </div>
+
+          <div class="wallet-info-box" style="display: none;">
+            <strong>Sua carteira Polygon:</strong><br>
+            <span id="wallet-display" class="wallet-address"></span>
+          </div>
+
+          <button onclick="copiarEndereco()" class="deposito-btn secondary" id="btn-copiar">
+             Copiar Endereço da Carteira
+          </button>
+
+          <button onclick="abrirChangelly()" class="deposito-btn primary disabled" id="btn-comprar" disabled>
+             Depositar
+          </button>
+        </section>
+      </div>
+    </div>
+  `
+
+  const walletEl = document.getElementById('wallet-display')
+  if (walletEl && currentWalletAddress) {
+    walletEl.textContent = `${currentWalletAddress.slice(0, 6)}...${currentWalletAddress.slice(-4)}`
+  }
+}
+
+// ==================== INIT ====================
+async function initDeposito() {
+  // 🔥 ESSA LINHA RESOLVE O PROBLEMA DE PEDIR LOGIN NOVAMENTE
+  try {
+    await setPersistence(auth, browserLocalPersistence)
+  } catch (e) {
+    console.warn("Erro ao definir persistência:", e)
+  }
+
+  onAuthStateChanged(auth, () => {
+    currentWalletAddress = getWalletFromUrl()
+
+    if (!currentWalletAddress) {
+      showMessageModal('Atenção', 'Endereço da carteira não informado.')
+      setTimeout(() => window.location.href = 'carteira.html', 1500)
+      return
+    }
+
+    renderDepositoPage()
+  })
+}
+
+initDeposito()
+
+window.copiarEndereco = copiarEndereco
+window.abrirChangelly = abrirChangelly

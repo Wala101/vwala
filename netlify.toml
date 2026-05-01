@@ -1,0 +1,74 @@
+[build]
+command = "npm run build"
+publish = "dist"
+
+[functions]
+directory = "netlify/functions"
+node_bundler = "esbuild"
+
+[functions."sync-football"]
+schedule = "*/30 * * * *"
+
+[[redirects]]
+  from = "/api/rpc"
+  to = "/.netlify/functions/rpc"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/rpc-fallback"
+  to = "/.netlify/functions/rpc-fallback"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/sync-football"
+  to = "/.netlify/functions/sync-football"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/carteira"
+  to = "/carteira.html"
+  status = 200
+
+[[redirects]]
+  from = "/criar"
+  to = "/criar-aposta.html"
+  status = 200
+
+[[redirects]]
+  from = "/view-market"
+  to = "/view-market.html"
+  status = 200
+
+
+[[redirects]]
+  from = "/token"
+  to = "/token.html"
+  status = 200
+
+[[redirects]]
+  from = "/futeboll"
+  to = "/futeboll.html"
+  status = 200
+
+[[redirects]]
+  from = "/predicoes"
+  to = "/predicoes.html"
+  status = 200
+
+[[redirects]]
+  from = "/posicoes"
+  to = "/posicoes.html"
+  status = 200
+
+[[redirects]]
+  from = "/historico"
+  to = "/historico.html"
+  status = 200
+
+[[redirects]]
+  from = "/whitepaper"
+  to = "/whitepaper.html"
+  status = 200

@@ -1,0 +1,133 @@
+/* ====================== DEPOSITO PAGE ====================== */
+.deposito-page {
+  min-height: 100vh;
+  background: var(--wallet-bg);
+  color: var(--wallet-text);
+  padding: 20px 0 40px;
+  display: flex;
+  justify-content: center;
+}
+
+.deposito-main {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.deposito-main h1 {
+  font-size: 28px;
+  text-align: center;
+  margin: 0 0 8px;
+  color: #fff;
+}
+
+.deposito-subtitle {
+  text-align: center;
+  color: var(--wallet-muted);
+  font-size: 15px;
+  margin-bottom: 28px;
+  line-height: 1.4;
+}
+
+/* Caixa com endereço da carteira */
+.wallet-info-box {
+  background: var(--wallet-card);
+  border: 1px solid var(--wallet-border);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.wallet-info-box strong {
+  display: block;
+  color: var(--wallet-accent);
+  font-size: 13px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.wallet-address {
+  font-family: monospace;
+  font-size: 15px;
+  color: #fff;
+  word-break: break-all;
+  background: rgba(0,0,0,0.3);
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+/* Botões principais */
+.deposito-btn {
+  width: 100%;
+  min-height: 58px;
+  border: none;
+  border-radius: 16px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 14px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.deposito-btn.primary {
+  background: linear-gradient(135deg, var(--wallet-accent), var(--wallet-accent-2));
+  color: #000;
+  box-shadow: 0 10px 30px rgba(37, 255, 138, 0.25);
+}
+
+.deposito-btn.primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px rgba(37, 255, 138, 0.35);
+}
+
+.deposito-btn.secondary {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.12);
+  color: var(--wallet-text);
+}
+
+.deposito-btn.secondary:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(37,255,138,0.3);
+}
+
+/* Info text */
+.info-text {
+  margin-top: 20px;
+  padding: 16px;
+  background: rgba(15,15,25,0.6);
+  border-radius: 14px;
+  border: 1px solid var(--wallet-border);
+  font-size: 13px;
+  color: var(--wallet-muted);
+  line-height: 1.5;
+}
+
+/* Responsivo */
+@media (max-width: 480px) {
+  .deposito-main {
+    padding: 16px;
+  }
+
+  .deposito-main h1 {
+    font-size: 24px;
+  }
+
+  .wallet-info-box {
+    padding: 16px;
+  }
+}
+
+@media (min-width: 768px) {
+  .deposito-main {
+    max-width: 460px;
+  }
+}

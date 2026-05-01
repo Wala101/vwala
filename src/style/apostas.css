@@ -1,0 +1,364 @@
+@import './style.css';
+
+.force-show{
+  display:block !important;
+}
+
+.notice-modal-card{
+  max-width:420px;
+}
+
+.notice-modal-body{
+  padding:8px 0 16px;
+}
+
+.notice-modal-text{
+  color:#d7dde5;
+  line-height:1.5;
+  font-size:14px;
+}
+
+.notice-modal-footer{
+  display:flex;
+  justify-content:flex-end;
+}
+
+.notice-confirm-btn{
+  min-width:120px;
+  padding:12px 16px;
+  border:none;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+  background:linear-gradient(90deg,#5cffb4,#25ff8a);
+  color:#000;
+}
+
+.user-positions-box{
+  margin-top:14px;
+  padding:12px;
+  border-radius:14px;
+  background:#0c1018;
+  border:1px solid rgba(255,255,255,0.06);
+}
+
+.user-positions-title{
+  font-size:12px;
+  font-weight:700;
+  color:#8c95a0;
+  text-transform:uppercase;
+  letter-spacing:0.05em;
+  margin-bottom:10px;
+}
+
+.user-position-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0;
+  border-top:1px solid rgba(255,255,255,0.05);
+}
+
+.user-position-row:first-of-type{
+  border-top:none;
+  padding-top:0;
+}
+
+.user-position-row strong{
+  display:block;
+  font-size:14px;
+  color:#fff;
+  margin-bottom:4px;
+}
+
+.user-position-row small{
+  color:#8c95a0;
+  font-size:12px;
+}
+
+.user-position-right{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+}
+
+.claim-btn{
+  border:none;
+  padding:10px 14px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+  background:linear-gradient(90deg,#5cffb4,#25ff8a);
+  color:#000;
+}
+
+.claimed-badge,
+.pending-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:30px;
+  padding:0 10px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+}
+
+.claimed-badge{
+  background:rgba(37,255,138,0.12);
+  border:1px solid rgba(37,255,138,0.22);
+  color:#25ff8a;
+}
+
+.pending-badge{
+  background:rgba(255,255,255,0.08);
+  border:1px solid rgba(255,255,255,0.10);
+  color:#cfd6de;
+}
+
+
+#appPinOverlay.active,
+#appLoadingOverlay.active,
+#appNoticeOverlay.active {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+}
+
+#appPinModal.active,
+#appLoadingModal.active,
+#appNoticeModal.active {
+  position: fixed;
+  inset: 0;
+  z-index: 1210;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#appPinModal .notice-modal-card,
+#appLoadingModal .notice-modal-card,
+#appNoticeModal .notice-modal-card {
+  width: min(92vw, 420px);
+  margin: 0 auto;
+}
+
+.app-pin-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.app-secondary-btn {
+  width: 100%;
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f7ff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#appPinConfirmBtn {
+  width: 100%;
+  min-height: 46px;
+}
+
+.app-loading-card {
+  text-align: center;
+}
+
+.app-loading-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.app-loading-spinner {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: 4px solid rgba(37, 255, 138, 0.18);
+  border-top-color: #25ff8a;
+  animation: appSpin 0.8s linear infinite;
+}
+
+@keyframes appSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+#appLoadingModal.active {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 16px !important;
+  background: rgba(0, 0, 0, 0.72) !important;
+}
+
+#appLoadingModal .notice-modal-card {
+  width: min(92vw, 380px) !important;
+  max-width: 380px !important;
+  margin: 0 auto !important;
+  border-radius: 18px !important;
+  background: #0f0f17 !important;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35) !important;
+}
+
+#appLoadingModal .app-loading-body {
+  min-height: 180px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 14px !important;
+  text-align: center !important;
+}
+
+#appLoadingModal .app-loading-spinner {
+  display: block !important;
+  width: 46px !important;
+  height: 46px !important;
+  min-width: 46px !important;
+  min-height: 46px !important;
+  margin: 0 auto 8px !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+  border: 4px solid rgba(37, 255, 138, 0.14) !important;
+  border-top: 4px solid #25ff8a !important;
+  border-right: 4px solid #25ff8a !important;
+  box-shadow: 0 0 18px rgba(37, 255, 138, 0.12) !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  animation: appLoadingSpin 0.75s linear infinite !important;
+}
+
+@keyframes appLoadingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+ /* CARD PAI DA LISTA DE APOSTAS */
+.app-content > .card:has(#marketGrid){
+  width:100% !important;
+  max-width:none !important;
+  padding:6px !important;
+  margin-left:0 !important;
+  margin-right:0 !important;
+  background:linear-gradient(180deg, rgba(20,24,34,0.88) 0%, rgba(11,15,24,0.92) 100%) !important;
+  border:1px solid rgba(255,255,255,0.07) !important;
+  box-shadow:
+    0 20px 50px rgba(0,0,0,0.34),
+    0 0 0 1px rgba(255,255,255,0.02) inset,
+    0 0 40px rgba(37,255,138,0.04) !important;
+}
+
+/* GRID DOS MERCADOS */
+.app-content #marketGrid{
+  width:100% !important;
+  display:flex !important;
+  flex-direction:column !important;
+  gap:12px !important;
+  margin:0 !important;
+}
+
+/* CARD DA APOSTA */
+.app-content #marketGrid .inline-market-card{
+  width:100% !important;
+  max-width:100% !important;
+  margin:0 !important;
+  padding:16px !important;
+  border-radius:18px !important;
+  background:linear-gradient(180deg, rgba(17,22,31,0.96) 0%, rgba(11,15,24,0.98) 100%) !important;
+  border:1px solid rgba(255,255,255,0.07) !important;
+  box-shadow:
+    0 16px 34px rgba(0,0,0,0.25),
+    0 0 0 1px rgba(255,255,255,0.02) inset !important;
+}
+
+/* BLOCO DO JOGO */
+.app-content #marketGrid .inline-market-card .inline-match-box{
+  width:100% !important;
+  margin-bottom:12px !important;
+}
+
+/* PROBABILIDADES */
+.app-content #marketGrid .inline-market-card .inline-stats-grid{
+  width:100% !important;
+  display:grid !important;
+  grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+  gap:8px !important;
+  margin-bottom:12px !important;
+}
+
+.app-content #marketGrid .inline-market-card .inline-stats-grid .stat-box{
+  width:100% !important;
+  min-width:0 !important;
+  padding:10px 8px !important;
+}
+
+/* PAINEL DE APOSTA */
+.app-content #marketGrid .inline-market-card .bet-panel{
+  width:100% !important;
+  margin-top:12px !important;
+  padding:12px !important;
+  border-radius:14px !important;
+  background:#0f131d !important;
+  border:1px solid rgba(255,255,255,0.05) !important;
+}
+
+/* BOTÕES */
+.app-content #marketGrid .inline-market-card .inline-modal-footer{
+  width:100% !important;
+  display:flex !important;
+  gap:8px !important;
+  margin-top:12px !important;
+}
+
+.app-content #marketGrid .inline-market-card .inline-modal-footer > *{
+  flex:1 1 0 !important;
+  min-width:0 !important;
+}
+
+.app-content #marketGrid .inline-market-card .js-confirm-bet-btn{
+  width:100% !important;
+  margin-top:12px !important;
+}
+
+@media (max-width:480px){
+  .app-content > .card:has(#marketGrid){
+    padding:4px !important;
+  }
+
+  .app-content #marketGrid{
+    gap:10px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card{
+    padding:14px !important;
+    border-radius:16px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-stats-grid{
+    gap:6px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-stats-grid .stat-box{
+    padding:8px 6px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .bet-panel{
+    padding:10px !important;
+  }
+
+  .app-content #marketGrid .inline-market-card .inline-modal-footer{
+    gap:6px !important;
+  }
+}
