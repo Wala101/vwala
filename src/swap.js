@@ -720,7 +720,7 @@ function renderPage() {
 <!-- Reservado oculto (não aparece pro usuário) -->
 
 <strong style="white-space: nowrap;">
-  Pool:&nbsp;100.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
+  Pool:&nbsp;1.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
 </strong>
 </div>
 
