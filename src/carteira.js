@@ -376,37 +376,24 @@ async function readStableVWalaBalance(walletAddress, requestId) {
 }
 
 async function loadVWalaBalance(walletAddress) {
-  const requestId = ++vwalaBalanceLoadCounter
-  const groupLabel = `[CARTEIRA_VWALA_FIREBASE_BALANCE_READ_${requestId}]`
-
-  console.groupCollapsed(groupLabel)
+  const requestId = ++vwalaBalanceLoadCounter;
 
   try {
-    if (!walletAddress) return
+    if (!walletAddress) return;
 
     const firebaseBalance = currentGoogleUser?.uid
       ? await readFirebaseVWalaBalance(currentGoogleUser.uid, walletAddress)
-      : '0'
+      : '0';
 
     if (requestId !== vwalaBalanceLoadCounter) {
-      console.warn('Leitura antiga descartada.', {
-        requestId,
-        activeRequestId: vwalaBalanceLoadCounter
-      })
-      return
+      return;
     }
 
-
-
-    updateVWalaBalanceUI(firebaseBalance)
+    updateVWalaBalanceUI(firebaseBalance);
   } catch (error) {
-    console.error('Erro ao carregar saldo vWALA no Firebase:', error)
-
     if (requestId === vwalaBalanceLoadCounter) {
-      updateVWalaBalanceUI('0')
+      updateVWalaBalanceUI('0');
     }
-  } finally {
-  
   }
 }
 
