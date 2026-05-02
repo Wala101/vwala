@@ -660,14 +660,16 @@ function renderPage() {
             </div>
           </div>
 
-          <div class="swap-balance-row">
-       <div class="swap-balance-box">
-  <span>Seu saldo em POL</span>
-  <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
-  <strong id="swapVWalaBalance" style="display: block; margin-top: 6px;">
-    ${formatAmount('0', 'vWALA')}
-  </strong>
-</div>
+          <div class="wallet-token-card">
+            <div class="wallet-token-left">
+              <div class="wallet-token-icon vwala">
+                <img src="/logo.png" alt="vWALA" />
+              </div>
+              <div class="wallet-token-info">
+                <div class="wallet-token-name">vWALA</div>
+                <div class="wallet-token-symbol">vWALA</div>
+              </div>
+            </div>
 
             <div class="swap-balance-box">
               <span>Seu saldo em vWALA</span>
@@ -695,7 +697,7 @@ function renderPage() {
                   placeholder="0.00"
                   autocomplete="off"
                 />
-            <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
+                <button id="swapMaxBtn" class="swap-max-btn" type="button">MAX</button>
               </div>
 
               <div id="swapAmountHint" class="swap-field-hint">
@@ -719,8 +721,8 @@ function renderPage() {
 
             <div id="swapInlineMessage" class="swap-warning hidden"></div>
 
+            <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
-            
 <!-- Reservado oculto (não aparece pro usuário) -->
 
 <strong style="white-space: nowrap;">
