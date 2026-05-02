@@ -698,3 +698,8 @@ button {
     flex-direction: column;
   }
 }
+
+.swap-balance-box strong {
+  display: block;
+  margin-top: 6px;
+}

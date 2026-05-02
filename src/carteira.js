@@ -325,7 +325,7 @@ async function runVWalaProbeRound(walletAddress, requestId, round) {
     console.warn('probe_failures', failures)
   }
 
-
+  
 
   return {
     ...selectedProbe,

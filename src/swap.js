@@ -661,11 +661,13 @@ function renderPage() {
           </div>
 
           <div class="swap-balance-row">
-            <div class="swap-balance-box">
-              <span>Seu saldo em POL</span>
-              <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
-              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
-            </div>
+       <div class="swap-balance-box">
+  <span>Seu saldo em POL</span>
+  <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
+  <strong id="swapVWalaBalance" style="display: block; margin-top: 6px;">
+    ${formatAmount('0', 'vWALA')}
+  </strong>
+</div>
 
             <div class="swap-balance-box">
               <span>Seu saldo em vWALA</span>
@@ -693,7 +695,7 @@ function renderPage() {
                   placeholder="0.00"
                   autocomplete="off"
                 />
-                <button id="swapMaxBtn" class="swap-max-btn" type="button">MAX</button>
+            <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
               </div>
 
               <div id="swapAmountHint" class="swap-field-hint">
@@ -717,8 +719,8 @@ function renderPage() {
 
             <div id="swapInlineMessage" class="swap-warning hidden"></div>
 
-            <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
+            
 <!-- Reservado oculto (não aparece pro usuário) -->
 
 <strong style="white-space: nowrap;">
