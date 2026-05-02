@@ -391,10 +391,7 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
   if (walletProfile?.walletAddress) {
     const resolvedAddress = String(walletProfile.walletAddress).trim()
 
-    console.log('[SWAP WALLET RESOLUTION]', {
-      source: 'firestore_walletAddress',
-      walletAddress: resolvedAddress
-    })
+
 
     return resolvedAddress
   }
