@@ -660,12 +660,13 @@ function renderPage() {
             </div>
           </div>
 
-          <div class="swap-balance-row">
-            <div class="swap-balance-box">
-              <span>Seu saldo em POL</span>
-              <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
-              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
-            </div>
+<div class="swap-balance-box">
+  <span>Seu saldo em POL</span>
+  <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
+  <strong id="swapVWalaBalance" style="display: block; margin-top: 6px;">
+    ${formatAmount('0', 'vWALA')}
+  </strong>
+</div>
 
             <div class="swap-balance-box">
               <span>Seu saldo em vWALA</span>
