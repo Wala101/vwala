@@ -1993,7 +1993,6 @@ async function handleSubmitSwap() {
 
 
 // ====================== PIN DO SWAP - TECLADO NUMÉRICO + ANTI-AUTOFILL ======================
-const uiModalInput = document.getElementById('uiModalInput')
 
 if (uiModalInput) {
   uiModalInput.addEventListener('input', function () {
