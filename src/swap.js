@@ -650,19 +650,7 @@ function renderPage() {
   app.innerHTML = `
     <div class="swap-page">
       <div class="swap-shell">
-        <header class="swap-topbar">
-          <div class="swap-brand">
-            <div class="swap-brand-badge">W</div>
-            <div class="swap-brand-text">
-              <strong>vWALA Swap</strong>
-              <span>Comprar e vender</span>
-            </div>
-          </div>
 
-          <div class="swap-topbar-actions">
-            <button id="swapBackBtn" class="swap-topbar-btn" type="button">Voltar</button>
-          </div>
-        </header>
 
         <section class="swap-card">
           <div class="swap-card-header">
