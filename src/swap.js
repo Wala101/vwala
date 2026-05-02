@@ -664,7 +664,6 @@ function renderPage() {
             <div class="swap-balance-box">
               <span>Seu saldo em POL</span>
               <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
-                            <span>Seu saldo em vWALA</span>
               <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
             </div>
 
