@@ -263,7 +263,7 @@ body{
 
 .wallet-token-card:hover{
   transform:translateY(-2px);
-  border-color:rgba(37,255,138,0.18);
+  border-color:rgba(37, 255, 139, 0);
   box-shadow:0 12px 24px rgba(0,0,0,0.24), 0 0 24px rgba(37,255,138,0.06);
 }
 

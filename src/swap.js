@@ -660,18 +660,18 @@ function renderPage() {
             </div>
           </div>
 
-          <div class="wallet-token-card">
-            <div class="wallet-token-left">
-              <div class="wallet-token-icon vwala">
-                <img src="/logo.png" alt="vWALA" />
-              </div>
-              <div class="wallet-token-info">
-                <div class="wallet-token-name">vWALA</div>
-                <div class="wallet-token-symbol">vWALA</div>
-              </div>
+          <div class="swap-balance-row">
+            <div class="swap-balance-box">
+              <span>Seu saldo em POL</span>
+              <strong id="swapPolBalance">${formatAmount('0', 'POL')}</strong>
+              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
             </div>
 
-
+            <div class="swap-balance-box">
+              <span>Seu saldo em vWALA</span>
+              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
+            </div>
+          </div>
 
           <div class="swap-tabs">
             <button id="swapTabBuy" class="swap-tab active" type="button">Comprar</button>
