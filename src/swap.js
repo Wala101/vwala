@@ -712,15 +712,17 @@ function renderPage() {
               </div>
             </div>
 
-<strong style="white-space: nowrap;">
-  Pool:&nbsp;100.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
-</strong>
-</div>
-
+            
             <div id="swapInlineMessage" class="swap-warning hidden"></div>
 
             <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
+<!-- Reservado oculto (não aparece pro usuário) -->
+
+<strong style="white-space: nowrap;">
+  Pool:&nbsp;100.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
+</strong>
+</div>
 
 
           </div>
