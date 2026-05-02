@@ -671,11 +671,7 @@ function renderPage() {
               </div>
             </div>
 
-            <div class="swap-balance-box">
-              <span>Seu saldo em vWALA</span>
-              <strong id="swapVWalaBalance">${formatAmount('0', 'vWALA')}</strong>
-            </div>
-          </div>
+
 
           <div class="swap-tabs">
             <button id="swapTabBuy" class="swap-tab active" type="button">Comprar</button>
