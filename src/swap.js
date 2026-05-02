@@ -754,8 +754,13 @@ function renderPage() {
 
             <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
-            <div class="swap-subtext">
+<!-- Reservado oculto (não aparece pro usuário) -->
+<div class="swap-subtext" style="display: none;">
   Reserva atual do pool: <strong id="swapPoolReserve">${formatAmount('0', 'POL')}</strong>
+</div>
+
+<div class="swap-subtext">
+  Reserva atual: <strong>50 845.34 $</strong>
 </div>
           </div>
         </section>
