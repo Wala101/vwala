@@ -273,17 +273,12 @@ async function runVWalaProbeRound(walletAddress, label, round) {
 
   const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
 
-  console.groupCollapsed(`[SWAP_VWALA_RPC_PROBES] ${label} round=${round}`)
-  console.log('all_probes', probes)
-  console.log('grouped_probes', groups)
-  console.log('selected_probe', selectedProbe)
-  console.log('selection_reason', selectionReason)
 
-  if (failures.length) {
-    console.warn('probe_failures', failures)
-  }
 
-  console.groupEnd()
+
+  if (failures.length) 
+
+ 
 
   return {
     ...selectedProbe,
@@ -405,10 +400,7 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
 
       const resolvedAddress = String(unlockedWallet.address || '').trim()
 
-      console.log('[SWAP WALLET RESOLUTION]', {
-        source: 'walletKeystoreCloud',
-        walletAddress: resolvedAddress
-      })
+
 
       return resolvedAddress
     } catch (error) {
@@ -416,11 +408,6 @@ async function resolveAuthoritativeWalletAddress(user, walletProfile = {}) {
     }
   }
 
-
-  console.log('[SWAP WALLET RESOLUTION]', {
-    source: 'none',
-    walletAddress: ''
-  })
 
   return ''
 }
@@ -639,15 +626,7 @@ async function loadSwapData(walletAddress = '') {
 nextState.vwalaBalance = String(firebaseVWalaBalance || '0')
 nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
 
-console.groupCollapsed(`[SWAP_VWALA_FIREBASE_BALANCE_READ_${readId}]`)
-console.log('swap_wallet_context', {
-  currentWalletAddress,
-  walletAddress,
-  polBalance: nextState.polBalance,
-  vwalaBalance: nextState.vwalaBalance,
-  redeemableNow: nextState.redeemableNow
-})
-console.groupEnd()
+
     }
 
     if (requestId !== swapDataLoadCounter) {
@@ -1802,14 +1781,7 @@ async function handleSellVWala() {
 
 const firebaseBalanceNumber = Number(firebaseVWalaBalance || 0)
 
-console.log('[SWAP_SELL_GATE]', {
-  signerAddress: signer.address,
-  firebaseVWalaBalance,
-  liveRedeemableRaw: liveRedeemable.toString(),
-  liveRedeemableFormatted: formatUnits(liveRedeemable, swapState.tokenDecimals),
-  requestedAmount: normalizedAmount,
-  requestedAmountRaw: amountUnits.toString()
-})
+
 
 if (!Number.isFinite(firebaseBalanceNumber) || firebaseBalanceNumber < amountNumber) {
   hideLoadingModal()
@@ -1821,12 +1793,7 @@ if (!Number.isFinite(firebaseBalanceNumber) || firebaseBalanceNumber < amountNum
   return
 }
 
-console.log('[SWAP_SELL_GATE]', {
-  signerAddress: signer.address,
-  firebaseVWalaBalance,
-  liveRedeemable: formatUnits(liveRedeemable, swapState.tokenDecimals),
-  requestedAmount: normalizedAmount
-})
+
 
 if (liveRedeemable < amountUnits) {
       hideLoadingModal()
@@ -1890,14 +1857,7 @@ if (allowance < amountUnits) {
 const sellGasEstimate = await poolContract.sell.estimateGas(amountUnits)
 const sellFeeWei = sellGasEstimate * gasPrice
 
-console.log('[SWAP_SELL_ESTIMATE]', {
-  signerAddress: signer.address,
-  sellGasEstimate: sellGasEstimate.toString(),
-  gasPrice: gasPrice.toString(),
-  sellFeeWei: sellFeeWei.toString(),
-  amountUnits: amountUnits.toString(),
-  amountFormatted: formatUnits(amountUnits, swapState.tokenDecimals)
-})
+
 
 if (liveBalanceWei < sellFeeWei + gasReserveWei) {
   hideLoadingModal()
@@ -2057,10 +2017,7 @@ async function initFirebaseAuthGate() {
           if (walletAddressToLoad) {
             currentWalletAddress = walletAddressToLoad
 
-            console.log('[SWAP LOAD ADDRESS]', {
-              currentWalletAddress,
-              firestoreWalletAddress: walletProfile?.walletAddress || ''
-            })
+        
 
             await loadSwapData(currentWalletAddress)
           } else {
