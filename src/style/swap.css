@@ -246,6 +246,7 @@ button {
 
 .swap-balance-box {
   padding: 16px;
+  margin-bottom: 10px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: var(--panel-strong);
