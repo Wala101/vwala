@@ -45,7 +45,7 @@ const VWALA_POOL_ADDRESS = '0x5c950A2FA20A48DDcb4952910e550Ac59fd21AF7'
 const POL_GAS_RESERVE = '0.05'
 const CARTEIRA_BUILD_TAG = 'carteira-debug-2026-04-18-01'
 
-console.log('[CARTEIRA BUILD]', CARTEIRA_BUILD_TAG)
+
 
 function maskRpcUrl(url = '') {
   return String(url || '')
@@ -231,10 +231,7 @@ function updatePolygonBalanceUI(value = '0') {
 function updateVWalaBalanceUI(value = '0') {
   walletState.vwalaBalance = value
 
-  console.log('[vWALA UI UPDATE]', {
-    build: CARTEIRA_BUILD_TAG,
-    value
-  })
+
 
   const vwalaChip = document.querySelector('.wallet-vwala-chip')
   if (vwalaChip) {
@@ -266,11 +263,7 @@ async function loadPolygonBalance(walletAddress) {
 
     updatePolygonBalanceUI(balanceFormatted)
 
-    console.log('[POL BALANCE READ]', {
-      build: CARTEIRA_BUILD_TAG,
-      walletAddress,
-      balanceFormatted
-    })
+
   } catch (error) {
     console.error('Erro ao carregar saldo POL:', error)
 
@@ -326,17 +319,13 @@ async function runVWalaProbeRound(walletAddress, requestId, round) {
 
   const { selectedProbe, selectionReason, groups } = selectStableVWalaProbe(probes)
 
-  console.groupCollapsed(`[CARTEIRA_VWALA_RPC_PROBES] request=${requestId} round=${round}`)
-  console.log('all_probes', probes)
-  console.log('grouped_probes', groups)
-  console.log('selected_probe', selectedProbe)
-  console.log('selection_reason', selectionReason)
+
 
   if (failures.length) {
     console.warn('probe_failures', failures)
   }
 
-  console.groupEnd()
+
 
   return {
     ...selectedProbe,
@@ -407,12 +396,7 @@ async function loadVWalaBalance(walletAddress) {
       return
     }
 
-    console.log('firebase_balance_read', {
-      build: CARTEIRA_BUILD_TAG,
-      walletAddress,
-      tokenAddress: VWALA_TOKEN_ADDRESS,
-      balanceFormatted: firebaseBalance
-    })
+
 
     updateVWalaBalanceUI(firebaseBalance)
   } catch (error) {
@@ -422,7 +406,7 @@ async function loadVWalaBalance(walletAddress) {
       updateVWalaBalanceUI('0')
     }
   } finally {
-    console.groupEnd()
+  
   }
 }
 
@@ -3305,12 +3289,7 @@ async function initFirebaseAuthGate() {
             currentWalletAddress = walletAddressToLoad
             updateWalletAddressUI(currentWalletAddress)
 
-            console.log('[CARTEIRA LOAD ADDRESS]', {
-              build: CARTEIRA_BUILD_TAG,
-              source: 'firestore_walletAddress',
-              currentWalletAddress,
-              firestoreWalletAddress: walletProfile?.walletAddress || ''
-            })
+        
 
             await loadPolygonBalance(currentWalletAddress)
             await loadVWalaBalance(currentWalletAddress)
