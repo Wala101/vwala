@@ -656,7 +656,7 @@ function renderPage() {
           <div class="swap-card-header">
             <div>
               <h2>Swap</h2>
-              <p>Troque POL por vWALA ou vWALA por POL.</p>
+
             </div>
           </div>
 
