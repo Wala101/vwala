@@ -420,9 +420,6 @@ async function readFirebaseVWalaBalance(userId, walletAddress = '') {
   const balanceRef = getSwapBalanceDocRef(userId, 'vwala');
 
   try {
-    console.log('🔄 [CARTEIRA] Forçando sincronização on-chain vWALA...');
-
-    // === Usa o sistema robusto de probes (igual ao da home) ===
     const onChainResult = await readBalanceViaEthers(walletAddress, `carteira_sync_${userId}`);
 
     const rawBalance = BigInt(String(onChainResult.rawBalance || '0'));
@@ -442,13 +439,10 @@ async function readFirebaseVWalaBalance(userId, walletAddress = '') {
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ [CARTEIRA] Saldo atualizado: ${formattedBalance} vWALA`);
     return formattedBalance;
 
   } catch (error) {
-    console.error('❌ Erro na sincronização robusta:', error);
-
-    // Fallback seguro (mantém o comportamento antigo)
+    // Fallback seguro
     try {
       const balanceSnap = await getDoc(balanceRef);
       if (balanceSnap.exists()) {
@@ -456,7 +450,7 @@ async function readFirebaseVWalaBalance(userId, walletAddress = '') {
         return String(data.balanceFormatted || data.balance || '0');
       }
     } catch (e) {
-      console.warn('Fallback também falhou');
+      // Ignora erro do fallback
     }
 
     return '0';
