@@ -342,39 +342,39 @@ async function readFirebaseVWalaBalance(userId, walletAddress = '') {
   const balanceRef = getSwapBalanceDocRef(userId, 'vwala');
 
   try {
-    const onChainResult = await readBalanceViaEthers(
-      walletAddress,
-      `home_sync_${userId}`
-    );
+    // === FORÇA SINCRONIZAÇÃO ON-CHAIN ===
+    console.log('🔄 Sincronizando saldo on-chain...');
+    const onChainResult = await readBalanceViaEthers(walletAddress, `home_sync_${userId}`);
 
     const rawBalance = BigInt(String(onChainResult.rawBalance || '0'));
     const formattedBalance = formatVWalaUnits(rawBalance);
 
-    await setDoc(
-      balanceRef,
-      {
-        assetId: 'vwala',
-        token: TOKEN_SYMBOL,
-        tokenAddress: VWALA_TOKEN_ADDRESS,
-        walletAddress,
-        balanceRaw: rawBalance.toString(),
-        balance: Number(formattedBalance),
-        balanceFormatted: formattedBalance,
-        lastType: 'onchain_sync',
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+    // Salva/atualiza no Firebase
+    await setDoc(balanceRef, {
+      assetId: 'vwala',
+      token: TOKEN_SYMBOL,
+      tokenAddress: VWALA_TOKEN_ADDRESS,
+      walletAddress,
+      balanceRaw: rawBalance.toString(),
+      balance: Number(formattedBalance),
+      balanceFormatted: formattedBalance,
+      lastType: 'onchain_sync',
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    console.log(`✅ Saldo sincronizado: ${formattedBalance} ${TOKEN_SYMBOL}`);
 
     return formattedBalance;
-  } catch (error) {
-    const balanceSnap = await getDoc(balanceRef);
 
+  } catch (error) {
+    console.error('Erro na sincronização on-chain:', error);
+    
+    // Fallback: tenta ler do Firebase se on-chain falhar
+    const balanceSnap = await getDoc(balanceRef);
     if (balanceSnap.exists()) {
       const data = balanceSnap.data();
       return String(data.balanceFormatted || data.balance || '0');
     }
-
     return '0';
   }
 }
@@ -386,7 +386,6 @@ function setConnectButtonText(text) {
 
 async function loadUserTokenBalance() {
   const readId = ++balanceReadCounter;
-  
   const groupLabel = `[VWALA_BALANCE_LOAD_${readId}]`;
 
   console.groupCollapsed(groupLabel);
