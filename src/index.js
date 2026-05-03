@@ -156,22 +156,33 @@ async function runBalanceProbeRound(walletAddress, label, round) {
       POLYGON_RPC_FALLBACK_URL,
       'fallback'
     )
-  ]);
+  ])
 
   const probes = settled
     .filter((item) => item.status === 'fulfilled')
-    .map((item) => item.value);
+    .map((item) => item.value)
 
   const failures = settled
     .filter((item) => item.status === 'rejected')
-    .map((item) => item.reason);
+    .map((item) => item.reason)
 
   if (!probes.length) {
-    throw failures[0] || new Error('Nenhuma leitura de saldo foi concluída.');
+    throw failures[0] || new Error('Nenhuma leitura de saldo foi concluída.')
   }
 
-  const { selectedProbe, selectionReason, groups } =
-    selectStableBalanceProbe(probes);
+  const { selectedProbe, selectionReason, groups } = selectStableBalanceProbe(probes)
+
+  console.groupCollapsed(`[VWALA_RPC_PROBES] ${label} round=${round}`)
+  console.log('all_probes', probes)
+  console.log('grouped_probes', groups)
+  console.log('selected_probe', selectedProbe)
+  console.log('selection_reason', selectionReason)
+
+  if (failures.length) {
+    console.warn('probe_failures', failures)
+  }
+
+  console.groupEnd()
 
   return {
     ...selectedProbe,
@@ -181,59 +192,7 @@ async function runBalanceProbeRound(walletAddress, label, round) {
     failedProbeCount: failures.length,
     groups,
     round
-  };
-}async function runBalanceProbeRound(walletAddress, label, round) {
-  const settled = await Promise.allSettled([
-    readSingleBalanceProbe(
-      walletAddress,
-      `${label}_r${round}_primary_a`,
-      POLYGON_RPC_PRIMARY_URL,
-      'primary'
-    ),
-    readSingleBalanceProbe(
-      walletAddress,
-      `${label}_r${round}_primary_b`,
-      POLYGON_RPC_PRIMARY_URL,
-      'primary'
-    ),
-    readSingleBalanceProbe(
-      walletAddress,
-      `${label}_r${round}_fallback_a`,
-      POLYGON_RPC_FALLBACK_URL,
-      'fallback'
-    ),
-    readSingleBalanceProbe(
-      walletAddress,
-      `${label}_r${round}_fallback_b`,
-      POLYGON_RPC_FALLBACK_URL,
-      'fallback'
-    )
-  ]);
-
-  const probes = settled
-    .filter((item) => item.status === 'fulfilled')
-    .map((item) => item.value);
-
-  const failures = settled
-    .filter((item) => item.status === 'rejected')
-    .map((item) => item.reason);
-
-  if (!probes.length) {
-    throw failures[0] || new Error('Nenhuma leitura de saldo foi concluída.');
   }
-
-  const { selectedProbe, selectionReason, groups } =
-    selectStableBalanceProbe(probes);
-
-  return {
-    ...selectedProbe,
-    selectedFrom: selectedProbe.source,
-    selectionReason,
-    allProbes: probes,
-    failedProbeCount: failures.length,
-    groups,
-    round
-  };
 }
 
 async function readBalanceViaEthers(walletAddress, label) {
