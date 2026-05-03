@@ -639,6 +639,7 @@ nextState.redeemableNow = formatUnits(redeemableRaw, tokenDecimals)
     swapState.redeemableNow = nextState.redeemableNow
 
     updateDashboardUI()
+     updatePoolDisplay(swapState.poolReserve)   // ← Adicione esta linha
   } catch (error) {
     console.error('Erro ao carregar dados do swap:', error)
   }
