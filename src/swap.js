@@ -718,9 +718,8 @@ function renderPage() {
             <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
 <strong style="white-space: nowrap;">
-  Pool:&nbsp;1.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
+  Pool:&nbsp;<span id="swapTotalPool">1.000.000,00 POL</span>
 </strong>
-</div>
 
 
           </div>
@@ -1933,6 +1932,17 @@ async function handleSubmitSwap() {
   await handleSellVWala()
 }
 
+
+function updatePoolDisplay(currentPolBalance) {
+  const basePool = 1_000_000;
+  const totalPool = basePool + Number(currentPolBalance || 0);
+
+  document.getElementById('swapTotalPool').textContent =
+    `${totalPool.toLocaleString('pt-BR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })} POL`;
+}
 
 // ====================== PIN DO SWAP - TECLADO NUMÉRICO + ANTI-AUTOFILL ======================
 
