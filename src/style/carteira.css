@@ -1130,7 +1130,7 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
 .wallet-main-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--wallet-shadow-hover);
-    border-color: rgba(37, 255, 139, 0);
+    border-color: rgba(37, 255, 138, 0.35);
 }
 
 /* Container esquerdo */
@@ -1144,7 +1144,7 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
 .wallet-token-icon.pol {
     width: 58px;
     height: 58px;
-    background: rgba(255, 255, 255, 0);
+    background: rgba(255, 255, 255, 0.08);
     border-radius: 50%;
     display: flex;
     align-items: center;
