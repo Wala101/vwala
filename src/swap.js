@@ -717,8 +717,6 @@ function renderPage() {
 
             <button id="swapSubmitBtn" class="swap-submit-btn" type="button">Entrar com Google</button>
 
-<!-- Reservado oculto (não aparece pro usuário) -->
-
 <strong style="white-space: nowrap;">
   Pool:&nbsp;1.00<span id="swapPoolReserve">${formatAmount('0', 'POL')}</span>
 </strong>
