@@ -277,6 +277,83 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+
+// ====================== FUNÇÕES AUXILIARES PARA O PROBE ROBUSTO ======================
+
+async function readSingleBalanceProbe(walletAddress, label, baseUrl, proxyName) {
+  const rpcUrl = createRpcProbeUrl(baseUrl, label);
+  const provider = new JsonRpcProvider(rpcUrl);
+  
+  const tokenContract = new Contract(VWALA_TOKEN_ADDRESS, ERC20_TOKEN_ABI, provider);
+
+  const [blockNumber, rawBalance, decimals] = await Promise.all([
+    provider.getBlockNumber(),
+    tokenContract.balanceOf(walletAddress),
+    tokenContract.decimals().catch(() => 18)
+  ]);
+
+  return {
+    source: label,
+    proxyName,
+    walletAddress,
+    blockNumber: Number(blockNumber),
+    rawBalance: rawBalance.toString(),
+    decimals: Number(decimals),
+    rpcUrl
+  };
+}
+
+function selectStableBalanceProbe(probes = []) {
+  // Reutilizamos sua função existente adaptada
+  return selectStableVWalaProbe(probes); // já existe no seu código
+}
+
+async function runBalanceProbeRound(walletAddress, label, round) {
+  const settled = await Promise.allSettled([
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_p_a`, POLYGON_RPC_PRIMARY_URL, 'primary'),
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_p_b`, POLYGON_RPC_PRIMARY_URL, 'primary'),
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_f_a`, POLYGON_RPC_FALLBACK_URL, 'fallback'),
+    readSingleBalanceProbe(walletAddress, `${label}_r${round}_f_b`, POLYGON_RPC_FALLBACK_URL, 'fallback')
+  ]);
+
+  const probes = settled.filter(r => r.status === 'fulfilled').map(r => r.value);
+  const failures = settled.filter(r => r.status === 'rejected').map(r => r.reason);
+
+  if (!probes.length) throw failures[0] || new Error('Nenhuma leitura de saldo');
+
+  const { selectedProbe, selectionReason } = selectStableBalanceProbe(probes);
+
+  return {
+    ...selectedProbe,
+    selectionReason,
+    groups: selectStableBalanceProbe(probes).groups,
+    round
+  };
+}
+
+async function readBalanceViaEthers(walletAddress, label) {
+  let previousRawBalance = '';
+  const attempts = [];
+
+  for (let round = 1; round <= 4; round++) {
+    const result = await runBalanceProbeRound(walletAddress, label, round);
+    attempts.push(result);
+
+    const isUnanimous = result.groups.length === 1;
+    const sameAsPrevious = previousRawBalance && previousRawBalance === result.rawBalance;
+
+    if (isUnanimous || sameAsPrevious) {
+      return { ...result, stabilizationReason: isUnanimous ? 'unanimous' : 'repeated', attempts };
+    }
+
+    previousRawBalance = result.rawBalance;
+    if (round < 4) await sleep(900);
+  }
+
+  return { ...attempts[attempts.length-1], stabilizationReason: 'max_rounds', attempts };
+}
+
+
 async function runVWalaProbeRound(walletAddress, requestId, round) {
   const settled = await Promise.allSettled([
     readSingleVWalaBalanceProbe(
@@ -336,88 +413,58 @@ async function runVWalaProbeRound(walletAddress, requestId, round) {
   }
 }
 
-async function readStableVWalaBalance(walletAddress, requestId) {
-  const attempts = []
-  let previousRawBalance = ''
-
-  for (let round = 1; round <= 4; round += 1) {
-    const result = await runVWalaProbeRound(walletAddress, requestId, round)
-    attempts.push(result)
-
-    const isUnanimous = result.groups.length === 1
-    const sameAsPrevious =
-      previousRawBalance &&
-      String(previousRawBalance) === String(result.rawBalance)
-
-    if (isUnanimous || sameAsPrevious) {
-      return {
-        ...result,
-        attempts,
-        stabilizationReason: isUnanimous
-          ? 'unanimous_round'
-          : 'same_result_in_two_rounds'
-      }
-    }
-
-    previousRawBalance = String(result.rawBalance)
-
-    if (round < 4) {
-      await sleep(900)
-    }
-  }
-
-  const lastResult = attempts[attempts.length - 1]
-
-  return {
-    ...lastResult,
-    attempts,
-    stabilizationReason: 'max_rounds_last_result'
-  }
-}
-
-
+// ====================== VERSÃO ROBUSTA - SINCRONIZAÇÃO ON-CHAIN ======================
 async function readFirebaseVWalaBalance(userId, walletAddress = '') {
   if (!userId || !walletAddress) return '0';
 
   const balanceRef = getSwapBalanceDocRef(userId, 'vwala');
 
   try {
-    console.log('🔄 Sincronizando saldo on-chain...');
-    
-    const onChainResult = await readBalanceViaEthers(walletAddress, `home_sync_${userId}`);
+    console.log('🔄 [CARTEIRA] Forçando sincronização on-chain vWALA...');
+
+    // === Usa o sistema robusto de probes (igual ao da home) ===
+    const onChainResult = await readBalanceViaEthers(walletAddress, `carteira_sync_${userId}`);
 
     const rawBalance = BigInt(String(onChainResult.rawBalance || '0'));
     const formattedBalance = formatVWalaUnits(rawBalance);
 
-    // Salva/atualiza no Firebase
     await setDoc(balanceRef, {
       assetId: 'vwala',
-      token: TOKEN_SYMBOL,
+      token: 'vWALA',
       tokenAddress: VWALA_TOKEN_ADDRESS,
-      walletAddress,
+      walletAddress: String(walletAddress).toLowerCase(),
       balanceRaw: rawBalance.toString(),
       balance: Number(formattedBalance),
       balanceFormatted: formattedBalance,
       lastType: 'onchain_sync',
+      lastSyncBlock: onChainResult.blockNumber,
+      stabilizationReason: onChainResult.stabilizationReason || 'unknown',
       updatedAt: serverTimestamp()
     }, { merge: true });
 
-    console.log(`✅ Saldo sincronizado: ${formattedBalance} ${TOKEN_SYMBOL}`);
-
+    console.log(`✅ [CARTEIRA] Saldo atualizado: ${formattedBalance} vWALA`);
     return formattedBalance;
 
   } catch (error) {
-    console.error('Erro na sincronização on-chain:', error);
-    
-    // Fallback: tenta ler do Firebase
-    const balanceSnap = await getDoc(balanceRef);
-    if (balanceSnap.exists()) {
-      const data = balanceSnap.data();
-      return String(data.balanceFormatted || data.balance || '0');
+    console.error('❌ Erro na sincronização robusta:', error);
+
+    // Fallback seguro (mantém o comportamento antigo)
+    try {
+      const balanceSnap = await getDoc(balanceRef);
+      if (balanceSnap.exists()) {
+        const data = balanceSnap.data() || {};
+        return String(data.balanceFormatted || data.balance || '0');
+      }
+    } catch (e) {
+      console.warn('Fallback também falhou');
     }
+
     return '0';
   }
 }
+
+
+
 
 async function loadVWalaBalance(walletAddress) {
   const requestId = ++vwalaBalanceLoadCounter;
