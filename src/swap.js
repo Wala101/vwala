@@ -567,10 +567,8 @@ function updateDashboardUI() {
     vwalaBalanceText.textContent = formatAmount(swapState.vwalaBalance, 'vWALA')
   }
 
-  const reserveText = document.getElementById('swapPoolReserve')
-  if (reserveText) {
-    reserveText.textContent = formatAmount(swapState.poolReserve, 'POL')
-  }
+  // ==================== POOL COM BASE FIXA DE 1 MILHÃO ====================
+  updatePoolDisplay(swapState.poolReserve)
 
   const redeemableText = document.getElementById('swapRedeemableNow')
   if (redeemableText) {
