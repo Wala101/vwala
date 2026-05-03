@@ -574,7 +574,7 @@ h1,h2,h3,p,span,label,div,strong,a,button,small{
   font-weight: 700;
   cursor: pointer;
   color: #05110a;
-  background: linear-gradient(135deg, #5cffb4 0%, #25ff8a 100%);
+  background: linear-gradient(135deg, #5cffb300 0%rgba(37, 255, 139, 0)8a 100%);
   box-shadow: 0 14px 32px rgba(37, 255, 138, 0.22);
 }
 
