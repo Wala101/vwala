@@ -386,6 +386,10 @@ function setConnectButtonText(text) {
 
 async function loadUserTokenBalance() {
   const readId = ++balanceReadCounter;
+  
+  const groupLabel = `[VWALA_BALANCE_LOAD_${readId}]`;
+
+  console.groupCollapsed(groupLabel);
 
   try {
     const walletAddress = getCurrentWalletAddress();
@@ -397,18 +401,21 @@ async function loadUserTokenBalance() {
 
     setConnectButtonText('Sincronizando...');
 
+    // Força sincronização completa
     const balance = await readFirebaseVWalaBalance(
-      currentFirebaseUser.uid,
+      currentFirebaseUser.uid, 
       walletAddress
     );
 
-    if (readId !== balanceReadCounter) return;
-
     setConnectButtonText(formatTokenBalance(balance));
+
+    console.log('✅ Saldo final exibido:', balance);
+
   } catch (error) {
-    if (readId === balanceReadCounter) {
-      setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`);
-    }
+    console.error('Erro ao carregar saldo:', error);
+    setConnectButtonText(`0,00 ${TOKEN_SYMBOL}`);
+  } finally {
+    console.groupEnd();
   }
 }
 
