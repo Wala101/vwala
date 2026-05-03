@@ -2117,95 +2117,186 @@ async function handleSendCreatedToken(token) {
   }
 
   if (!currentWalletAddress) {
-    await showMessageModal('Carteira', 'Carteira ainda não carregada.')
+    await showMessageModal(
+      'Carteira',
+      'Carteira ainda não carregada.'
+    )
     return
   }
 
-  // === 1. Endereço de destino (42 caracteres) ===
   const destinationInput = await showPromptModal({
     title: `Enviar ${token.symbol || 'TOKEN'}`,
-    text: 'Informe o endereço Polygon que vai receber o token:',
+    text: 'Informe o endereço que vai receber este token.',
     confirmText: 'Continuar',
     cancelText: 'Cancelar',
-    placeholder: '0x...',
-    inputMode: 'text'           // ← permite texto completo
+    placeholder: '0x...'
   })
 
-  if (destinationInput === null) return
+  if (destinationInput === null) {
+    return
+  }
 
-  const destinationAddress = String(destinationInput).trim()
+  const destinationAddress = destinationInput.trim()
 
   if (!destinationAddress) {
-    await showMessageModal('Endereço inválido', 'Você precisa informar o endereço.')
+    await showMessageModal(
+      'Endereço inválido',
+      'Informe o endereço de destino.'
+    )
     return
   }
 
   if (!isAddress(destinationAddress)) {
-    await showMessageModal('Endereço inválido', 'Digite um endereço Polygon válido.')
+    await showMessageModal(
+      'Endereço inválido',
+      'Digite um endereço válido.'
+    )
     return
   }
 
   if (destinationAddress.toLowerCase() === currentWalletAddress.toLowerCase()) {
-    await showMessageModal('Endereço inválido', 'Você não pode enviar para sua própria carteira.')
+    await showMessageModal(
+      'Endereço inválido',
+      'Você não pode enviar para a sua própria carteira.'
+    )
     return
   }
 
-  // === 2. Quantidade (permite decimal) ===
   const amountInput = await showPromptModal({
     title: 'Quantidade',
-    text: `Quanto ${token.symbol || 'TOKEN'} você quer enviar?`,
+    text: `Informe quanto ${token.symbol || 'TOKEN'} deseja enviar.`,
     confirmText: 'Continuar',
     cancelText: 'Cancelar',
-    placeholder: '10.5',
-    inputMode: 'decimal'
+    placeholder: '10'
   })
 
-  if (amountInput === null) return
+  if (amountInput === null) {
+    return
+  }
 
   const normalizedAmount = normalizeAmountInput(amountInput)
 
   if (!normalizedAmount) {
-    await showMessageModal('Quantidade inválida', 'Informe uma quantidade.')
+    await showMessageModal(
+      'Quantidade inválida',
+      'Informe uma quantidade para enviar.'
+    )
     return
   }
 
-  // ... resto do código continua igual (validação, PIN, envio)
-
-  let amountNumber, amountUnits
+  let amountNumber
 
   try {
     amountNumber = Number(normalizedAmount)
-    if (!Number.isFinite(amountNumber) || amountNumber <= 0) throw new Error()
+  } catch (error) {
+    amountNumber = NaN
+  }
 
-    const provider = getRpcProvider('send_token', POLYGON_RPC_PRIMARY_URL)
-    const tokenContract = new Contract(token.tokenAddress, ERC20_TOKEN_ABI, provider)
-    const decimals = await tokenContract.decimals().catch(() => 18)
-
-    amountUnits = parseUnits(normalizedAmount, decimals)
-  } catch (e) {
-    await showMessageModal('Quantidade inválida', 'Digite um número válido.')
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
+    await showMessageModal(
+      'Quantidade inválida',
+      'Digite um valor maior que zero.'
+    )
     return
   }
 
-  // Confirmação final
   const confirmSend = await showConfirmModal(
-    `Confirmar envio de ${token.symbol}`,
-    `<strong>Destino:</strong><br>${escapeHtml(destinationAddress)}<br><br><strong>Quantidade:</strong><br>${escapeHtml(normalizedAmount)} ${escapeHtml(token.symbol)}`,
+    `Confirmar envio de ${token.symbol || 'TOKEN'}`,
+    `<strong>Confira os dados antes de enviar.</strong><br><br><strong>Token:</strong><br>${escapeHtml(token.name || 'Token')} (${escapeHtml(token.symbol || 'TOKEN')})<br><br><strong>Destino:</strong><br>${escapeHtml(destinationAddress)}<br><br><strong>Quantidade:</strong><br>${escapeHtml(normalizedAmount)} ${escapeHtml(token.symbol || 'TOKEN')}`,
     'Enviar',
     'Cancelar'
   )
 
-  if (!confirmSend) return
-
-  // PIN (aqui sim limita a 6 dígitos)
-  const pin = await showPinModal('Confirmar PIN', 'Digite seu PIN para autorizar o envio.')
-
-  if (pin === null || pin.trim().length < 6) {
-    await showMessageModal('PIN inválido', 'Digite seu PIN de 6 dígitos.')
+  if (!confirmSend) {
     return
   }
 
-  // ... (o resto do código de envio continua igual)
+  const pin = await showPinModal(
+    'Confirmar PIN',
+    'Digite seu PIN para autorizar o envio do token.',
+    'Enviar'
+  )
+
+  if (pin === null) {
+    return
+  }
+
+  if (!pin || pin.trim().length < 6) {
+    await showMessageModal(
+      'PIN inválido',
+      'Digite seu PIN para continuar.'
+    )
+    return
+  }
+
+  try {
+    showLoadingModal(
+      `Enviando ${token.symbol || 'TOKEN'}`,
+      'Aguarde enquanto sua transação é assinada e enviada.'
+    )
+
+    const walletProfile = await getCurrentUserWalletProfile()
+    const deviceVault = await ensureDeviceWalletAccess(
+      currentGoogleUser,
+      walletProfile
+    )
+
+    if (!deviceVault?.walletKeystoreLocal) {
+      throw new Error('PIN deste aparelho ainda não configurado.')
+    }
+
+    const provider = getRpcProvider('carteira_send_token', POLYGON_RPC_PRIMARY_URL)
+    const unlockedWallet = await Wallet.fromEncryptedJson(
+      deviceVault.walletKeystoreLocal,
+      pin.trim()
+    )
+    const signer = unlockedWallet.connect(provider)
+
+    const tokenContract = new Contract(
+      token.tokenAddress,
+      ERC20_TOKEN_ABI,
+      signer
+    )
+
+    let decimals = 18
+
+    try {
+      decimals = Number(await tokenContract.decimals())
+    } catch (error) {
+      decimals = 18
+    }
+
+    const amountUnits = parseUnits(normalizedAmount, decimals)
+
+    const tx = await tokenContract.transfer(
+      destinationAddress,
+      amountUnits
+    )
+
+    showLoadingModal(
+      'Confirmando na rede',
+      'Aguarde a confirmação da transação na Polygon.'
+    )
+
+    await tx.wait()
+
+    hideLoadingModal()
+
+    await showMessageModal(
+      'Enviado com sucesso',
+      `<strong>Transferência confirmada com sucesso.</strong><br><br><strong>Token:</strong><br>${escapeHtml(token.symbol || 'TOKEN')}<br><br><strong>Hash:</strong><br>${escapeHtml(formatTxHash(tx.hash))}`
+    )
+
+    await loadPolygonBalance(currentWalletAddress)
+  } catch (error) {
+    hideLoadingModal()
+    console.error('Erro ao enviar token criado:', error)
+
+    await showMessageModal(
+      'Erro ao enviar token',
+      getTokenSendErrorMessage(error)
+    )
+  }
 }
 
 async function openCreatedTokenActions(token) {
@@ -2700,37 +2791,51 @@ function openUiModal({
     }
 
     uiModalAddressBox.classList.add('hidden')
-    uiModalAddressBox.textContent = ''
-
     uiModalQr.classList.add('hidden')
     uiModalQr.removeAttribute('src')
 
-    if (addressText) {
-  uiModalAddressBox.textContent = addressText
-
-  if (mode === 'address' || mode === 'token_actions') {
-    uiModalAddressBox.classList.add('hidden')
-    uiModalText.innerHTML = '<strong>Envie apenas para endereço da Polygon.</strong>'
-    uiModalText.classList.remove('hidden')
-  } else {
-    uiModalAddressBox.classList.remove('hidden')
-  }
-}
-
-if (qrDataUrl) {
-  uiModalQr.src = qrDataUrl
-  uiModalQr.classList.remove('hidden')
-}
-
+    // ==================== CONFIGURAÇÃO DO INPUT ====================
     if (mode === 'prompt') {
       uiModalInput.classList.remove('hidden')
-      uiModalInput.type = password ? 'password' : 'text'
+      uiModalInput.value = initialValue || ''
       uiModalInput.placeholder = placeholder
-      uiModalInput.value = initialValue
-      setTimeout(() => uiModalInput.focus(), 0)
+
+      if (password) {
+        // PIN
+        uiModalInput.type = 'password'
+        uiModalInput.inputMode = 'numeric'
+        uiModalInput.pattern = '[0-9]*'
+        uiModalInput.maxLength = 6
+      } else if (placeholder.includes('0x') || placeholder.toLowerCase().includes('endereço')) {
+        // ENDEREÇO DE CARTEIRA
+        uiModalInput.type = 'text'
+        uiModalInput.inputMode = 'text'
+        uiModalInput.pattern = '' 
+        uiModalInput.maxLength = 42   // ou 0 (sem limite)
+        uiModalInput.style.textTransform = 'lowercase'
+      } else {
+        // Quantidade / normal
+        uiModalInput.type = 'text'
+        uiModalInput.inputMode = 'decimal'
+        uiModalInput.pattern = '[0-9.,]*'
+        uiModalInput.maxLength = 20
+      }
+
+      setTimeout(() => uiModalInput.focus(), 50)
     } else {
       uiModalInput.classList.add('hidden')
       uiModalInput.value = ''
+    }
+
+    // Endereço mode
+    if (addressText && (mode === 'address' || mode === 'token_actions')) {
+      uiModalAddressBox.textContent = addressText
+      uiModalAddressBox.classList.remove('hidden')
+    }
+
+    if (qrDataUrl) {
+      uiModalQr.src = qrDataUrl
+      uiModalQr.classList.remove('hidden')
     }
 
     uiModal.classList.remove('hidden')
