@@ -526,68 +526,7 @@ function getSwapHistoryDocRef(userId, txHash) {
   return doc(db, 'users', userId, 'swap_history', sanitizeTxHashForDoc(txHash))
 }
 
-async function readFirebaseVWalaBalance(userId, walletAddress = '') {
-  if (!userId) return '0'
 
-  const balanceRef = getSwapBalanceDocRef(userId, 'vwala')
-  const balanceSnap = await getDoc(balanceRef)
-
-  if (balanceSnap.exists()) {
-    const data = balanceSnap.data() || {}
-
-    if (data.balanceRaw != null) {
-      return formatVWalaUnits(BigInt(String(data.balanceRaw)))
-    }
-
-    return String(data.balanceFormatted || data.balance || '0')
-  }
-
-  if (!walletAddress) {
-    return '0'
-  }
-
-  const migratedRead = await readStableVWalaBalance(walletAddress, `migration_${userId}`)
-  const migratedBalanceRaw = BigInt(String(migratedRead?.rawBalance || '0'))
-  const migratedBalance = formatVWalaUnits(migratedBalanceRaw)
-
-  if (migratedBalanceRaw > 0n) {
-    await setDoc(
-      balanceRef,
-      {
-        assetId: 'vwala',
-        token: 'vWALA',
-        tokenAddress: VWALA_TOKEN_ADDRESS,
-        walletAddress,
-        balanceRaw: migratedBalanceRaw.toString(),
-        balance: Number(migratedBalance),
-        balanceFormatted: migratedBalance,
-        lastType: 'migration',
-        lastTxHash: 'migration-initial-onchain-read',
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    )
-
-    await setDoc(
-      getSwapHistoryDocRef(userId, `migration-${String(walletAddress).toLowerCase()}`),
-      {
-        assetId: 'vwala',
-        type: 'migration',
-        token: 'vWALA',
-        tokenAddress: VWALA_TOKEN_ADDRESS,
-        walletAddress,
-        amountRaw: migratedBalanceRaw.toString(),
-        amount: Number(migratedBalance),
-        amountFormatted: migratedBalance,
-        txHash: 'migration-initial-onchain-read',
-        createdAt: serverTimestamp()
-      },
-      { merge: true }
-    )
-  }
-
-  return migratedBalance
-}
 
 async function saveConfirmedBuyVWalaToFirebase({
   userId,
