@@ -1672,8 +1672,9 @@ await showMessageModal(
 
 
 
+// ====================== ATUALIZAÇÃO DO DISPLAY DA POOL ======================
 function updatePoolDisplay(currentPolBalance) {
-  const basePool = 1_000_000;
+  const basePool = 1_000_000;                    // Valor base fixo
   const dynamicBalance = Number(currentPolBalance || 0);
   const totalPool = basePool + dynamicBalance;
 
