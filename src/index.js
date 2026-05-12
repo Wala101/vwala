@@ -411,6 +411,9 @@ app.innerHTML = `
   <a href="/posicoes">H/Futebol</a>
       <a href="/historico">H/Futures</a>
         <a href="/whitepaper">Whitepaper</a>
+        <a href="https://marketvwala.netlify.app" target="_blank" rel="noopener noreferrer">
+  Marketplace / Comparador
+</a>
 </aside>
 
       <main class="app-content">
