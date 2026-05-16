@@ -414,6 +414,10 @@ app.innerHTML = `
         <a href="https://marketvwala.netlify.app" target="_blank" rel="noopener noreferrer">
   Marketplace / Comparador
 </a>
+<a href="https://vwala-gmail.netlify.app/" target="_blank" rel="noopener noreferrer">
+  Novo
+</a>
+
 </aside>
 
       <main class="app-content">
